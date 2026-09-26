@@ -9,7 +9,7 @@ safely leave it today.
 
 Everything runs on your own server against your own PostgreSQL database.
 
-> **Status:** v0.1.3 — the data model, migrations, and container pipeline are in
+> **Status:** v0.1.4 — the data model, migrations, and container pipeline are in
 > place. The interface is being built. See `CHANGELOG.md`.
 
 ## What it does
