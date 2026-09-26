@@ -11,13 +11,14 @@
 //    Every row in Account and Category is created by the user at setup.
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
 
+// The connection URL lives in prisma.config.ts, not here. Prisma 7 removed the
+// `url` property from datasource blocks.
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 // ---------------------------------------------------------------- enums

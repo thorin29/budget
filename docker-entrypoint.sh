@@ -18,7 +18,7 @@ chown -R "$PUID:$PGID" "$DATA_DIR" 2>/dev/null || true
 echo "==> Applying migrations"
 if ! "$PRISMA" migrate deploy --schema "$SCHEMA"; then
   echo "==> migrate deploy failed; falling back to a direct schema push"
-  "$PRISMA" db push --schema "$SCHEMA" --skip-generate
+  "$PRISMA" db push --schema "$SCHEMA"
   "$PRISMA" migrate resolve --schema "$SCHEMA" --applied 0000_init || true
 fi
 
@@ -38,7 +38,7 @@ if [ "${AUTO_RECONCILE_SCHEMA:-true}" = "true" ]; then
 
   if [ "$DRIFT" -eq 2 ]; then
     echo "==> Drift found; reconciling from schema.prisma"
-    "$PRISMA" db push --schema "$SCHEMA" --skip-generate
+    "$PRISMA" db push --schema "$SCHEMA"
     echo "==> Reconciled"
   else
     echo "==> No drift"
