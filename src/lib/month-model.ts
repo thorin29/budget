@@ -10,7 +10,7 @@
  * settings on each request.
  */
 
-import type { PeriodAssignment } from "@/generated/prisma";
+import type { PeriodAssignment } from "@/generated/prisma/enums";
 
 // ---------------------------------------------------------------- types
 
