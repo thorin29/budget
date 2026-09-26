@@ -1,0 +1,290 @@
+// Budget — Prisma schema
+//
+// Design notes:
+//  * Year is a column everywhere. Nothing is recreated in January.
+//  * Planned amounts live on LineItem; per-month deviations live in MonthlyPlan.
+//  * Every line item is a real cash obligation against the account named in
+//    `paidFrom`. There is no second class of item that skips the cash math.
+//  * Pay periods are DERIVED at query time from PaySchedule, never stored, so a
+//    change in pay frequency reshapes past and future correctly.
+//  * No account, institution, or vendor names appear anywhere in this file.
+//    Every row in Account and Category is created by the user at setup.
+
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------- enums
+
+enum AccountKind {
+  BANK
+  CREDIT_CARD
+  CASH
+  OTHER
+}
+
+enum LineItemKind {
+  /// A known recurring obligation. Planned amount is a genuine forecast, so a
+  /// divergent actual is worth surfacing.
+  BILL
+  /// A card or revolving balance paid off periodically. Planned amount is a
+  /// placeholder; the real figure arrives with the statement, so the UI prompts
+  /// for it rather than treating the variance as an exception.
+  SETTLEMENT
+  /// Money in.
+  INCOME
+}
+
+enum ScheduleKind {
+  MONTHLY
+  QUARTERLY
+  SEMI_ANNUAL
+  ANNUAL
+  CUSTOM // arbitrary set of months
+  ONE_OFF // a single month in a single year
+}
+
+enum PayFrequency {
+  WEEKLY
+  BIWEEKLY
+  SEMI_MONTHLY
+  MONTHLY
+}
+
+/// How a line item is assigned to a pay period within its month.
+enum PeriodAssignment {
+  AUTO // derived from dueDay against the generated pay periods
+  FIRST
+  SECOND
+  THIRD
+  LAST
+}
+
+// ---------------------------------------------------------------- accounts
+
+/// Somewhere money sits or is owed. Entirely user-defined — the app ships with
+/// none. A CREDIT_CARD may name the account that settles it, which lets the app
+/// report how much of a settlement is known recurring charges. Informational
+/// only; it never alters the cash calculation.
+model Account {
+  id        String      @id @default(cuid())
+  name      String      @unique
+  kind      AccountKind
+  active    Boolean     @default(true)
+  sortOrder Int         @default(0)
+
+  settledById String?
+  settledBy   Account?  @relation("Settles", fields: [settledById], references: [id], onDelete: SetNull)
+  settles     Account[] @relation("Settles")
+
+  paidFromItems  LineItem[]        @relation("PaidFrom")
+  chargedToItems LineItem[]        @relation("ChargedTo")
+  balances       BalanceSnapshot[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, sortOrder])
+}
+
+model Category {
+  id        String  @id @default(cuid())
+  name      String  @unique
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  lineItems LineItem[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------- line items
+
+model LineItem {
+  id   String       @id @default(cuid())
+  name String
+  kind LineItemKind
+
+  categoryId String?
+  category   Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  /// The account the money actually leaves. Drives every cash figure.
+  paidFromId String?
+  paidFrom   Account? @relation("PaidFrom", fields: [paidFromId], references: [id], onDelete: SetNull)
+
+  /// Optional: the card this charge lands on, when it differs from paidFrom.
+  /// Reporting only — it does not affect what must be in the bank.
+  chargedToId String?
+  chargedTo   Account? @relation("ChargedTo", fields: [chargedToId], references: [id], onDelete: SetNull)
+
+  plannedAmount Decimal @db.Decimal(12, 2)
+
+  /// Approximate day of month. Used to place the item in a pay period;
+  /// exactness is neither required nor expected.
+  dueDay Int?
+
+  /// Overrides the derived pay period when the computed answer isn't how you
+  /// actually pay it.
+  periodAssignment PeriodAssignment @default(AUTO)
+
+  scheduleKind ScheduleKind @default(MONTHLY)
+  /// Months this item is due, 1-12. Always populated, including all twelve for
+  /// MONTHLY, so scheduling is one query rather than a branch per kind.
+  months       Int[]        @default([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+  /// ONE_OFF only.
+  onlyYear     Int?
+
+  /// Both optional and both empty by default. Setting an end does not
+  /// deactivate the item, and deactivating does not set an end.
+  startYear  Int?
+  startMonth Int?
+  endYear    Int?
+  endMonth   Int?
+
+  /// Deep link to the biller's payment page. Never exported, never seeded.
+  paymentUrl String?
+  notes      String?
+
+  active    Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  monthlyPlans MonthlyPlan[]
+  actuals      ActualEntry[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([active, kind, sortOrder])
+  @@index([paidFromId])
+}
+
+/// A single month's deviation from plannedAmount. `skipped` marks a month the
+/// item is explicitly not due, which is distinct from an amount of zero.
+model MonthlyPlan {
+  id         String   @id @default(cuid())
+  lineItemId String
+  lineItem   LineItem @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+
+  year    Int
+  month   Int
+  amount  Decimal? @db.Decimal(12, 2)
+  skipped Boolean  @default(false)
+  note    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([lineItemId, year, month])
+  @@index([year, month])
+}
+
+/// What was actually paid or received. One row per item per month; the presence
+/// of a row means settled, and the item stops counting toward remaining.
+model ActualEntry {
+  id         String   @id @default(cuid())
+  lineItemId String
+  lineItem   LineItem @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+
+  year   Int
+  month  Int
+  amount Decimal @db.Decimal(12, 2)
+
+  paidOn DateTime? @db.Date
+  note   String?
+
+  source      String  @default("manual") // manual | import
+  importBatch String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([lineItemId, year, month])
+  @@index([year, month])
+  @@index([importBatch])
+}
+
+// ---------------------------------------------------------------- cash position
+
+/// The balance set aside to cover bills, entered by hand. Historized so a past
+/// month keeps the figure it was judged against.
+model BalanceSnapshot {
+  id        String  @id @default(cuid())
+  accountId String
+  account   Account @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  year   Int
+  month  Int
+  amount Decimal @db.Decimal(12, 2)
+
+  asOf DateTime @default(now())
+
+  @@unique([accountId, year, month])
+  @@index([year, month])
+}
+
+// ---------------------------------------------------------------- pay calendar
+
+/// Generates the paydays that divide a month into periods. Changing frequency
+/// means a new row with a new activeFrom, never an edit, so history stays true.
+model PaySchedule {
+  id        String       @id @default(cuid())
+  name      String
+  frequency PayFrequency @default(BIWEEKLY)
+
+  /// WEEKLY / BIWEEKLY: a known payday to count from.
+  anchorDate DateTime? @db.Date
+  /// SEMI_MONTHLY / MONTHLY: the day(s) of the month.
+  daysOfMonth Int[] @default([])
+
+  activeFrom DateTime  @db.Date
+  activeTo   DateTime? @db.Date
+
+  overrides PayDateOverride[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([activeFrom])
+}
+
+/// A payday that moved, was cancelled, or was added by hand.
+model PayDateOverride {
+  id            String      @id @default(cuid())
+  payScheduleId String
+  paySchedule   PaySchedule @relation(fields: [payScheduleId], references: [id], onDelete: Cascade)
+
+  /// The generated date being replaced; null means an extra payday.
+  originalDate DateTime? @db.Date
+  actualDate   DateTime  @db.Date
+  suppressed   Boolean   @default(false)
+  note         String?
+
+  @@index([actualDate])
+}
+
+// ---------------------------------------------------------------- misc
+
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+/// Audit trail for spreadsheet imports, so a bad year can be undone wholesale.
+model ImportBatch {
+  id         String    @id @default(cuid())
+  label      String
+  year       Int
+  rowCount   Int       @default(0)
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  revertedAt DateTime?
+  summary    Json?
+}
