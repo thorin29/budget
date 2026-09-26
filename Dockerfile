@@ -44,6 +44,13 @@ COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
+# prisma.config.ts imports `prisma/config`, and Node resolves that from the
+# config file's own directory. The CLI is installed outside the app so it cannot
+# collide with the traced node_modules of the standalone build, so link it into
+# place here. This runs after the standalone copy so it cannot be overwritten.
+RUN mkdir -p /app/node_modules \
+    && ln -sfn /opt/prisma-cli/node_modules/prisma /app/node_modules/prisma
+
 VOLUME ["/app/data"]
 EXPOSE 3000
 

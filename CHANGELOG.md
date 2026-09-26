@@ -3,6 +3,15 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.1.4] — unreleased
+
+### Fixed
+
+- The Prisma CLI is linked into the application's `node_modules` at image build
+  time. `prisma.config.ts` imports `prisma/config`, which Node resolves relative
+  to the config file, and the CLI is installed outside the app directory to keep
+  it clear of the standalone bundle — so migrations could not load their config.
+
 ## [0.1.3] — unreleased
 
 ### Fixed
