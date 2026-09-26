@@ -3,6 +3,15 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.1.2] — unreleased
+
+### Fixed
+
+- The Prisma client is created on first use rather than at module load. Next
+  evaluates route modules while collecting page data during the build, where no
+  database is reachable, so constructing eagerly failed the build instead of
+  surfacing a missing `DATABASE_URL` at runtime.
+
 ## [0.1.1] — unreleased
 
 ### Fixed
