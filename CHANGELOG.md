@@ -3,6 +3,17 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.1.1] — unreleased
+
+### Fixed
+
+- Enum types are imported from the generated `enums` module. The `prisma-client`
+  generator emits `client`, `enums`, `models` and `commonInputTypes` rather than
+  a single root index, so importing from the output directory itself failed the
+  type check.
+- The build no longer imports `package.json` through an import attribute, which
+  depended on how the Next config is transpiled. The version is read from disk.
+
 ## [0.1.0] — unreleased
 
 First working container. No interface yet beyond a status page.
