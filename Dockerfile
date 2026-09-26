@@ -14,7 +14,9 @@ COPY . .
 ARG BUILD_SHA=""
 ENV NEXT_TELEMETRY_DISABLED=1 \
     BUILD_SHA=$BUILD_SHA
-RUN npx prisma generate && npm run build
+# public/ is optional in a Next project and git does not track empty
+# directories, so guarantee it exists rather than letting the later COPY fail.
+RUN mkdir -p public && npx prisma generate && npm run build
 
 FROM node:22-alpine AS runner
 WORKDIR /app

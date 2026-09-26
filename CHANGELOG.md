@@ -3,6 +3,14 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.1.3] — unreleased
+
+### Fixed
+
+- The build creates `public/` rather than assuming the repository contains it.
+  Git does not track empty directories, so a project without static assets left
+  the final image assembly with nothing to copy.
+
 ## [0.1.2] — unreleased
 
 ### Fixed
