@@ -11,7 +11,9 @@ WORKDIR /app
 RUN apk add --no-cache openssl
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
-ENV NEXT_TELEMETRY_DISABLED=1
+ARG BUILD_SHA=""
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    BUILD_SHA=$BUILD_SHA
 RUN npx prisma generate && npm run build
 
 FROM node:22-alpine AS runner
@@ -25,15 +27,18 @@ RUN apk add --no-cache openssl su-exec tzdata wget
 RUN npm install --prefix /opt/prisma-cli --no-save prisma@7.10.0 \
     && npm cache clean --force
 
+ARG BUILD_SHA=""
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
     PORT=3000 \
-    DATA_DIR=/app/data
+    DATA_DIR=/app/data \
+    BUILD_SHA=$BUILD_SHA
 
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 

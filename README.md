@@ -9,8 +9,8 @@ safely leave it today.
 
 Everything runs on your own server against your own PostgreSQL database.
 
-> **Status:** early. The data model, migrations, and container pipeline are in
-> place. The interface is being built.
+> **Status:** v0.1.0 — the data model, migrations, and container pipeline are in
+> place. The interface is being built. See `CHANGELOG.md`.
 
 ## What it does
 
@@ -125,15 +125,29 @@ source workbooks cannot be committed by accident.
 ```sh
 npm install
 cp .env.example .env      # point DATABASE_URL at a local PostgreSQL
-npx prisma generate
-npx prisma migrate deploy
+node --env-file=.env node_modules/.bin/prisma generate
+node --env-file=.env node_modules/.bin/prisma migrate deploy
 npm run dev
 ```
+
+Prisma 7 does not load `.env` automatically. Either use `--env-file` as above or
+export `DATABASE_URL` into the shell before running any `prisma` command.
 
 The initial migration in `prisma/migrations/0000_init` was written by hand. The
 container reconciles the database against `prisma/schema.prisma` on every start,
 so a discrepancy corrects itself rather than requiring intervention. Set
 `AUTO_RECONCILE_SCHEMA=false` to manage the schema manually.
+
+## Versioning
+
+The running version is shown at the bottom of the interface and returned by
+`/api/health`, stamped with the commit it was built from. `CHANGELOG.md` records
+what changed in each one.
+
+## Design decisions
+
+`DECISIONS.md` records the choices behind the data model and deployment, and
+what is still open.
 
 ## Tech
 
