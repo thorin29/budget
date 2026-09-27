@@ -9,8 +9,8 @@ safely leave it today.
 
 Everything runs on your own server against your own PostgreSQL database.
 
-> **Status:** v0.6.0 — setup, line items, the month view and the cash projection
-> all work. The spreadsheet import is next. See `CHANGELOG.md`.
+> **Status:** v0.7.0 — setup, line items, the month view, the cash projection
+> and importing all work. Reporting is next. See `CHANGELOG.md`.
 
 ## What it does
 

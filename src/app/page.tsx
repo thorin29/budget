@@ -48,6 +48,9 @@ export default async function Home() {
             <Link href="/setup">
               <Button variant="quiet">Setup</Button>
             </Link>
+            <Link href="/import">
+              <Button variant="quiet">Import</Button>
+            </Link>
           </div>
         </>
       )}
