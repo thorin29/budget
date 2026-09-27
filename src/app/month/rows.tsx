@@ -194,23 +194,34 @@ export function BalanceForm({
   defaultValue: string;
 }) {
   const [state, action, pending] = useActionState(recordBalanceAction, INITIAL);
+  // Held in state so a failed save does not discard what was typed.
+  const [value, setValue] = useState(defaultValue);
 
   return (
-    <form action={action} className="flex items-end gap-2">
-      <input type="hidden" name="year" value={year} />
-      <input type="hidden" name="month" value={month} />
-      <label className="flex-1">
-        <span className="mb-1 block text-xs font-medium">
-          Currently in {accountName ?? "bills"}
-        </span>
-        <TextInput name="amount" inputMode="decimal" defaultValue={defaultValue} required />
-      </label>
-      <Button type="submit" disabled={pending}>
-        {pending ? "…" : "Update"}
-      </Button>
+    <div>
+      <form action={action} className="flex items-end gap-2">
+        <input type="hidden" name="year" value={year} />
+        <input type="hidden" name="month" value={month} />
+        <label className="flex-1">
+          <span className="mb-1 block text-xs font-medium">
+            Currently in {accountName ?? "bills"}
+          </span>
+          <TextInput
+            name="amount"
+            inputMode="decimal"
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            required
+          />
+        </label>
+        <Button type="submit" disabled={pending}>
+          {pending ? "…" : "Update"}
+        </Button>
+      </form>
+
       {state.ok ? null : (
-        <span className="text-xs text-danger">{state.message}</span>
+        <p className="mt-2 text-xs text-danger">{state.message}</p>
       )}
-    </form>
+    </div>
   );
 }

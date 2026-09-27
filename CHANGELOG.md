@@ -3,6 +3,22 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.7.4] — unreleased
+
+### Fixed
+
+- **Entering a bills balance before choosing a bills account failed silently.**
+  The balance has nowhere to be stored until a bank account is nominated in
+  preferences, and the month view reported that as six words of red text beside
+  the field, then discarded what had been typed. The month view now explains the
+  missing step and links to it, and the field keeps its value when a save fails.
+- **Settling a bill that cost nothing was undiscoverable.** The carried-bills
+  section now says how: record zero, or mark the month as nothing due.
+
+### Changed
+
+- The setup overview notes that preferences gates the transfer figures.
+
 ## [0.7.3] — unreleased
 
 ### Fixed

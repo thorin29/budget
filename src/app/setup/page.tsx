@@ -49,7 +49,8 @@ export default async function SetupOverview() {
       done: settings.billsAccountId !== null,
       detail: settings.billsAccountId
         ? `Split on the ${settings.splitDay}th, ${settings.horizonDays}-day horizon`
-        : "The bills account, the month split, and how far ahead to look",
+        : "The bills account, the month split, and how far ahead to look. "
+          + "The month view cannot show transfer figures until this is set.",
     },
   ];
 

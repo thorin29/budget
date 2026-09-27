@@ -81,6 +81,20 @@ export default async function MonthPage({
         </div>
       ) : (
         <>
+          {view.billsAccountId === null ? (
+            <div className="mt-6 rounded-md border border-line bg-accent-soft px-4 py-3 text-sm">
+              <p className="font-medium">Pick a bills account to see the rest</p>
+              <p className="mt-1 text-muted">
+                The transfer figures start from the balance in one bank account —
+                the one you keep bill money in. Choose it in{" "}
+                <Link href="/setup/preferences" className="text-accent hover:underline">
+                  preferences
+                </Link>
+                , then enter the balance here.
+              </p>
+            </div>
+          ) : null}
+
           <div className="mt-6 grid gap-4 sm:grid-cols-3">
             <Card>
               <BalanceForm
@@ -127,6 +141,12 @@ export default async function MonthPage({
                 {view.carriedCount === 1 ? "bill" : "bills"} from earlier months,{" "}
                 {formatCents(view.carriedCents)} — counted in the first half
               </summary>
+
+              <p className="border-t border-danger/20 px-3 py-2 text-xs text-muted">
+                Open a row to settle it. If it cost nothing that month, record
+                zero — or use &ldquo;nothing due this month&rdquo;, which removes it
+                from the month rather than recording a payment.
+              </p>
 
               <div className="border-t border-danger/20">
                 {view.carried.map((entry) => (
