@@ -3,6 +3,14 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.7.1] — unreleased
+
+### Fixed
+
+- The import set a line item's schedule from a bare ternary, which TypeScript
+  widens to `string` and the generated Prisma client rejects for an enum column.
+  Annotated explicitly.
+
 ## [0.7.0] — unreleased
 
 Importing a year from a converted workbook.

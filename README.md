@@ -9,7 +9,7 @@ safely leave it today.
 
 Everything runs on your own server against your own PostgreSQL database.
 
-> **Status:** v0.7.0 — setup, line items, the month view, the cash projection
+> **Status:** v0.7.1 — setup, line items, the month view, the cash projection
 > and importing all work. Reporting is next. See `CHANGELOG.md`.
 
 ## What it does
