@@ -3,6 +3,21 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.7.3] — unreleased
+
+### Fixed
+
+- **Carryover invented unpaid bills for months that were never tracked.** The
+  sweep looked twelve months back and treated any month without a recorded
+  payment as a missed one — including months before the first payment exists and
+  after the last. A freshly imported year produced dozens of phantom overdue
+  bills dated before the data began. Only months containing at least one recorded
+  payment can now hold an unpaid bill.
+- **Carried bills are no longer mixed into the month.** They sit in their own
+  collapsed section beneath it, so the halves show one month and nothing else.
+  Their total is stated on the summary line and still counts toward the first
+  half's remaining, since an overdue bill is owed now.
+
 ## [0.7.2] — unreleased
 
 ### Fixed
