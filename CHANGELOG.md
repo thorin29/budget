@@ -3,6 +3,16 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.7.2] — unreleased
+
+### Fixed
+
+- **Import was unreachable from a fresh install.** The link appeared on the home
+  page only once an account existed, and the setup screens did not link to it at
+  all — so it was hidden in precisely the situation it exists for. Import is now
+  a tab in setup, offered on the empty home page, and suggested on the setup
+  overview while steps remain.
+
 ## [0.7.1] — unreleased
 
 ### Fixed

@@ -11,9 +11,14 @@ export default async function ImportPage() {
 
   return (
     <div className="mx-auto min-h-screen max-w-4xl px-6 py-10">
-      <Link href="/" className="text-sm text-muted hover:text-foreground">
-        Budget
-      </Link>
+      <div className="flex items-center justify-between">
+        <Link href="/" className="text-sm text-muted hover:text-foreground">
+          Budget
+        </Link>
+        <Link href="/setup" className="text-sm text-muted hover:text-foreground">
+          Setup
+        </Link>
+      </div>
 
       <div className="mt-4">
         <PageHeading
