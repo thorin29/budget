@@ -3,6 +3,39 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.3.0] — unreleased
+
+Setup. The application can now be configured; line items come next.
+
+### Added
+
+- **Setup screens** at `/setup` — accounts, categories, the pay calendar, and
+  preferences, with an overview showing what is still outstanding. Nothing is
+  pre-filled.
+- **Accounts.** Bank, credit card, cash or other. A card may name the account
+  that settles it, which is recorded for reporting and never affects the cash
+  calculation.
+- **Categories**, kept deliberately thin — a name and an order.
+- **Pay calendar.** Weekly, fortnightly, twice-monthly or monthly. A fortnightly
+  schedule needs one known payday and generates the rest, so a year of dates
+  comes from a single row. Each screen previews the next six paydays it
+  produces, so a schedule can be checked against reality before it is relied on.
+  Schedules are versioned by the date they took effect rather than edited.
+- **Preferences.** The bills account, the day the month splits on, the projection
+  horizon, and an optional floor to keep in the account.
+- **`/api/v1`** for accounts, categories, pay schedules and settings, with a
+  fixed response contract: create and update return the complete record, and
+  errors share one envelope with field-level issues.
+- **A domain layer** under `src/server`. Pages and route handlers call it; it
+  owns validation and talks to the database. Neither touches Prisma directly.
+- 13 more tests covering pay date generation across year boundaries and short
+  months, month halves, due-month rules, and carryover of unpaid bills.
+
+### Notes
+
+- Deleting an account or category that is still referenced deactivates it
+  instead, so history keeps its meaning.
+
 ## [0.2.0] — unreleased
 
 Foundational pass before interface work. No new features; the ground the
