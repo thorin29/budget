@@ -3,6 +3,36 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.7.0] — unreleased
+
+Importing a year from a converted workbook.
+
+### Added
+
+- **`/import`** takes a JSON document converted from a spreadsheet and shows a
+  plan before writing anything: which accounts and categories it would create,
+  every line item with its amounts and counts, and what it could not read.
+- **Review before applying.** Any line item can be excluded, its kind changed,
+  and each new account marked as a bank account or a card. Reading a file writes
+  nothing.
+- **Imports are batches.** Each one is recorded and can be undone whole: the
+  actuals it wrote are removed, along with anything it created that has not been
+  used since. Rows that already existed are left alone, since there is no record
+  of what they said before.
+- **Re-running is safe.** Accounts, categories and line items match by name, so
+  a second import updates rather than duplicating.
+- **`/api/v1/import`** with `preview`, `apply` and `revert`.
+- 4 more tests covering amount fidelity through the import path.
+
+### Notes
+
+- Workbook parsing happens outside the application, so no spreadsheet library
+  appears in the dependency tree and source workbooks never reach the server.
+- Months are taken from which budget columns carry a value, not from a frequency
+  label — in practice the two disagree, and the columns are the truth.
+- Pay dates found in a workbook are reported but not imported. A pay calendar
+  generates them from a single date.
+
 ## [0.6.0] — unreleased
 
 The cash projection — the side calculations, done by the application.
