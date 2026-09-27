@@ -27,9 +27,7 @@ export default async function Home() {
         </p>
       )}
 
-      <footer className="mt-auto pt-12 text-xs opacity-50">
-        {versionLabel()}
-      </footer>
+      <footer className="mt-auto pt-12 text-xs opacity-50">{versionLabel()}</footer>
     </main>
   );
 }

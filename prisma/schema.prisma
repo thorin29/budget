@@ -60,11 +60,9 @@ enum PayFrequency {
 
 /// How a line item is assigned to a pay period within its month.
 enum PeriodAssignment {
-  AUTO // derived from dueDay against the generated pay periods
+  AUTO // derived from dueDay against the month split
   FIRST
   SECOND
-  THIRD
-  LAST
 }
 
 // ---------------------------------------------------------------- accounts

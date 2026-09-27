@@ -9,9 +9,12 @@
  * The horizon deliberately runs past the next payday. Looking only as far as the
  * next check is the trap: it hides the cluster of fixed bills that land at the
  * start of the following month, before that check arrives.
+ *
+ * All money here is integer cents. See money.ts.
  */
 
 import { addDays, stripTime, type Obligation } from "./month-model";
+import type { Cents } from "./money";
 
 // ---------------------------------------------------------------- types
 
@@ -20,12 +23,12 @@ export interface ExpectedIncome {
   name: string;
   date: Date;
   /** The estimate for this specific payday — the default, or an adjustment. */
-  amount: number;
+  amountCents: Cents;
 }
 
 export interface ProjectionInput {
   /** Balance in the bills account right now. */
-  openingBalance: number;
+  openingBalanceCents: Cents;
   /** As-of date for that balance. Defaults to today. */
   asOf?: Date;
   /** Unpaid obligations, including carried-over ones. */
@@ -35,33 +38,38 @@ export interface ProjectionInput {
   /** Days to project. Default 45 — one full bill cycle plus a payday. */
   horizonDays?: number;
   /** Optional floor to keep in the account. Zero unless deliberately set. */
-  buffer?: number;
+  bufferCents?: Cents;
   /** A hypothetical payment to test, e.g. a card payment being considered. */
-  proposedPayment?: { amount: number; date?: Date };
+  proposedPayment?: { amountCents: Cents; date?: Date };
+}
+
+export interface ProjectionEvent {
+  name: string;
+  /** Negative for money out, positive for money in. */
+  amountCents: Cents;
+  kind: "bill" | "income" | "proposed";
 }
 
 export interface ProjectionDay {
   date: Date;
-  /** Money out on this date. */
-  out: number;
-  /** Money in on this date. */
-  in: number;
+  outCents: Cents;
+  inCents: Cents;
   /** Closing balance for the day. */
-  balance: number;
-  events: Array<{ name: string; amount: number; kind: "bill" | "income" | "proposed" }>;
+  balanceCents: Cents;
+  events: ProjectionEvent[];
 }
 
 export interface Projection {
   asOf: Date;
   horizonEnd: Date;
-  openingBalance: number;
+  openingBalanceCents: Cents;
   days: ProjectionDay[];
   /** The lowest closing balance across the horizon, and when it occurs. */
-  lowPoint: { date: Date; balance: number };
+  lowPoint: { date: Date; balanceCents: Cents };
   /** Headroom above the buffer at the low point — what is safe to send out. */
-  safeToPay: number;
+  safeToPayCents: Cents;
   /** Total due before the next expected paycheck. */
-  committedBeforeNextPay: number;
+  committedBeforeNextPayCents: Cents;
   /** The next payday inside the horizon, if any. */
   nextPayDate: Date | null;
   /** True if the balance goes negative at any point. */
@@ -71,12 +79,12 @@ export interface Projection {
 // ---------------------------------------------------------------- engine
 
 export function project({
-  openingBalance,
+  openingBalanceCents,
   asOf = new Date(),
   obligations,
   income,
   horizonDays = 45,
-  buffer = 0,
+  bufferCents = 0,
   proposedPayment,
 }: ProjectionInput): Projection {
   const start = stripTime(asOf);
@@ -95,7 +103,7 @@ export function project({
     const key = d.getTime();
     let entry = byDay.get(key);
     if (!entry) {
-      entry = { date: d, out: 0, in: 0, balance: 0, events: [] };
+      entry = { date: d, outCents: 0, inCents: 0, balanceCents: 0, events: [] };
       byDay.set(key, entry);
     }
     return entry;
@@ -105,26 +113,26 @@ export function project({
     const d = effectiveDate(o.dueDate);
     if (d > end) continue;
     const entry = ensure(d);
-    entry.out += o.amount;
-    entry.events.push({ name: o.name, amount: -o.amount, kind: "bill" });
+    entry.outCents += o.amountCents;
+    entry.events.push({ name: o.name, amountCents: -o.amountCents, kind: "bill" });
   }
 
   for (const i of income) {
     const d = stripTime(i.date);
     if (d < start || d > end) continue;
     const entry = ensure(d);
-    entry.in += i.amount;
-    entry.events.push({ name: i.name, amount: i.amount, kind: "income" });
+    entry.inCents += i.amountCents;
+    entry.events.push({ name: i.name, amountCents: i.amountCents, kind: "income" });
   }
 
-  if (proposedPayment && proposedPayment.amount > 0) {
+  if (proposedPayment && proposedPayment.amountCents > 0) {
     const d = stripTime(proposedPayment.date ?? start);
     if (d <= end) {
       const entry = ensure(d);
-      entry.out += proposedPayment.amount;
+      entry.outCents += proposedPayment.amountCents;
       entry.events.push({
         name: "Proposed payment",
-        amount: -proposedPayment.amount,
+        amountCents: -proposedPayment.amountCents,
         kind: "proposed",
       });
     }
@@ -134,13 +142,13 @@ export function project({
     (a, b) => a.date.getTime() - b.date.getTime(),
   );
 
-  let running = openingBalance;
-  let lowBalance = openingBalance;
+  let running = openingBalanceCents;
+  let lowBalance = openingBalanceCents;
   let lowDate = start;
 
   for (const day of days) {
-    running = running + day.in - day.out;
-    day.balance = running;
+    running = running + day.inCents - day.outCents;
+    day.balanceCents = running;
     if (running < lowBalance) {
       lowBalance = running;
       lowDate = day.date;
@@ -153,22 +161,22 @@ export function project({
       .filter((d) => d >= start && d <= end)
       .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
 
-  const committedBeforeNextPay = nextPayDate
+  const committedBeforeNextPayCents = nextPayDate
     ? obligations
         .filter((o) => effectiveDate(o.dueDate) < nextPayDate)
-        .reduce((sum, o) => sum + o.amount, 0)
+        .reduce((sum, o) => sum + o.amountCents, 0)
     : obligations
         .filter((o) => effectiveDate(o.dueDate) <= end)
-        .reduce((sum, o) => sum + o.amount, 0);
+        .reduce((sum, o) => sum + o.amountCents, 0);
 
   return {
     asOf: start,
     horizonEnd: end,
-    openingBalance,
+    openingBalanceCents,
     days,
-    lowPoint: { date: lowDate, balance: lowBalance },
-    safeToPay: Math.max(0, lowBalance - buffer),
-    committedBeforeNextPay,
+    lowPoint: { date: lowDate, balanceCents: lowBalance },
+    safeToPayCents: Math.max(0, lowBalance - bufferCents),
+    committedBeforeNextPayCents,
     nextPayDate,
     shortfall: lowBalance < 0,
   };
@@ -180,7 +188,6 @@ export function project({
  * no proposed payment, exposed separately because it is the number the UI leads
  * with and the one that replaces doing this by hand.
  */
-export function maxSafePayment(input: ProjectionInput): number {
-  const base = project({ ...input, proposedPayment: undefined });
-  return base.safeToPay;
+export function maxSafePaymentCents(input: ProjectionInput): Cents {
+  return project({ ...input, proposedPayment: undefined }).safeToPayCents;
 }

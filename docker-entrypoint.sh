@@ -16,33 +16,27 @@ mkdir -p "$DATA_DIR"
 chown -R "$PUID:$PGID" "$DATA_DIR" 2>/dev/null || true
 
 echo "==> Applying migrations"
-if ! "$PRISMA" migrate deploy --schema "$SCHEMA"; then
-  echo "==> migrate deploy failed; falling back to a direct schema push"
-  "$PRISMA" db push --schema "$SCHEMA"
-  "$PRISMA" migrate resolve --schema "$SCHEMA" --applied 0000_init || true
-fi
+"$PRISMA" migrate deploy --schema "$SCHEMA"
 
-# `migrate deploy` can succeed and still leave the database out of step with the
-# schema if a migration was written by hand. Compare the two and reconcile.
-# `db push` without --accept-data-loss refuses anything destructive, so this is
-# safe to run against a populated database.
-if [ "${AUTO_RECONCILE_SCHEMA:-true}" = "true" ]; then
-  echo "==> Checking for schema drift"
-  set +e
-  "$PRISMA" migrate diff \
-    --from-url "$DATABASE_URL" \
-    --to-schema-datamodel "$SCHEMA" \
-    --exit-code >/dev/null 2>&1
-  DRIFT=$?
-  set -e
+# Drift is reported, never silently corrected. Automatically reshaping a
+# production schema outside the migration history hides exactly the mismatch
+# that becomes expensive later.
+echo "==> Checking for schema drift"
+set +e
+"$PRISMA" migrate diff \
+  --from-url "$DATABASE_URL" \
+  --to-schema-datamodel "$SCHEMA" \
+  --exit-code >/dev/null 2>&1
+DRIFT=$?
+set -e
 
-  if [ "$DRIFT" -eq 2 ]; then
-    echo "==> Drift found; reconciling from schema.prisma"
-    "$PRISMA" db push --schema "$SCHEMA"
-    echo "==> Reconciled"
-  else
-    echo "==> No drift"
-  fi
+if [ "$DRIFT" -eq 2 ]; then
+  echo "WARNING: the database does not match schema.prisma."
+  echo "WARNING: starting anyway, but a migration is missing. Inspect with:"
+  echo "WARNING:   prisma migrate diff --from-url \$DATABASE_URL \\"
+  echo "WARNING:     --to-schema-datamodel prisma/schema.prisma --script"
+else
+  echo "==> Schema matches"
 fi
 
 echo "==> Starting on port ${PORT:-3000} as ${PUID}:${PGID}"

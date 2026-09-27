@@ -3,6 +3,46 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.2.0] — unreleased
+
+Foundational pass before interface work. No new features; the ground the
+features will stand on.
+
+### Changed
+
+- **Money is integer cents throughout the domain layer.** The projection engine
+  previously used JavaScript `number`, fed by a `Decimal(12,2)` column. All
+  monetary fields are renamed with a `Cents` suffix. See `src/lib/money.ts`.
+- **Next.js 16.3.6 (Active LTS).** Next 15's security support ends 21 October
+  2026. The `eslint` key is removed from the Next config, which 16 ignores.
+- **Node 24** across the image and declared in `engines`.
+- **Prisma pinned exactly** — CLI, client and adapter all 7.10.0, matching the
+  version installed in the runtime image. Prisma 8 remains a release candidate;
+  moving to it is a pre-1.0 task.
+- **Startup applies migrations only.** The automatic `db push` reconciliation is
+  gone. Drift is detected and logged, never silently corrected.
+- **`PeriodAssignment` reduced to `AUTO`, `FIRST`, `SECOND`.** Migration `0001`.
+- The Unraid template marks the host port optional; the `docker run` example
+  reaches the container through the reverse proxy network instead.
+
+### Added
+
+- **Tests.** 20 covering the projection engine and cent arithmetic — overdue
+  bills, same-day events, month and year boundaries, horizon edges, buffers,
+  proposed payments, shortfalls, and exact-cent accumulation.
+- **CI gates publishing.** Typecheck and tests run first; the image is not built
+  or pushed if either fails. Pull requests run verification without publishing.
+- **Architecture invariants** in `DECISIONS.md`, including that the security
+  boundary is network topology and the application holds no authentication of
+  its own.
+
+### Notes
+
+- `npm audit` reports six findings, all in the Prisma CLI's dependencies and
+  Vitest's mocker. Build and development only; none are in the runtime path.
+- Lint is not yet wired up. Next 16 removed `next lint`, and rather than guess at
+  a flat-config shape, CI gates on typecheck and tests for now.
+
 ## [0.1.4] — unreleased
 
 ### Fixed
