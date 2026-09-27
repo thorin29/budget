@@ -35,7 +35,10 @@ export default async function Home() {
             {accounts} account{accounts === 1 ? "" : "s"}, {items} line item
             {items === 1 ? "" : "s"}.
           </p>
-          <div className="mt-6">
+          <div className="mt-6 flex gap-3">
+            <Link href="/line-items">
+              <Button>Line items</Button>
+            </Link>
             <Link href="/setup">
               <Button variant="quiet">Setup</Button>
             </Link>
