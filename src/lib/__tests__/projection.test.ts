@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "vitest";
 
 import { project, maxSafePaymentCents } from "@/lib/projection";
-import { utcDate, type Obligation } from "@/lib/month-model";
+import { payDatesBetween, utcDate, type Obligation } from "@/lib/month-model";
 import { toCents, toDecimalString, parseCents, sumCents, formatCents } from "@/lib/money";
 
 // ---------------------------------------------------------------- helpers
@@ -272,5 +272,70 @@ describe("projection", () => {
       income: [],
     });
     assert.equal(p.lowPoint.balanceCents, 1000 - 210);
+  });
+});
+
+// ---------------------------------------------------------------- income cadence
+
+describe("income from a pay calendar", () => {
+  it("counts three paydays in a month that has three", () => {
+    // Fortnightly from 2 January 2026 puts paydays on the 3rd, 17th and 31st of
+    // July. The spreadsheet needed a third income row for this; here the
+    // calendar produces it.
+    const july = payDatesBetween(
+      "BIWEEKLY",
+      utcDate(2026, 1, 2),
+      [],
+      utcDate(2026, 7, 1),
+      utcDate(2026, 7, 31),
+    );
+    assert.equal(july.length, 3);
+
+    const p = project({
+      openingBalanceCents: 0,
+      asOf: utcDate(2026, 7, 1),
+      obligations: [],
+      income: july.map((date) => ({
+        lineItemId: "wage",
+        name: "wage",
+        date,
+        amountCents: 200000,
+      })),
+      horizonDays: 30,
+    });
+
+    assert.equal(p.days.at(-1)?.balanceCents, 600000);
+  });
+
+  it("an extra payday lifts the low point by a full check", () => {
+    // The low point has to fall after the third payday for it to matter, so the
+    // constraint here is the bill at the start of August.
+    const obligations = [
+      bill("rent", 400000, 2026, 7, 1),
+      bill("rent", 900000, 2026, 8, 1),
+    ];
+    const base = {
+      openingBalanceCents: 800000,
+      asOf: utcDate(2026, 7, 1),
+      obligations,
+      horizonDays: 45,
+    };
+
+    const twoChecks = project({
+      ...base,
+      income: [pay("wage", 300000, 2026, 7, 3), pay("wage", 300000, 2026, 7, 17)],
+    });
+    const threeChecks = project({
+      ...base,
+      income: [
+        pay("wage", 300000, 2026, 7, 3),
+        pay("wage", 300000, 2026, 7, 17),
+        pay("wage", 300000, 2026, 7, 31),
+      ],
+    });
+
+    assert.equal(twoChecks.lowPoint.balanceCents, 100000);
+    assert.equal(threeChecks.lowPoint.balanceCents, 400000);
+    assert.equal(threeChecks.safeToPayCents - twoChecks.safeToPayCents, 300000);
   });
 });

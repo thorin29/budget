@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getLineItem } from "@/server/line-items";
 import { listAccounts } from "@/server/accounts";
 import { listCategories } from "@/server/categories";
+import { listPaySchedules } from "@/server/pay-schedule";
 import { NotFoundError } from "@/server/errors";
 import { PageHeading } from "@/components/ui";
 import { LineItemForm } from "../form";
@@ -26,9 +27,10 @@ export default async function EditLineItemPage({
     throw error;
   }
 
-  const [accounts, categories] = await Promise.all([
+  const [accounts, categories, paySchedules] = await Promise.all([
     listAccounts({ includeInactive: true }),
     listCategories({ includeInactive: true }),
+    listPaySchedules(),
   ]);
 
   return (
@@ -47,6 +49,7 @@ export default async function EditLineItemPage({
         categories={categories.map((c) => ({ id: c.id, name: c.name }))}
         accounts={accounts.map((a) => ({ id: a.id, name: a.name }))}
         cards={accounts.filter((a) => a.kind === "CREDIT_CARD").map((a) => ({ id: a.id, name: a.name }))}
+        paySchedules={paySchedules.map((p) => ({ id: p.id, name: p.name }))}
         defaults={{
           id: item.id,
           name: item.name,
@@ -54,6 +57,7 @@ export default async function EditLineItemPage({
           categoryId: item.categoryId,
           paidFromId: item.paidFromId,
           chargedToId: item.chargedToId,
+          payScheduleId: item.payScheduleId,
           plannedAmount: toDecimalString(item.plannedAmountCents),
           dueDay: item.dueDay,
           periodAssignment: item.periodAssignment,
