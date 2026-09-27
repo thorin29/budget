@@ -10,6 +10,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ValidationError, NotFoundError } from "./errors";
 import { toCents } from "@/lib/money";
+import type { ScheduleKind } from "@/lib/schedule";
 
 const amount = z.string().regex(/^-?\d+(\.\d{1,2})?$/, "Not a monetary amount");
 
@@ -219,6 +220,10 @@ export async function applyImport(
   // Line items, with their overrides and actuals.
   for (const item of selected) {
     const kind = choices.kinds?.[item.key] ?? item.suggestedKind;
+    // Annotated rather than inferred: a bare ternary widens to `string`, which
+    // the generated client rejects for an enum column.
+    const scheduleKind: ScheduleKind = item.months.length === 12 ? "MONTHLY" : "CUSTOM";
+
     const data = {
       name: item.name,
       kind,
@@ -227,7 +232,7 @@ export async function applyImport(
       plannedAmount: item.plannedAmount,
       dueDay: item.dueDay ?? null,
       months: item.months,
-      scheduleKind: item.months.length === 12 ? "MONTHLY" : "CUSTOM",
+      scheduleKind,
       paymentUrl: item.paymentUrl || null,
     };
 
