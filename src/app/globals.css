@@ -1,9 +1,10 @@
 @import "tailwindcss";
 
 :root {
-  --background: #fbfbfa;
+  /* A muted warm grey, so the white cards read as raised rather than flush. */
+  --background: #dedbd4;
   --surface: #ffffff;
-  --border: #e4e3e0;
+  --border: #d5d2ca;
   --foreground: #1a1a19;
   --muted: #6b6b66;
   --accent: #2f5d50;
