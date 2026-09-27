@@ -3,6 +3,40 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.5.0] — unreleased
+
+The month view — the screen this project set out to replace.
+
+### Added
+
+- **`/month`** opens the current month; `/month/2026/9` opens any other, with
+  arrows either side. Items are grouped into the two halves, each showing what is
+  budgeted, what has been paid, and what remains.
+- **Recording an actual.** Open a row and type what was paid. Its presence
+  settles the item.
+- **Adjusting one month.** Set a different budget for a single month without
+  touching the plan behind it — for when a bill is known to be running higher.
+  Adjusted rows are marked, and the plan is shown alongside.
+- **"Nothing due this month"** for a card with no balance owing. Distinct from
+  an amount of zero, and it removes the item from remaining.
+- **Carried-forward bills.** An unpaid item from an earlier month appears with
+  its original due date and a marker naming the month it came from, and a banner
+  counts them.
+- **The bills balance and both transfer figures.** Enter what is currently set
+  aside and the screen shows what is free after the first half, and after both —
+  cumulative, as in the spreadsheet.
+- **Payment links** open from the row they belong to.
+- **`/api/v1/months/{year}/{month}`** returns the same view as JSON.
+- 6 more tests covering the remaining calculation, month overrides, halves,
+  carryover, skipped months, and the two transfer figures.
+
+### Fixed
+
+- **Paying less than budgeted no longer leaves a phantom balance owing.** The
+  spreadsheet subtracted actuals from budgets, so a $350 payment against a $400
+  budget still showed $50 outstanding. Remaining now counts the budgeted amount
+  of items that are not yet settled, and a settled item contributes nothing.
+
 ## [0.4.0] — unreleased
 
 Line items. The budget can now be described in full; the month view is next.
