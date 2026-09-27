@@ -3,6 +3,34 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.8.0] — unreleased
+
+### Changed
+
+- **The month view is two columns.** Income and both halves sit together on one
+  white card down the left; the balance and the two transfer figures stack in a
+  column to their right, and follow as the page scrolls.
+- **Income is at the top**, above the halves, matching the spreadsheet it
+  replaces.
+- **A darker page background**, so the white cards read as raised.
+- **The balance field formats as currency** — a dollar sign and thousands
+  separators while idle, plain digits while being edited, so the separators never
+  interfere with typing.
+- **A "Today" button** sits between the month arrows and returns to the current
+  month. It is marked as current when you are already on it.
+- The month total moved to the foot of the card, and the carried-bills section
+  sits beneath it.
+
+## [0.7.5] — unreleased
+
+### Changed
+
+- **Month rows look expandable.** A row was a button with nothing to suggest it,
+  so the editor behind it — record what was paid, adjust the month, mark nothing
+  due — was invisible. Rows now carry a disclosure arrow that turns when open, a
+  hover highlight, and a hint naming what opening it does.
+- "Nothing due this month" is a button rather than a bare link.
+
 ## [0.7.4] — unreleased
 
 ### Fixed

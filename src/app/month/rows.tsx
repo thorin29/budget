@@ -45,8 +45,18 @@ export function EntryRow(props: EntryProps) {
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
-          className="min-w-0 flex-1 text-left"
+          aria-expanded={open}
+          className="group -mx-2 flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1 text-left transition hover:bg-accent-soft"
         >
+          <span
+            aria-hidden
+            className={`shrink-0 text-xs text-muted transition-transform ${
+              open ? "rotate-90" : ""
+            }`}
+          >
+            ▸
+          </span>
+          <span className="min-w-0">
           <span className="text-sm font-medium">{props.name}</span>
           <span className="ml-2 text-xs text-muted">
             {[
@@ -63,6 +73,10 @@ export function EntryRow(props: EntryProps) {
               {props.carriedFrom.year}
             </span>
           ) : null}
+          </span>
+          <span className="ml-auto shrink-0 pl-2 text-xs text-muted opacity-0 transition group-hover:opacity-100">
+            {open ? "close" : paid ? "edit" : "settle"}
+          </span>
         </button>
 
         <span className="tnum w-24 shrink-0 text-right text-sm text-muted">
@@ -162,7 +176,11 @@ function EntryEditor(props: EntryProps) {
           <input type="hidden" name="year" value={props.year} />
           <input type="hidden" name="month" value={props.month} />
           <input type="hidden" name="skipped" value="true" />
-          <button type="submit" className="text-muted hover:underline">
+          <button
+            type="submit"
+            disabled={adjusting}
+            className="rounded-md border border-line px-2 py-1 hover:bg-accent-soft"
+          >
             Nothing due this month
           </button>
         </form>
@@ -182,6 +200,20 @@ function EntryEditor(props: EntryProps) {
   );
 }
 
+/** "1234.5" -> "$1,234.50". Returns the input unchanged if it is not a number. */
+function asCurrency(raw: string): string {
+  const cleaned = raw.replace(/[$,\s]/g, "");
+  if (cleaned === "") return "";
+  const value = Number(cleaned);
+  if (!Number.isFinite(value)) return raw;
+  return value.toLocaleString("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 export function BalanceForm({
   year,
   month,
@@ -195,14 +227,15 @@ export function BalanceForm({
 }) {
   const [state, action, pending] = useActionState(recordBalanceAction, INITIAL);
   // Held in state so a failed save does not discard what was typed.
-  const [value, setValue] = useState(defaultValue);
+  const [value, setValue] = useState(asCurrency(defaultValue));
 
   return (
     <div>
-      <form action={action} className="flex items-end gap-2">
+      <form action={action}>
         <input type="hidden" name="year" value={year} />
         <input type="hidden" name="month" value={month} />
-        <label className="flex-1">
+
+        <label className="block">
           <span className="mb-1 block text-xs font-medium">
             Currently in {accountName ?? "bills"}
           </span>
@@ -211,11 +244,17 @@ export function BalanceForm({
             inputMode="decimal"
             value={value}
             onChange={(e) => setValue(e.target.value)}
+            // Formatted when idle; stripped back to digits while editing, so
+            // the separators never get in the way of typing.
+            onFocus={(e) => setValue(e.target.value.replace(/[$,\s]/g, ""))}
+            onBlur={(e) => setValue(asCurrency(e.target.value))}
+            className="tnum text-lg"
             required
           />
         </label>
-        <Button type="submit" disabled={pending}>
-          {pending ? "…" : "Update"}
+
+        <Button type="submit" disabled={pending} className="mt-2 w-full">
+          {pending ? "Saving…" : "Update"}
         </Button>
       </form>
 
