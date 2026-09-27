@@ -30,6 +30,8 @@ export interface LineItem {
   categoryId: string | null;
   paidFromId: string | null;
   chargedToId: string | null;
+  /** INCOME only: the pay calendar it arrives on, if any. */
+  payScheduleId: string | null;
   plannedAmountCents: Cents;
   dueDay: number | null;
   periodAssignment: PeriodAssignment;
@@ -55,6 +57,7 @@ const lineItemInput = z
     categoryId: z.string().trim().min(1).nullish(),
     paidFromId: z.string().trim().min(1).nullish(),
     chargedToId: z.string().trim().min(1).nullish(),
+    payScheduleId: z.string().trim().min(1).nullish(),
     plannedAmountCents: z.number().int().min(0, "Cannot be negative"),
     dueDay: z.number().int().min(1).max(31).nullish(),
     periodAssignment: z.enum(PERIOD_ASSIGNMENTS).default("AUTO"),
@@ -114,6 +117,7 @@ type Row = {
   categoryId: string | null;
   paidFromId: string | null;
   chargedToId: string | null;
+  payScheduleId: string | null;
   plannedAmount: { toString(): string };
   dueDay: number | null;
   periodAssignment: string;
@@ -140,6 +144,7 @@ function toLineItem(row: Row): LineItem {
     categoryId: row.categoryId,
     paidFromId: row.paidFromId,
     chargedToId: row.chargedToId,
+    payScheduleId: row.payScheduleId,
     plannedAmountCents: toCents(row.plannedAmount),
     dueDay: row.dueDay,
     periodAssignment: row.periodAssignment as PeriodAssignment,
@@ -184,6 +189,7 @@ async function toRowData(data: ReturnType<typeof parse>) {
     categoryId: data.categoryId ?? null,
     paidFromId: data.paidFromId ?? null,
     chargedToId: data.chargedToId ?? null,
+    payScheduleId: data.kind === "INCOME" ? (data.payScheduleId ?? null) : null,
     plannedAmount: toDecimalString(data.plannedAmountCents),
     dueDay: data.dueDay ?? null,
     periodAssignment: data.periodAssignment,
@@ -253,6 +259,11 @@ async function assertReferencesExist(data: ReturnType<typeof parse>): Promise<vo
     else if (account.kind !== "CREDIT_CARD") {
       issues.chargedToId = ["Only a credit card can be charged to"];
     }
+  }
+
+  if (data.payScheduleId && data.kind === "INCOME") {
+    const found = await prisma.paySchedule.count({ where: { id: data.payScheduleId } });
+    if (!found) issues.payScheduleId = ["No such pay schedule"];
   }
 
   if (Object.keys(issues).length) throw new ValidationError(issues);

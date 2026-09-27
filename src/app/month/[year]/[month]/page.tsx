@@ -43,9 +43,14 @@ export default async function MonthPage({
         <Link href="/" className="text-sm text-muted hover:text-foreground">
           Budget
         </Link>
-        <Link href="/line-items" className="text-sm text-muted hover:text-foreground">
-          Line items
-        </Link>
+        <div className="flex gap-4">
+          <Link href="/projection" className="text-sm text-muted hover:text-foreground">
+            What can I pay?
+          </Link>
+          <Link href="/line-items" className="text-sm text-muted hover:text-foreground">
+            Line items
+          </Link>
+        </div>
       </div>
 
       <header className="mt-4 flex items-center justify-between gap-4">

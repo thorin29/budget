@@ -3,6 +3,37 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.6.0] — unreleased
+
+The cash projection — the side calculations, done by the application.
+
+### Added
+
+- **`/projection`** answers one question: how much can leave the bills account
+  today. It walks the balance forward day by day, subtracting each unpaid bill on
+  its due date and adding each expected paycheck, and reports the lowest point
+  reached. That figure, less any buffer, is what is safe to pay.
+- **The ledger behind the number.** Every day with activity is listed with its
+  events and closing balance, and the low point is highlighted — so the
+  constraint is visible rather than asserted, and it is obvious which bill or
+  date causes it.
+- **What-if.** Type a payment and the whole projection recomputes with it
+  included; the horizon is adjustable from the same place.
+- **Income on a pay calendar.** An income line item can name a pay schedule, and
+  the projection then places one arrival on every payday that schedule generates.
+  A month with three paydays produces three arrivals without a third line item —
+  replacing the stacked income rows the spreadsheet needed. Migration `0002`.
+- **`/api/v1/projection`**, accepting a proposed payment and a horizon.
+- 2 more tests: that a three-payday month generates three arrivals, and that the
+  extra check lifts the safe-to-pay figure by a full paycheck when the low point
+  falls after it.
+
+### Notes
+
+- The horizon defaults to 45 days because it must reach past the next payday into
+  the following month's fixed bills. Stopping at the next paycheck is what makes
+  a payment look affordable when it is not.
+
 ## [0.5.0] — unreleased
 
 The month view — the screen this project set out to replace.

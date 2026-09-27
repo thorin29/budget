@@ -39,6 +39,9 @@ export default async function Home() {
             <Link href="/month">
               <Button>This month</Button>
             </Link>
+            <Link href="/projection">
+              <Button variant="quiet">What can I pay?</Button>
+            </Link>
             <Link href="/line-items">
               <Button variant="quiet">Line items</Button>
             </Link>

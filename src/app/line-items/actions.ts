@@ -29,6 +29,7 @@ function readForm(form: FormData) {
     categoryId: str(form, "categoryId") || null,
     paidFromId: str(form, "paidFromId") || null,
     chargedToId: str(form, "chargedToId") || null,
+    payScheduleId: str(form, "payScheduleId") || null,
     plannedAmountCents: amount ? parseCents(amount) : 0,
     dueDay: num(form, "dueDay"),
     periodAssignment: (str(form, "periodAssignment") || "AUTO") as never,

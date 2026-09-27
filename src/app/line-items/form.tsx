@@ -19,6 +19,7 @@ export interface LineItemDefaults {
   categoryId: string | null;
   paidFromId: string | null;
   chargedToId: string | null;
+  payScheduleId: string | null;
   plannedAmount: string;
   dueDay: number | null;
   periodAssignment: string;
@@ -41,6 +42,7 @@ export function LineItemForm({
   categories,
   accounts,
   cards,
+  paySchedules,
   submitLabel,
 }: {
   action: (state: FormState, form: FormData) => Promise<FormState>;
@@ -48,6 +50,7 @@ export function LineItemForm({
   categories: Array<{ id: string; name: string }>;
   accounts: Array<{ id: string; name: string }>;
   cards: Array<{ id: string; name: string }>;
+  paySchedules: Array<{ id: string; name: string }>;
   submitLabel: string;
 }) {
   const [state, submit, pending] = useActionState(action, INITIAL);
@@ -88,7 +91,11 @@ export function LineItemForm({
 
         <Field
           label={isIncome ? "Expected amount" : "Planned amount"}
-          hint="The usual figure. A single month that differs is edited on the month view."
+          hint={
+            isIncome
+              ? "Per arrival. An estimate is fine — the projection is for planning."
+              : "The usual figure. A single month that differs is edited on the month view."
+          }
           error={state.issues?.plannedAmountCents}
         >
           <TextInput
@@ -134,6 +141,21 @@ export function LineItemForm({
             ))}
           </Select>
         </Field>
+
+        {isIncome && paySchedules.length > 0 ? (
+          <Field
+            label="Arrives on"
+            hint="Pick a pay calendar and the amount lands on every payday it generates — a three-payday month counts three. Leave as a single monthly arrival otherwise."
+            error={state.issues?.payScheduleId}
+          >
+            <Select name="payScheduleId" defaultValue={defaults.payScheduleId ?? ""}>
+              <option value="">Once a month, on the day above</option>
+              {paySchedules.map((p) => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </Select>
+          </Field>
+        ) : null}
 
         {!isIncome && cards.length > 0 ? (
           <Field

@@ -123,6 +123,13 @@ model LineItem {
   chargedToId String?
   chargedTo   Account? @relation("ChargedTo", fields: [chargedToId], references: [id], onDelete: SetNull)
 
+  /// INCOME only: the pay calendar this arrives on. When set, the projection
+  /// places one payment on every payday the schedule generates, instead of a
+  /// single one on dueDay. This is what makes a three-payday month show up as
+  /// extra income rather than requiring a third row.
+  payScheduleId String?
+  paySchedule   PaySchedule? @relation(fields: [payScheduleId], references: [id], onDelete: SetNull)
+
   plannedAmount Decimal @db.Decimal(12, 2)
 
   /// Approximate day of month. Used to place the item in a pay period;
@@ -162,6 +169,7 @@ model LineItem {
 
   @@index([active, kind, sortOrder])
   @@index([paidFromId])
+  @@index([payScheduleId])
 }
 
 /// A single month's deviation from plannedAmount. `skipped` marks a month the
@@ -246,6 +254,7 @@ model PaySchedule {
   activeTo   DateTime? @db.Date
 
   overrides PayDateOverride[]
+  lineItems LineItem[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
