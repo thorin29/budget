@@ -3,6 +3,38 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.4.0] — unreleased
+
+Line items. The budget can now be described in full; the month view is next.
+
+### Added
+
+- **Line items** at `/line-items` — create, edit, list, remove. Name, kind,
+  category, the account it is paid from, planned amount, approximate due day,
+  and how often it recurs.
+- **Schedules beyond monthly.** Quarterly, twice-yearly, yearly and one-off are
+  described by picking a starting month; the months they cover are derived, so
+  the stated frequency and the stored month set cannot drift apart. "Specific
+  months" remains for anything irregular.
+- **Half-of-month pinning.** Auto follows the due day; an item can be pinned to
+  either half when it is paid on a different rhythm than its due date implies.
+- **Start and end months**, both empty by default. Ending an item leaves earlier
+  months intact; deactivating hides it everywhere. The two are independent.
+- **Payment links and notes** per item, stored only in the database.
+- **`/api/v1/line-items`** with the same response contract as the rest.
+- 6 more tests covering schedule month derivation, including anchors that wrap
+  the year.
+
+### Changed
+
+- Schedule arithmetic moved to `src/lib/schedule.ts`, free of database imports,
+  so it can be tested without a client or a connection.
+
+### Notes
+
+- Removing a line item that has actuals or month overrides deactivates it
+  instead, so past months keep their meaning.
+
 ## [0.3.0] — unreleased
 
 Setup. The application can now be configured; line items come next.

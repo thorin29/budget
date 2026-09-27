@@ -9,9 +9,8 @@ safely leave it today.
 
 Everything runs on your own server against your own PostgreSQL database.
 
-> **Status:** v0.3.0 — setup works: accounts, categories, the pay calendar and
-> preferences can be configured. Line items and the month view are next. See
-> `CHANGELOG.md`.
+> **Status:** v0.4.0 — setup and line items work. The month view and the cash
+> projection interface are next. See `CHANGELOG.md`.
 
 ## What it does
 

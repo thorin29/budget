@@ -3,7 +3,7 @@ import { listAccounts } from "@/server/accounts";
 import { listCategories } from "@/server/categories";
 import { listPaySchedules } from "@/server/pay-schedule";
 import { getSettings } from "@/server/settings";
-import { Card, PageHeading } from "@/components/ui";
+import { Button, Card, PageHeading } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
 
@@ -61,7 +61,7 @@ export default async function SetupOverview() {
         title="Setup"
         description={
           remaining === 0
-            ? "Everything is configured. Line items come next."
+            ? "Everything is configured. Line items are next."
             : "Four things to set up. Nothing is pre-filled — every name here is yours."
         }
       />
@@ -85,6 +85,14 @@ export default async function SetupOverview() {
           </Link>
         ))}
       </div>
+
+      {remaining === 0 ? (
+        <div className="mt-6">
+          <Link href="/line-items">
+            <Button>Go to line items</Button>
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }
