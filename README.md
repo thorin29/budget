@@ -9,8 +9,9 @@ safely leave it today.
 
 Everything runs on your own server against your own PostgreSQL database.
 
-> **Status:** v0.2.0 — the data model, migrations, and container pipeline are in
-> place. The interface is being built. See `CHANGELOG.md`.
+> **Status:** v0.3.0 — setup works: accounts, categories, the pay calendar and
+> preferences can be configured. Line items and the month view are next. See
+> `CHANGELOG.md`.
 
 ## What it does
 
