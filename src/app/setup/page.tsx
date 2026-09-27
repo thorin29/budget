@@ -92,7 +92,15 @@ export default async function SetupOverview() {
             <Button>Go to line items</Button>
           </Link>
         </div>
-      ) : null}
+      ) : (
+        <p className="mt-6 text-sm text-muted">
+          Coming from a spreadsheet?{" "}
+          <Link href="/import" className="text-accent hover:underline">
+            Import a converted workbook
+          </Link>{" "}
+          and it will create the accounts, categories and line items for you.
+        </p>
+      )}
     </div>
   );
 }

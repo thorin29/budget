@@ -21,11 +21,15 @@ export default async function Home() {
         <>
           <p className="mt-3 max-w-prose text-sm text-muted">
             Nothing configured yet. Setup covers accounts, categories, the pay
-            calendar, and a few preferences — then line items.
+            calendar, and a few preferences — then line items. Or import a
+            converted workbook and it will create them for you.
           </p>
-          <div className="mt-6">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/setup">
               <Button>Start setup</Button>
+            </Link>
+            <Link href="/import">
+              <Button variant="quiet">Import a workbook</Button>
             </Link>
           </div>
         </>
@@ -35,7 +39,7 @@ export default async function Home() {
             {accounts} account{accounts === 1 ? "" : "s"}, {items} line item
             {items === 1 ? "" : "s"}.
           </p>
-          <div className="mt-6 flex gap-3">
+          <div className="mt-6 flex flex-wrap gap-3">
             <Link href="/month">
               <Button>This month</Button>
             </Link>

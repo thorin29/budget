@@ -7,6 +7,7 @@ const STEPS = [
   { href: "/setup/categories", label: "Categories" },
   { href: "/setup/pay", label: "Pay calendar" },
   { href: "/setup/preferences", label: "Preferences" },
+  { href: "/import", label: "Import" },
 ];
 
 export default function SetupLayout({ children }: { children: React.ReactNode }) {
