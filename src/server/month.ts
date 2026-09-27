@@ -30,6 +30,9 @@ import { getSettings } from "./settings";
 export interface MonthEntry {
   lineItemId: string;
   name: string;
+  /** The month this entry belongs to — not always the month being viewed. */
+  year: number;
+  month: number;
   kind: "BILL" | "SETTLEMENT" | "INCOME";
   categoryName: string | null;
   accountName: string | null;
@@ -64,6 +67,9 @@ export interface MonthView {
   month: number;
   splitDay: number;
   halves: [HalfSummary, HalfSummary];
+  /** Genuinely outstanding items from earlier months, kept out of the halves. */
+  carried: MonthEntry[];
+  carriedCents: Cents;
   income: MonthEntry[];
   incomeExpectedCents: Cents;
   incomeReceivedCents: Cents;
@@ -190,6 +196,11 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
 
   const planned = new Map(items.map((i) => [i.id, toCents(i.plannedAmount)]));
 
+  // A month only counts as one where a bill could have gone unpaid if something
+  // was actually recorded in it. Without this, every month before the first
+  // payment — and every month after the last — reads as a pile of missed bills.
+  const trackedMonths = new Set(actuals.map((a) => `${a.year}:${a.month}`));
+
   const obligations = buildObligations({
     items: forModel,
     planned,
@@ -199,7 +210,11 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     month,
     splitDay,
     carryMonths: 12,
-  });
+  }).filter(
+    (o) =>
+      (o.year === year && o.month === month) ||
+      trackedMonths.has(`${o.year}:${o.month}`),
+  );
 
   const itemById = new Map(items.map((i) => [i.id, i]));
 
@@ -209,6 +224,8 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     return {
       lineItemId: item.id,
       name: item.name,
+      year: o.year,
+      month: o.month,
       kind: item.kind as MonthEntry["kind"],
       categoryName: item.categoryId ? (categoryName.get(item.categoryId) ?? null) : null,
       accountName: item.paidFromId ? (accountName.get(item.paidFromId) ?? null) : null,
@@ -239,6 +256,8 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     entries.push({
       lineItemId: item.id,
       name: item.name,
+      year,
+      month,
       kind: item.kind as MonthEntry["kind"],
       categoryName: item.categoryId ? (categoryName.get(item.categoryId) ?? null) : null,
       accountName: item.paidFromId ? (accountName.get(item.paidFromId) ?? null) : null,
@@ -256,8 +275,14 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
 
   const halfDefs = monthHalves(year, month, splitDay);
 
+  const carried = entries
+    .filter((e) => e.carriedFrom !== null)
+    .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month));
+
+  const thisMonth = entries.filter((e) => e.carriedFrom === null);
+
   const buildHalf = (index: 0 | 1): HalfSummary => {
-    const inHalf = entries
+    const inHalf = thisMonth
       .filter((e) => e.half === index)
       .sort((a, b) => (a.dueDay ?? 0) - (b.dueDay ?? 0));
 
@@ -285,6 +310,8 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       return {
         lineItemId: item.id,
         name: item.name,
+        year,
+        month,
         kind: "INCOME" as const,
         categoryName: item.categoryId ? (categoryName.get(item.categoryId) ?? null) : null,
         accountName: item.paidFromId ? (accountName.get(item.paidFromId) ?? null) : null,
@@ -301,8 +328,11 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     })
     .sort((a, b) => (a.dueDay ?? 0) - (b.dueDay ?? 0));
 
+  const carriedCents = carried.reduce((sum, e) => sum + e.budgetedCents, 0);
+
   const billsBalanceCents = balance ? toCents(balance.amount) : null;
-  const remainingFirst = halves[0].remainingCents;
+  // Anything already overdue is owed now, so it weighs on the first half.
+  const remainingFirst = halves[0].remainingCents + carriedCents;
   const remainingBoth = remainingFirst + halves[1].remainingCents;
 
   return {
@@ -310,6 +340,8 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     month,
     splitDay,
     halves,
+    carried,
+    carriedCents,
     income,
     incomeExpectedCents: income.reduce((s, e) => s + e.budgetedCents, 0),
     incomeReceivedCents: income.reduce((s, e) => s + (e.actualCents ?? 0), 0),
@@ -325,7 +357,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     totalBudgetedCents: halves[0].budgetedCents + halves[1].budgetedCents,
     totalPaidCents: halves[0].paidCents + halves[1].paidCents,
     totalRemainingCents: remainingBoth,
-    carriedCount: entries.filter((e) => e.carriedFrom !== null).length,
+    carriedCount: carried.length,
   };
 }
 

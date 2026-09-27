@@ -121,10 +121,35 @@ export default async function MonthPage({
           </div>
 
           {view.carriedCount > 0 ? (
-            <p className="mt-4 rounded-md border border-danger/30 bg-danger/5 px-3 py-2 text-sm text-danger">
-              {view.carriedCount} unpaid {view.carriedCount === 1 ? "bill" : "bills"} carried
-              forward from earlier months.
-            </p>
+            <details className="mt-4 rounded-md border border-danger/30 bg-danger/5">
+              <summary className="cursor-pointer px-3 py-2 text-sm text-danger">
+                {view.carriedCount} unpaid{" "}
+                {view.carriedCount === 1 ? "bill" : "bills"} from earlier months,{" "}
+                {formatCents(view.carriedCents)} — counted in the first half
+              </summary>
+
+              <div className="border-t border-danger/20">
+                {view.carried.map((entry) => (
+                  <EntryRow
+                    key={`${entry.lineItemId}-${entry.year}-${entry.month}`}
+                    year={entry.year}
+                    month={entry.month}
+                    lineItemId={entry.lineItemId}
+                    name={entry.name}
+                    categoryName={entry.categoryName}
+                    accountName={entry.accountName}
+                    paymentUrl={entry.paymentUrl}
+                    dueDay={entry.dueDay}
+                    budgetedCents={entry.budgetedCents}
+                    plannedCents={entry.plannedCents}
+                    actualCents={entry.actualCents}
+                    adjusted={entry.adjusted}
+                    carriedFrom={entry.carriedFrom}
+                    budgetedDisplay={toDecimalString(entry.budgetedCents)}
+                  />
+                ))}
+              </div>
+            </details>
           ) : null}
 
           {view.halves.map((half) => (
@@ -151,7 +176,7 @@ export default async function MonthPage({
                 ) : (
                   half.entries.map((entry) => (
                     <EntryRow
-                      key={`${entry.lineItemId}-${entry.carriedFrom?.month ?? month}`}
+                      key={entry.lineItemId}
                       year={year}
                       month={month}
                       lineItemId={entry.lineItemId}

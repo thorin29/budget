@@ -116,3 +116,68 @@ describe("remaining", () => {
     assert.equal(balance - bothRemaining, 840000);
   });
 });
+
+describe("carryover is bounded by months that were actually tracked", () => {
+  const monthly: LineItemForMonth = {
+    id: "church", name: "church", kind: "BILL", dueDay: 1, periodAssignment: "AUTO",
+    months: [1,2,3,4,5,6,7,8,9,10,11,12], scheduleKind: "MONTHLY", onlyYear: null,
+    startYear: null, startMonth: null, endYear: null, endMonth: null, active: true,
+  };
+
+  /** Mirrors the filter the month service applies. */
+  function scoped(obligations: Array<{ year: number; month: number }>, tracked: Set<string>, year: number, month: number) {
+    return obligations.filter(
+      (o) => (o.year === year && o.month === month) || tracked.has(`${o.year}:${o.month}`),
+    );
+  }
+
+  it("does not invent unpaid bills for months before any data exists", () => {
+    // Actuals recorded for January through August 2026 only.
+    const settled = new Set(
+      Array.from({ length: 8 }, (_, i) => `church:2026:${i + 1}`),
+    );
+    const tracked = new Set(Array.from({ length: 8 }, (_, i) => `2026:${i + 1}`));
+
+    const raw = buildObligations({
+      items: [monthly],
+      planned: new Map([["church", 101010]]),
+      plans: new Map(),
+      settled,
+      year: 2026,
+      month: 9,
+      carryMonths: 12,
+    });
+
+    // Unfiltered, the twelve-month sweep reaches back into 2025, where nothing
+    // was ever recorded, and reports a missed payment for every month.
+    assert.ok(raw.length > 1);
+
+    const result = scoped(raw, tracked, 2026, 9);
+    assert.equal(result.length, 1);
+    assert.equal(result[0].year, 2026);
+    assert.equal(result[0].month, 9);
+  });
+
+  it("still carries a bill left unpaid in a month that was tracked", () => {
+    // July was worked in — something else was paid — but this bill was not.
+    const settled = new Set(["church:2026:8"]);
+    const tracked = new Set(["2026:7", "2026:8"]);
+
+    const raw = buildObligations({
+      items: [monthly],
+      planned: new Map([["church", 101010]]),
+      plans: new Map(),
+      settled,
+      year: 2026,
+      month: 9,
+      carryMonths: 12,
+    });
+
+    const result = scoped(raw, tracked, 2026, 9);
+    assert.equal(result.length, 2);
+    assert.deepEqual(
+      result.map((o) => `${o.year}-${o.month}`).sort(),
+      ["2026-7", "2026-9"],
+    );
+  });
+});
