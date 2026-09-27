@@ -9,7 +9,7 @@ safely leave it today.
 
 Everything runs on your own server against your own PostgreSQL database.
 
-> **Status:** v0.1.4 — the data model, migrations, and container pipeline are in
+> **Status:** v0.2.0 — the data model, migrations, and container pipeline are in
 > place. The interface is being built. See `CHANGELOG.md`.
 
 ## What it does
@@ -58,23 +58,24 @@ CREATE DATABASE budget OWNER budget;
 ```sh
 docker run -d \
   --name budget \
-  -p 8643:3000 \
+  --network <your-reverse-proxy-network> \
   -e DATABASE_URL="postgresql://budget:choose-a-strong-password@<postgres-host>:5432/budget?schema=public" \
   -e TZ="UTC" \
-  -e AUTH_MODE="proxy" \
   -v /path/to/appdata/budget:/app/data \
   ghcr.io/thorin29/budget:latest
 ```
 
-If PostgreSQL also runs in Docker, put both containers on the same network and
-use the database container's name as the host.
+Note the absence of `-p`. The container is reached through the reverse proxy on
+the shared network, not through a published port — see [Security](#security).
+Put PostgreSQL on a network the container can also reach, and use the database
+container's name as the host.
 
 Migrations apply automatically on start, so upgrading is just pulling a newer
 image.
 
 ### 3. Configure
 
-Open `http://<host>:8643`. Setup walks through accounts, categories, line
+Open the hostname you routed to it through the proxy. Setup walks through accounts, categories, line
 items, and the pay calendar. Nothing is pre-populated — every account name,
 category, and bill is yours to enter.
 
@@ -87,11 +88,8 @@ category, and bill is yours to enter.
 | `PORT`                 | no       | Port inside the container. Defaults to `3000`.                    |
 | `PUID` / `PGID`        | no       | Ownership for files in the data volume. Defaults to `99:100`.     |
 | `DATA_DIR`             | no       | Where uploads and backups are written. Defaults to `/app/data`.   |
-| `AUTH_MODE`            | no       | `proxy` or `none`. Defaults to `proxy`.                           |
-| `AUTH_HEADER`          | no       | Header carrying the authenticated user. Defaults to `Remote-User`.|
 | `DEFAULT_SPLIT_DAY`    | no       | Day the planning split falls on. Defaults to `15`.                |
 | `DEFAULT_HORIZON_DAYS` | no       | Days the projection looks ahead. Defaults to `45`.                |
-| `AUTO_RECONCILE_SCHEMA`| no       | Reconcile the database against the schema on start. Defaults `true`.|
 
 See `.env.example` for the full list.
 
@@ -101,14 +99,39 @@ See `.env.example` for the full list.
 with your own image, set `DATABASE_URL`, and point the data volume at your
 appdata share.
 
-## A note on security
+Set the network to your reverse proxy's Docker network and leave the host port
+empty. The template marks the port optional for that reason.
 
-The app has no login of its own. `AUTH_MODE=proxy` trusts an authenticating
-reverse proxy to have already identified the user, which is the intended
-deployment. `AUTH_MODE=none` disables that check entirely and is only
-appropriate on a trusted network.
+## Security
 
-Do not expose this without real authentication in front of it.
+**This application has no authentication.** Not a login, not a token, not a
+header check. Anything that can open a TCP connection to it has full access to
+your financial data.
+
+That is a deliberate choice, and it means the security boundary is network
+topology rather than application code:
+
+```
+browser → reverse proxy → authentication → budget (internal network only)
+```
+
+The container belongs on the reverse proxy's Docker network with **no host port
+published**. The proxy is then the only route in, and there is no address that
+reaches the application without passing authentication first.
+
+Publishing a host port creates an address that reaches the application without
+passing the proxy.
+
+An application-level check was considered and rejected: a username header set by
+a proxy is forgeable by anything that can reach the container directly, so it
+only appears to solve the problem, and defending it properly means a shared
+secret and a configuration contract between proxy and application. Not
+publishing the port solves it outright with nothing to maintain.
+
+### Running it directly during development
+
+`npm run dev` on a workstation is fine — it is reachable only from that machine.
+The same is true of a container bound to `127.0.0.1`. Neither needs the proxy.
 
 ## Privacy
 
@@ -133,10 +156,17 @@ npm run dev
 Prisma 7 does not load `.env` automatically. Either use `--env-file` as above or
 export `DATABASE_URL` into the shell before running any `prisma` command.
 
-The initial migration in `prisma/migrations/0000_init` was written by hand. The
-container reconciles the database against `prisma/schema.prisma` on every start,
-so a discrepancy corrects itself rather than requiring intervention. Set
-`AUTO_RECONCILE_SCHEMA=false` to manage the schema manually.
+Startup runs `prisma migrate deploy` only. Drift between the database and
+`prisma/schema.prisma` is detected and logged, never corrected automatically —
+inspect it with:
+
+```sh
+npx prisma migrate diff --from-url "$DATABASE_URL" \
+  --to-schema-datamodel prisma/schema.prisma --script
+```
+
+Run the tests with `npm test`, and the type check with `npm run typecheck`. CI
+runs both before an image is built.
 
 ## Versioning
 
@@ -151,7 +181,8 @@ what is still open.
 
 ## Tech
 
-Next.js 15 (App Router) · TypeScript · Prisma 7 · PostgreSQL · Tailwind CSS
+Next.js 16 (App Router) · TypeScript · Prisma 7 · PostgreSQL · Tailwind CSS ·
+Node 24
 
 ## License
 

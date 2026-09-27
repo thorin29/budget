@@ -10,7 +10,8 @@
  * settings on each request.
  */
 
-import type { PeriodAssignment } from "@/generated/prisma/enums";
+import type { PeriodAssignment } from "./period-assignment";
+import type { Cents } from "./money";
 
 // ---------------------------------------------------------------- types
 
@@ -43,7 +44,7 @@ export interface Obligation {
   lineItemId: string;
   name: string;
   /** What is owed: the month override if present, else the planned amount. */
-  amount: number;
+  amountCents: Cents;
   /** The month it belongs to — not necessarily the month being viewed. */
   year: number;
   month: number;
@@ -122,8 +123,6 @@ export function halfFor(
     case "FIRST":
       return 0;
     case "SECOND":
-    case "THIRD":
-    case "LAST":
       return 1;
     default:
       break;
@@ -166,15 +165,15 @@ export function isDueInMonth(
 
 export interface PlanLookup {
   /** Month override, if one exists. */
-  amount: number | null;
+  amountCents: Cents | null;
   /** Explicitly not due this month — distinct from an amount of zero. */
   skipped: boolean;
 }
 
 export interface BuildObligationsArgs {
   items: LineItemForMonth[];
-  /** planned amount per line item id. */
-  planned: Map<string, number>;
+  /** planned amount per line item id, in cents. */
+  planned: Map<string, Cents>;
   /** `${lineItemId}:${year}:${month}` -> override. */
   plans: Map<string, PlanLookup>;
   /** `${lineItemId}:${year}:${month}` for every month already settled. */
@@ -224,8 +223,8 @@ export function buildObligations({
       // not zero, and it is not unpaid — it simply is not an obligation.
       if (plan?.skipped) continue;
 
-      const amount = plan?.amount ?? planned.get(item.id) ?? 0;
-      if (amount === 0 && back > 0) continue; // don't carry empty rows forward
+      const amountCents = plan?.amountCents ?? planned.get(item.id) ?? 0;
+      if (amountCents === 0 && back > 0) continue; // don't carry empty rows forward
 
       const last = daysInMonth(y, m);
       const day = Math.min(Math.max(item.dueDay ?? 1, 1), last);
@@ -233,7 +232,7 @@ export function buildObligations({
       out.push({
         lineItemId: item.id,
         name: item.name,
-        amount,
+        amountCents,
         year: y,
         month: m,
         dueDate: utcDate(y, m, day),

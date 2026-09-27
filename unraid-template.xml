@@ -10,14 +10,17 @@
     Self-hosted budgeting. Plans recurring bills and income by month, tracks what
     has actually been paid, and projects the bills account forward to show how
     much can safely leave it today. Requires a PostgreSQL database.
+
+    This application has no authentication of its own and is intended to sit
+    behind an authenticating reverse proxy.
   </Overview>
   <Category>Productivity:</Category>
-  <WebUI>http://[IP]:[PORT:3000]/</WebUI>
+  <WebUI/>
   <Icon/>
 
-  <Config Name="WebUI Port" Target="3000" Default="8643" Mode="tcp"
-          Description="Host port for the web interface." Type="Port"
-          Display="always" Required="true" Mask="false">8643</Config>
+  <Config Name="WebUI Port" Target="3000" Default="" Mode="tcp"
+          Description="Optional. Leave empty when the container sits on the reverse proxy network and is reached through the proxy."
+          Type="Port" Display="always" Required="false" Mask="false"/>
 
   <Config Name="DATABASE_URL" Target="DATABASE_URL" Default=""
           Description="PostgreSQL connection string, e.g. postgresql://user:password@host:5432/dbname?schema=public"
@@ -26,18 +29,6 @@
   <Config Name="TZ" Target="TZ" Default="UTC"
           Description="Local timezone. Governs what today means for due dates and projections."
           Type="Variable" Display="always" Required="false" Mask="false">UTC</Config>
-
-  <Config Name="AUTH_MODE" Target="AUTH_MODE" Default="proxy"
-          Description="proxy to trust an authenticating reverse proxy, or none for an unprotected LAN-only instance."
-          Type="Variable" Display="always" Required="false" Mask="false">proxy</Config>
-
-  <Config Name="AUTH_HEADER" Target="AUTH_HEADER" Default="Remote-User"
-          Description="Header carrying the authenticated username when AUTH_MODE is proxy."
-          Type="Variable" Display="advanced" Required="false" Mask="false">Remote-User</Config>
-
-  <Config Name="AUTO_RECONCILE_SCHEMA" Target="AUTO_RECONCILE_SCHEMA" Default="true"
-          Description="Reconcile the database against the application schema on start."
-          Type="Variable" Display="advanced" Required="false" Mask="false">true</Config>
 
   <Config Name="PUID" Target="PUID" Default="99"
           Description="User ID owning files in the data volume."

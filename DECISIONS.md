@@ -5,23 +5,43 @@ them, so a future change is made deliberately rather than by accident.
 
 ---
 
+## Architecture invariants
+
+Rules that hold across the project. Changing one of these is a deliberate
+decision to be recorded here, not something to do in passing.
+
+1. **Money is integer cents in the domain layer.** PostgreSQL stores
+   `Decimal(12,2)`; the application converts at the data boundary and does all
+   arithmetic in whole cents; the interface formats for display. No JavaScript
+   floating-point currency math, anywhere. Fields carrying money are named with
+   a `Cents` suffix — if it is not named that way, it is not money.
+2. **PostgreSQL is the canonical store.** No second source of truth.
+3. **Schema changes happen through migrations.** Startup applies migrations and
+   reports drift; it never silently reshapes a production schema.
+4. **This is month-level budgeting, not transaction accounting.** One
+   `ActualEntry` settles one line item for one month, and its existence means
+   paid.
+5. **The security boundary is network topology, not application code.** The
+   container publishes no host port and is reachable only through the
+   authenticating reverse proxy. The application has no authentication and does
+   not identify users.
+6. **No authentication modes.** Deployment styles the project does not use are
+   not configuration options.
+7. **Financial dates are date-only.** A due date is a calendar day and never
+   becomes a timezone-sensitive timestamp.
+8. **Business logic does not live in React components or route handlers.** They
+   call domain functions. Those functions are where the tests point.
+9. **Toolchain versions are pinned and aligned.** Node, Next and the Prisma trio
+   move together, deliberately.
+10. **Future-proofing is documentation, not speculative abstraction.** Record how
+    a boundary would be moved rather than building for a requirement that does
+    not exist.
+
+---
+
 ## Open
 
-### AUTH_MODE is not yet set to `proxy`
-
-**Status:** deferred, revisit before regular use.
-
-The application has no login of its own. `AUTH_MODE=proxy` trusts an
-authenticating reverse proxy to have identified the user and reads the name from
-the header named in `AUTH_HEADER`. `AUTH_MODE=none` skips that check entirely.
-
-The first deployment runs without `AUTH_MODE` set while the container is being
-brought up and reached directly by IP on the LAN. Anyone who can reach the
-mapped port is in, with no credentials.
-
-**To close this:** put the app behind the reverse proxy with its authentication
-middleware applied, then set `AUTH_MODE=proxy` and confirm the header arrives.
-Do not expose the host port beyond the LAN until then.
+### Nothing open.
 
 ---
 
@@ -94,12 +114,58 @@ variable is unset and would break `prisma generate` during the image build.
 The generator is `prisma-client` with an explicit output path;
 `prisma-client-js` is deprecated.
 
-### The container reconciles its own schema
+### Migrations apply; drift is reported, not corrected
 
-The initial migration was written by hand. Rather than leave that as a trap, the
-entrypoint applies migrations, then diffs the live database against the schema
-and reconciles any difference with `db push` — without `--accept-data-loss`, so
-nothing destructive can run unattended. `AUTO_RECONCILE_SCHEMA=false` disables it.
+The initial migration was hand-written because the tooling to generate it was
+not available at the time. Until the first successful deployment the entrypoint
+also reconciled any difference with `db push`, as a safety net.
+
+That net has served its purpose — the schema came up correctly — and it is gone
+as of 0.2.0. Startup now runs `migrate deploy` only. Drift is still detected and
+logged loudly, because knowing is valuable, but the schema is never reshaped
+outside the migration history.
+
+### No authentication in the application
+
+A proxy-authentication scheme was designed and rejected before it shipped:
+`AUTH_MODE`, a username header, and a shared secret verified on every request.
+
+The reasoning that produced it was that the application should not trust a
+username header, because a published host port lets anything set one; defending
+the header needs a shared secret; the secret needs a configuration contract
+between proxy and application.
+
+The flaw was in the premise — the published host port was treated as fixed, when
+it is the thing to remove. With the container on the proxy's network, no request
+arrives without passing authentication first, and there is nothing for the
+application to verify.
+
+The application also has no use for the authenticated identity. It is a
+single-household installation; every user who gets through the proxy sees the
+same data. Reading a username would answer a question nothing asks.
+
+**What would bring authentication back:** a second household member needing
+separate data, a genuine need to attribute a change to a person, or exposing the
+application somewhere the proxy does not front. None of those exist today.
+
+### Money is integer cents
+
+The database stores `Decimal(12,2)`, but the projection engine originally
+converted everything to JavaScript `number` and accumulated with `+` and `-`.
+Since the entire output of this application is one figure the user acts on,
+accumulated float error was unacceptable.
+
+The domain layer now works exclusively in integer cents, converted at the data
+boundary. `Decimal(12,2)` tops out at 9,999,999,999.99, which is 999999999999
+cents — comfortably inside `Number.MAX_SAFE_INTEGER`, so integer arithmetic is
+exact across the full range the column permits.
+
+### PeriodAssignment holds two halves
+
+`THIRD` and `LAST` were remnants of an earlier design that divided a month by its
+paydays and could produce three periods. The month is now split at a fixed day,
+and the calculation already collapsed those values onto the second half.
+Migration `0001` removes them.
 
 ### No data in the repository
 
