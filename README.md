@@ -9,8 +9,8 @@ safely leave it today.
 
 Everything runs on your own server against your own PostgreSQL database.
 
-> **Status:** v0.4.0 — setup and line items work. The month view and the cash
-> projection interface are next. See `CHANGELOG.md`.
+> **Status:** v0.5.0 — setup, line items and the month view work. The cash
+> projection interface and the spreadsheet import are next. See `CHANGELOG.md`.
 
 ## What it does
 

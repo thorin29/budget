@@ -36,8 +36,11 @@ export default async function Home() {
             {items === 1 ? "" : "s"}.
           </p>
           <div className="mt-6 flex gap-3">
+            <Link href="/month">
+              <Button>This month</Button>
+            </Link>
             <Link href="/line-items">
-              <Button>Line items</Button>
+              <Button variant="quiet">Line items</Button>
             </Link>
             <Link href="/setup">
               <Button variant="quiet">Setup</Button>
