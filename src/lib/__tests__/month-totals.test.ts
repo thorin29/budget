@@ -224,3 +224,53 @@ describe("historical import bounds", () => {
     assert.equal(isDueInMonth(confined, 2024, 9), false);
   });
 });
+
+describe("carry window", () => {
+  const monthly: LineItemForMonth = {
+    id: "spending", name: "spending", kind: "SETTLEMENT", dueDay: 1,
+    periodAssignment: "AUTO", months: [1,2,3,4,5,6,7,8,9,10,11,12],
+    scheduleKind: "MONTHLY", onlyYear: null, startYear: null, startMonth: null,
+    endYear: null, endMonth: null, active: true,
+  };
+
+  // Recorded payments through August 2025, then nothing until September 2026.
+  const tracked = new Set([
+    "2025:8", "2025:10", "2025:11", "2025:12",
+    ...Array.from({ length: 8 }, (_, i) => `2026:${i + 1}`),
+  ]);
+
+  function carried(carryMonths: number) {
+    return buildObligations({
+      items: [monthly],
+      planned: new Map([["spending", 450000]]),
+      plans: new Map(),
+      settled: new Set(Array.from({ length: 8 }, (_, i) => `spending:2026:${i + 1}`)),
+      year: 2026,
+      month: 9,
+      carryMonths,
+    }).filter(
+      (o) =>
+        (o.year === 2026 && o.month === 9) || tracked.has(`${o.year}:${o.month}`),
+    );
+  }
+
+  it("a twelve-month window drags in bills from the previous year", () => {
+    const wide = carried(12);
+    assert.ok(wide.some((o) => o.year === 2025));
+  });
+
+  it("the default one-month window does not", () => {
+    const narrow = carried(1);
+    assert.equal(narrow.every((o) => o.year === 2026), true);
+    // Only September itself, since August was settled.
+    assert.equal(narrow.length, 1);
+    assert.equal(narrow[0].month, 9);
+  });
+
+  it("zero carries nothing at all", () => {
+    const none = carried(0);
+    assert.equal(none.length, 1);
+    assert.equal(none[0].month, 9);
+    assert.equal(none[0].carriedOver, false);
+  });
+});

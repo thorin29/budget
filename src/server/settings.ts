@@ -12,6 +12,7 @@ import {
   DEFAULT_HORIZON_DAYS,
   DEFAULT_SPLIT_DAY,
   DEFAULT_BUFFER,
+  DEFAULT_CARRY_MONTHS,
   SETTING_KEYS,
 } from "@/lib/settings";
 
@@ -22,6 +23,8 @@ export interface Settings {
   horizonDays: number;
   /** Floor to keep in the bills account, in cents. Zero by default. */
   bufferCents: number;
+  /** How many months back an unpaid bill still counts as owed. */
+  carryMonths: number;
   /** The account "current in bills" refers to. */
   billsAccountId: string | null;
   setupComplete: boolean;
@@ -31,6 +34,7 @@ const settingsInput = z.object({
   splitDay: z.number().int().min(1).max(28),
   horizonDays: z.number().int().min(7).max(365),
   bufferCents: z.number().int().min(0),
+  carryMonths: z.number().int().min(0).max(12),
   billsAccountId: z.string().trim().min(1).nullable(),
   setupComplete: z.boolean().optional(),
 });
@@ -52,6 +56,7 @@ export async function getSettings(): Promise<Settings> {
     splitDay: read(SETTING_KEYS.splitDay, DEFAULT_SPLIT_DAY),
     horizonDays: read(SETTING_KEYS.horizonDays, DEFAULT_HORIZON_DAYS),
     bufferCents: read(SETTING_KEYS.buffer, DEFAULT_BUFFER),
+    carryMonths: read(SETTING_KEYS.carryMonths, DEFAULT_CARRY_MONTHS),
     billsAccountId: read<string | null>(SETTING_KEYS.billsAccountId, null),
     setupComplete: read(SETTING_KEYS.setupComplete, false),
   };
@@ -78,6 +83,7 @@ export async function updateSettings(input: SettingsInput): Promise<Settings> {
     [SETTING_KEYS.splitDay, data.splitDay],
     [SETTING_KEYS.horizonDays, data.horizonDays],
     [SETTING_KEYS.buffer, data.bufferCents],
+    [SETTING_KEYS.carryMonths, data.carryMonths],
     [SETTING_KEYS.billsAccountId, data.billsAccountId],
   ];
   if (data.setupComplete !== undefined) {

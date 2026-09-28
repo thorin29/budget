@@ -15,6 +15,7 @@ export function PreferencesForm({
     splitDay: number;
     horizonDays: number;
     buffer: string;
+    carryMonths: number;
     billsAccountId: string | null;
   };
 }) {
@@ -77,6 +78,21 @@ export function PreferencesForm({
           error={state.issues?.bufferCents}
         >
           <TextInput name="buffer" defaultValue={settings.buffer} inputMode="decimal" />
+        </Field>
+
+        <Field
+          label="Carry unpaid bills forward for"
+          hint="A bill older than this is treated as paid. Long gaps are usually a missed entry rather than money still owed."
+          error={state.issues?.carryMonths}
+        >
+          <Select name="carryMonths" defaultValue={String(settings.carryMonths)}>
+            <option value="0">Not at all</option>
+            <option value="1">1 month</option>
+            <option value="2">2 months</option>
+            <option value="3">3 months</option>
+            <option value="6">6 months</option>
+            <option value="12">12 months</option>
+          </Select>
         </Field>
 
         <div className="sm:col-span-2">

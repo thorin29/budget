@@ -135,7 +135,7 @@ export async function getProjection(options: {
       year,
       month,
       splitDay: settings.splitDay,
-      carryMonths: 12,
+      carryMonths: settings.carryMonths,
     })) {
       const isThisMonth = o.year === year && o.month === month;
       if (!isThisMonth && !trackedMonths.has(`${o.year}:${o.month}`)) continue;
