@@ -4,6 +4,10 @@
   /* A muted warm grey, so the white cards read as raised rather than flush. */
   --background: #dedbd4;
   --surface: #ffffff;
+  /* Inputs sit on cards, not on the page, so they need their own value —
+     slightly off the card white so the field edge is visible without a heavy
+     border. */
+  --field: #f7f6f3;
   --border: #d5d2ca;
   --foreground: #1a1a19;
   --muted: #6b6b66;
@@ -16,6 +20,7 @@
   :root {
     --background: #14161a;
     --surface: #1b1e23;
+    --field: #24282e;
     --border: #2c3138;
     --foreground: #e9eaec;
     --muted: #9aa0a8;
@@ -28,6 +33,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);
+  --color-field: var(--field);
   --color-line: var(--border);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);

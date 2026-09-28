@@ -3,6 +3,19 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.8.1] — unreleased
+
+### Changed
+
+- **Inputs have their own colour.** Controls were drawn in the page background,
+  which was fine when that was near-white and wrong once it was darkened — every
+  field disappeared into the panel behind it. A separate `--field` token, close
+  to the card white, now backs every input, select and the file picker.
+- **"Nothing due this month" and "Mark unpaid" are filled buttons**, tinted to
+  their meaning and inverting on hover, rather than plain text that read as
+  incidental.
+- The quiet button variant is filled too, so it reads as a control on a card.
+
 ## [0.8.0] — unreleased
 
 ### Changed
