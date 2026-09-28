@@ -65,7 +65,7 @@ export function Field({
 }
 
 const CONTROL =
-  "w-full rounded-md border border-line bg-background px-3 py-2 text-sm " +
+  "w-full rounded-md border border-line bg-field px-3 py-2 text-sm " +
   "outline-none focus:border-accent focus:ring-2 focus:ring-accent/20";
 
 export function TextInput(props: React.ComponentProps<"input">) {
@@ -82,7 +82,7 @@ export function Button({
 }: React.ComponentProps<"button"> & { variant?: "primary" | "quiet" | "danger" }) {
   const styles = {
     primary: "bg-accent text-white hover:opacity-90",
-    quiet: "border border-line hover:bg-accent-soft",
+    quiet: "border border-line bg-field hover:bg-accent-soft",
     danger: "text-danger hover:bg-danger/10",
   }[variant];
 

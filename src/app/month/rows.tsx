@@ -164,7 +164,7 @@ function EntryEditor(props: EntryProps) {
             <button
               type="submit"
               disabled={clearing}
-              className="text-danger hover:underline"
+              className="rounded-md border border-danger/40 px-2.5 py-1 font-medium text-danger transition hover:bg-danger hover:text-white disabled:opacity-50"
             >
               Mark unpaid
             </button>
@@ -179,7 +179,7 @@ function EntryEditor(props: EntryProps) {
           <button
             type="submit"
             disabled={adjusting}
-            className="rounded-md border border-line px-2 py-1 hover:bg-accent-soft"
+            className="rounded-md border border-accent/40 bg-accent-soft px-2.5 py-1 font-medium text-accent transition hover:bg-accent hover:text-white disabled:opacity-50"
           >
             Nothing due this month
           </button>

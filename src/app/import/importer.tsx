@@ -155,7 +155,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
                 const file = e.target.files?.[0];
                 if (file) void onFile(file);
               }}
-              className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-line file:bg-background file:px-3 file:py-1.5 file:text-sm"
+              className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-line file:bg-field file:px-3 file:py-1.5 file:text-sm"
             />
             <span className="mt-2 block text-xs text-muted">
               A JSON file converted from a workbook. Reading it writes nothing.
