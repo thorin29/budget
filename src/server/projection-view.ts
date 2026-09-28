@@ -98,6 +98,12 @@ export async function getProjection(options: {
   );
   const settled = new Set(actuals.map((a) => key(a.lineItemId, a.year, a.month)));
 
+  // Only a month that contains a recorded payment can hold an unpaid bill.
+  // Without this the sweep treats every month before the data begins — and
+  // every month after it ends — as a pile of missed payments, which is what made
+  // the projection report a balance tens of thousands below reality.
+  const trackedMonths = new Set(actuals.map((a) => `${a.year}:${a.month}`));
+
   const forModel: LineItemForMonth[] = items.map((i) => ({
     id: i.id,
     name: i.name,
@@ -131,6 +137,9 @@ export async function getProjection(options: {
       splitDay: settings.splitDay,
       carryMonths: 12,
     })) {
+      const isThisMonth = o.year === year && o.month === month;
+      if (!isThisMonth && !trackedMonths.has(`${o.year}:${o.month}`)) continue;
+
       const k = key(o.lineItemId, o.year, o.month);
       if (seen.has(k)) continue;
       seen.add(k);
