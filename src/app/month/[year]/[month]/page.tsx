@@ -194,7 +194,15 @@ export default async function MonthPage({
                 <p className="border-t border-danger/20 px-4 py-2 text-xs text-muted">
                   Open a row to settle it. If it cost nothing that month, record
                   zero — or use &ldquo;nothing due this month&rdquo;, which removes it
-                  from the month rather than recording a payment.
+                  from the month rather than recording a payment. Only the last{" "}
+                  {view.carryMonths === 1
+                    ? "month"
+                    : `${view.carryMonths} months`}{" "}
+                  are carried; older gaps are treated as paid, which is changed in{" "}
+                  <Link href="/setup/preferences" className="text-accent hover:underline">
+                    preferences
+                  </Link>
+                  .
                 </p>
 
                 <div className="border-t border-danger/20 bg-surface">

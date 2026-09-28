@@ -130,6 +130,7 @@ export async function savePreferencesAction(
       splitDay: Number(str(form, "splitDay")),
       horizonDays: Number(str(form, "horizonDays")),
       bufferCents: bufferRaw ? parseCents(bufferRaw) : 0,
+      carryMonths: Number(str(form, "carryMonths")),
       billsAccountId: str(form, "billsAccountId") || null,
     });
   });

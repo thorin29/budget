@@ -70,6 +70,8 @@ export interface MonthView {
   /** Genuinely outstanding items from earlier months, kept out of the halves. */
   carried: MonthEntry[];
   carriedCents: Cents;
+  /** How many months back an unpaid bill was allowed to count. */
+  carryMonths: number;
   income: MonthEntry[];
   incomeExpectedCents: Cents;
   incomeReceivedCents: Cents;
@@ -209,7 +211,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     year,
     month,
     splitDay,
-    carryMonths: 12,
+    carryMonths: settings.carryMonths,
   }).filter(
     (o) =>
       (o.year === year && o.month === month) ||
@@ -342,6 +344,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     halves,
     carried,
     carriedCents,
+    carryMonths: settings.carryMonths,
     income,
     incomeExpectedCents: income.reduce((s, e) => s + e.budgetedCents, 0),
     incomeReceivedCents: income.reduce((s, e) => s + (e.actualCents ?? 0), 0),

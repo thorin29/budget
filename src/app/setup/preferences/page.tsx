@@ -28,6 +28,7 @@ export default async function PreferencesPage() {
             splitDay: settings.splitDay,
             horizonDays: settings.horizonDays,
             buffer: toDecimalString(settings.bufferCents),
+            carryMonths: settings.carryMonths,
             billsAccountId: settings.billsAccountId,
           }}
         />

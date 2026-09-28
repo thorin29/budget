@@ -3,6 +3,22 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.9.1] — unreleased
+
+### Changed
+
+- **Unpaid bills carry forward for one month, not twelve.** A bill left unpaid
+  ten months ago is far more likely to be a missed entry than money still owed,
+  and treating it as owed quietly reduced every available figure. The window is a
+  preference — none, one, two, three, six or twelve months — and the month view
+  states which is in force.
+- 3 more tests covering the window.
+
+### Notes
+
+- Existing installs pick up the new default on their next start; nothing is
+  deleted, and widening the window brings older gaps back into view.
+
 ## [0.9.0] — unreleased
 
 Importing earlier years without disturbing the current one.
