@@ -59,6 +59,19 @@ export interface ImportChoices {
   kinds: Record<string, "BILL" | "SETTLEMENT" | "INCOME">;
   /** Overrides the suggested account kind, per account key. */
   accountKinds: Record<string, "BANK" | "CREDIT_CARD" | "CASH" | "OTHER">;
+  /**
+   * Rewrite line items that already exist to match this document. Off by
+   * default, because importing an older year would otherwise replace the
+   * current year's planned amounts, due days and schedules with stale ones.
+   */
+  updateExisting: boolean;
+  /**
+   * Confine anything newly created to the document's year. A retired bill from
+   * an old workbook should appear in that year's history and nowhere else —
+   * without this it would be created open-ended and show as due in every
+   * current month.
+   */
+  confineToYear: boolean;
 }
 
 export interface ImportPlan {
@@ -71,6 +84,8 @@ export interface ImportPlan {
     name: string;
     kind: string;
     exists: boolean;
+    /** Another selected row in this same document claims the same name. */
+    duplicateName: boolean;
     plannedAmount: string;
     dueDay: number | null;
     monthCount: number;
@@ -82,6 +97,8 @@ export interface ImportPlan {
     warnings: string[];
   }>;
   totals: { lineItems: number; overrides: number; actuals: number };
+  updateExisting: boolean;
+  confineToYear: boolean;
   skipped: ImportDocument["skipped"];
   notes: string[];
   payDateCount: number;
@@ -118,6 +135,11 @@ export async function buildPlan(
   const accountByKey = new Map(document.accounts.map((a) => [a.key, a]));
   const selected = document.lineItems.filter((i) => include.has(i.key));
 
+  const nameCounts = new Map<string, number>();
+  for (const item of selected) {
+    nameCounts.set(item.name, (nameCounts.get(item.name) ?? 0) + 1);
+  }
+
   return {
     year: document.year,
     sourceLabel: document.sourceLabel,
@@ -136,6 +158,7 @@ export async function buildPlan(
       name: item.name,
       kind: choices.kinds?.[item.key] ?? item.suggestedKind,
       exists: itemNames.has(item.name),
+      duplicateName: (nameCounts.get(item.name) ?? 0) > 1,
       plannedAmount: item.plannedAmount,
       dueDay: item.dueDay ?? null,
       monthCount: item.months.length,
@@ -153,6 +176,8 @@ export async function buildPlan(
       overrides: selected.reduce((s, i) => s + i.monthlyOverrides.length, 0),
       actuals: selected.reduce((s, i) => s + i.actuals.length, 0),
     },
+    updateExisting: choices.updateExisting ?? false,
+    confineToYear: choices.confineToYear ?? true,
     skipped: document.skipped,
     notes: document.notes,
     payDateCount: document.payDates.length,
@@ -217,6 +242,14 @@ export async function applyImport(
     created.categories += 1;
   }
 
+  const updateExisting = choices.updateExisting ?? false;
+  const confineToYear = choices.confineToYear ?? true;
+
+  // Two rows in one document can carry the same name — an older workbook may
+  // list a payment twice for different accounts. Matching by name alone would
+  // make the second silently overwrite the first.
+  const usedNames = new Set<string>();
+
   // Line items, with their overrides and actuals.
   for (const item of selected) {
     const kind = choices.kinds?.[item.key] ?? item.suggestedKind;
@@ -224,8 +257,33 @@ export async function applyImport(
     // the generated client rejects for an enum column.
     const scheduleKind: ScheduleKind = item.months.length === 12 ? "MONTHLY" : "CUSTOM";
 
+    let name = item.name;
+    if (usedNames.has(name)) {
+      let suffix = 2;
+      while (usedNames.has(`${item.name} (${suffix})`)) suffix += 1;
+      name = `${item.name} (${suffix})`;
+    }
+    usedNames.add(name);
+
+    // Months carrying anything in this document, used to bound a newly created
+    // item to the period it actually covers.
+    const touched = [
+      ...item.months,
+      ...item.actuals.map((a) => a.month),
+      ...item.monthlyOverrides.map((o) => o.month),
+    ].sort((a, b) => a - b);
+
+    const bounds = confineToYear
+      ? {
+          startYear: document.year,
+          startMonth: touched[0] ?? 1,
+          endYear: document.year,
+          endMonth: touched[touched.length - 1] ?? 12,
+        }
+      : {};
+
     const data = {
-      name: item.name,
+      name,
       kind,
       categoryId: item.categoryName ? (categoryIdByName.get(item.categoryName) ?? null) : null,
       paidFromId: item.accountKey ? (accountIdByKey.get(item.accountKey) ?? null) : null,
@@ -234,14 +292,20 @@ export async function applyImport(
       months: item.months,
       scheduleKind,
       paymentUrl: item.paymentUrl || null,
+      ...bounds,
     };
 
-    const existing = await prisma.lineItem.findFirst({ where: { name: item.name } });
-    const row = existing
-      ? await prisma.lineItem.update({ where: { id: existing.id }, data })
-      : await prisma.lineItem.create({ data });
+    const existing = await prisma.lineItem.findFirst({ where: { name } });
 
-    if (!existing) {
+    let row;
+    if (existing) {
+      // An existing item's definition belongs to whoever set it up. Importing a
+      // historical year adds that year's figures without rewriting it.
+      row = updateExisting
+        ? await prisma.lineItem.update({ where: { id: existing.id }, data })
+        : existing;
+    } else {
+      row = await prisma.lineItem.create({ data });
       createdIds.lineItems.push(row.id);
       created.lineItems += 1;
     }

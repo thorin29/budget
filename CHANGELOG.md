@@ -3,6 +3,34 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.9.0] — unreleased
+
+Importing earlier years without disturbing the current one.
+
+### Fixed
+
+- **The projection counted phantom unpaid bills.** The same flaw fixed in the
+  month view in 0.7.3 was still present here: every month outside the recorded
+  data read as a pile of missed payments, which put the projected balance tens of
+  thousands below reality. Only months containing a recorded payment can hold an
+  unpaid bill.
+- **Importing an older year would have overwritten the current year's line
+  items.** Items match by name, and a match rewrote the planned amount, due day,
+  schedule and payment link with the older workbook's values.
+- **Two rows sharing a name in one document overwrote each other.** The second
+  is now numbered, and the review screen flags it.
+
+### Added
+
+- **"Confine new line items to <year>"**, on by default. Anything created by the
+  import starts and ends inside that year, so a bill that no longer exists stays
+  in its own history instead of appearing as due in every current month. Turn it
+  off when importing the year you are currently budgeting.
+- **"Rewrite line items that already exist"**, off by default. Off means an
+  existing item keeps its definition and the import contributes only that year's
+  figures.
+- 3 more tests covering the bounds applied to historical items.
+
 ## [0.8.1] — unreleased
 
 ### Changed

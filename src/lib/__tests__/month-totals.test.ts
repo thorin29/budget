@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "vitest";
-import { buildObligations, utcDate, type LineItemForMonth } from "@/lib/month-model";
+import {
+  buildObligations,
+  isDueInMonth,
+  utcDate,
+  type LineItemForMonth,
+} from "@/lib/month-model";
 
 /**
  * The remaining figure is what the spreadsheet got wrong: it subtracted actuals
@@ -179,5 +184,43 @@ describe("carryover is bounded by months that were actually tracked", () => {
       result.map((o) => `${o.year}-${o.month}`).sort(),
       ["2026-7", "2026-9"],
     );
+  });
+});
+
+describe("historical import bounds", () => {
+  /** Mirrors the bounds the importer applies when confining to a year. */
+  function bounds(year: number, months: number[], actuals: number[], overrides: number[]) {
+    const touched = [...months, ...actuals, ...overrides].sort((a, b) => a - b);
+    return {
+      startYear: year,
+      startMonth: touched[0] ?? 1,
+      endYear: year,
+      endMonth: touched[touched.length - 1] ?? 12,
+    };
+  }
+
+  const retired: LineItemForMonth = {
+    id: "ring", name: "ring", kind: "BILL", dueDay: 9, periodAssignment: "AUTO",
+    months: [1,2,3,4,5,6,7,8,9,10,11,12], scheduleKind: "MONTHLY", onlyYear: null,
+    startYear: null, startMonth: null, endYear: null, endMonth: null, active: true,
+  };
+
+  it("keeps a bill retired years ago out of the current month", () => {
+    // Created open-ended from a 2024 workbook, it would read as due forever.
+    assert.equal(isDueInMonth(retired, 2026, 9), true);
+
+    const confined = { ...retired, ...bounds(2024, retired.months, [1, 2, 3], []) };
+    assert.equal(isDueInMonth(confined, 2024, 6), true);
+    assert.equal(isDueInMonth(confined, 2026, 9), false);
+    assert.equal(isDueInMonth(confined, 2025, 1), false);
+  });
+
+  it("bounds an item to the months it actually covers", () => {
+    const seasonal = { ...retired, months: [10] };
+    const confined = { ...seasonal, ...bounds(2024, [10], [10], []) };
+    assert.equal(confined.startMonth, 10);
+    assert.equal(confined.endMonth, 10);
+    assert.equal(isDueInMonth(confined, 2024, 10), true);
+    assert.equal(isDueInMonth(confined, 2024, 9), false);
   });
 });

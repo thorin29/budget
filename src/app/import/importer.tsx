@@ -21,6 +21,8 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const [kinds, setKinds] = useState<Record<string, ItemKind>>({});
   const [accountKinds, setAccountKinds] = useState<Record<string, AccountKind>>({});
+  const [updateExisting, setUpdateExisting] = useState(false);
+  const [confineToYear, setConfineToYear] = useState(true);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState<string>();
@@ -31,6 +33,8 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
       .filter((key) => !excluded.has(key)),
     kinds,
     accountKinds,
+    updateExisting,
+    confineToYear,
   });
 
   async function post(action: string, extra: Record<string, unknown> = {}) {
@@ -178,6 +182,45 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
             ) : null}
           </Card>
 
+          <Card>
+            <h2 className="text-sm font-medium">How to treat this year</h2>
+
+            <label className="mt-3 flex gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={confineToYear}
+                onChange={(e) => setConfineToYear(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Confine new line items to {plan.year}
+                <span className="block text-xs text-muted">
+                  Anything created by this import starts and ends inside{" "}
+                  {plan.year}, so a bill that no longer exists stays in that
+                  year&rsquo;s history rather than appearing as due today. Turn this
+                  off only when importing the year you are currently budgeting.
+                </span>
+              </span>
+            </label>
+
+            <label className="mt-3 flex gap-3 text-sm">
+              <input
+                type="checkbox"
+                checked={updateExisting}
+                onChange={(e) => setUpdateExisting(e.target.checked)}
+                className="mt-0.5"
+              />
+              <span>
+                Rewrite line items that already exist
+                <span className="block text-xs text-muted">
+                  Off means an item you already have keeps its planned amount, due
+                  day and schedule; this import only adds {plan.year}&rsquo;s
+                  figures. Leave it off when importing an older year.
+                </span>
+              </span>
+            </label>
+          </Card>
+
           {plan.notes.length > 0 ? (
             <Card>
               <h2 className="text-sm font-medium">Worth a look</h2>
@@ -254,7 +297,14 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
                       <div className="min-w-0 flex-1">
                         <span className="text-sm font-medium">{item.name}</span>
                         {item.exists ? (
-                          <span className="ml-2 text-xs text-muted">will update</span>
+                          <span className="ml-2 text-xs text-muted">
+                            {plan.updateExisting ? "will update" : "already exists — figures only"}
+                          </span>
+                        ) : null}
+                        {item.duplicateName ? (
+                          <span className="ml-2 rounded bg-danger/10 px-1.5 py-0.5 text-[11px] text-danger">
+                            duplicate name — will be numbered
+                          </span>
                         ) : null}
                         <p className="truncate text-xs text-muted">
                           {[
