@@ -3,6 +3,15 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.9.2] — unreleased
+
+### Added
+
+- **An application icon.** Trimmed, squared and given a transparent rounded
+  corner so it sits cleanly on a dark dashboard. `assets/icon.png` is what the
+  Unraid template points at; the app serves it as its favicon, and a web manifest
+  means an installed shortcut on a phone carries it too.
+
 ## [0.9.1] — unreleased
 
 ### Changed

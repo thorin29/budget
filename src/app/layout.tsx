@@ -4,6 +4,11 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Budget",
   description: "Self-hosted budget planning and cash projection",
+  manifest: "/manifest.webmanifest",
+};
+
+export const viewport = {
+  themeColor: "#2f5d50",
 };
 
 export default function RootLayout({
