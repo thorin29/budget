@@ -1,175 +1,162 @@
-# Decisions
+# Collector decisions
 
-A running record of choices that shaped this project, and the reasoning behind
-them, so a future change is made deliberately rather than by accident.
-
----
-
-## Architecture invariants
-
-Rules that hold across the project. Changing one of these is a deliberate
-decision to be recorded here, not something to do in passing.
-
-1. **Money is integer cents in the domain layer.** PostgreSQL stores
-   `Decimal(12,2)`; the application converts at the data boundary and does all
-   arithmetic in whole cents; the interface formats for display. No JavaScript
-   floating-point currency math, anywhere. Fields carrying money are named with
-   a `Cents` suffix — if it is not named that way, it is not money.
-2. **PostgreSQL is the canonical store.** No second source of truth.
-3. **Schema changes happen through migrations.** Startup applies migrations and
-   reports drift; it never silently reshapes a production schema.
-4. **This is month-level budgeting, not transaction accounting.** One
-   `ActualEntry` settles one line item for one month, and its existence means
-   paid.
-5. **The security boundary is network topology, not application code.** The
-   container publishes no host port and is reachable only through the
-   authenticating reverse proxy. The application has no authentication and does
-   not identify users.
-6. **No authentication modes.** Deployment styles the project does not use are
-   not configuration options.
-7. **Financial dates are date-only.** A due date is a calendar day and never
-   becomes a timezone-sensitive timestamp.
-8. **Business logic does not live in React components or route handlers.** They
-   call domain functions. Those functions are where the tests point.
-9. **Toolchain versions are pinned and aligned.** Node, Next and the Prisma trio
-   move together, deliberately.
-10. **Future-proofing is documentation, not speculative abstraction.** Record how
-    a boundary would be moved rather than building for a requirement that does
-    not exist.
+Hard-won choices behind `game_collector.py`, each with its rationale and the
+alternative that was tried and rejected. Read this before changing the engine.
+**The timing/coalescing logic has now been observed against real play (Sept 2026)
+and held up — it is credited-session time, not presence.** It stays conservative:
+change it only with evidence from a real observed session, never on theory (see
+ROADMAP.md, which also lists what still can't be seen at all: PC play through the
+Xbox app on a shared computer, and Minecraft Java).
 
 ---
 
-## Open
+## Architecture
 
-### Nothing open.
+- **Monitoring only.** No tokens, allowances, or manual logging — the old Kairos
+  allowance model was retired. Time is pulled automatically and shown for
+  awareness, not enforced.
+- **The collector is the stable contract.** All source integrations (HA/Xbox,
+  Steam, Family Safety) live here; Kairos only receives resolved numbers and
+  never holds game-service credentials.
+- **HA is used only for what it earns** — the fragile Xbox / Family Safety auth.
+  Steam has a clean official API, so the collector polls Steam **directly** rather
+  than through an HA integration (fewer moving parts, no HA dependency).
+- **Kairos owns durable history** (Postgres: GameDay / GameDayTitle / PlayerCard).
+  The local SQLite file is a disposable buffer, pruned to `RETAIN_DAYS`.
 
----
+## Count game-session time, not Xbox "online" presence
 
-## Settled
+- **Decision.** The credited daily total is the **union of the kid's game
+  intervals** — the same basis Steam-primary uses — for every kid. `online` is
+  only a gate (a session can't open unless the account is online) and a diagnostic
+  (`online_sessions` are recorded but never counted).
+- **Why.** Xbox Network "online" is *account* presence: a PC Xbox app, Game Pass,
+  or lingering presence with no game running all read as online. Counting it once
+  gave a kid **274 min on a day he played nothing**. A kid who is merely online
+  now logs 0, so a stale bogus total is replaced by 0 on the next push with no
+  manual clearing.
+- **Rejected: crediting online presence.** The original design; it manufactured
+  false hours. Removed in favor of the game-interval union.
 
-### TypeScript, not Python
+## The 8-minute same-game reconnect bridge — not a "forward grace"
 
-The stack mirrors the household dashboard project already running on the same
-server — Next.js, TypeScript, Prisma, PostgreSQL, Tailwind — so both share one
-toolchain, one deployment shape, and one set of build failures to learn.
+- **Decision.** When the game signal drops, hold the session **pending**. If the
+  **same game** is confirmed again within the reconnect window, rejoin the two
+  pieces and count the gap between them. If it never returns, finalize at the drop
+  and add nothing.
+- **Why this shape.** The evidence is symmetric: the kid was confirmed in that
+  game *before and after* the gap, so the gap was almost certainly play. A real
+  ~47-minute session reconstructed to **46.2 min** purely by bridging two
+  mid-session presence outages (6m27s and 5m16s — both just over the old 5-minute
+  window) with the same game confirmed on both sides, adding nothing to the idle
+  tail. Widening the *game* reconnect window to 8 minutes recovers exactly that,
+  with no invented time.
+- **Rejected: a forward grace.** An earlier attempt added a 5-minute "keep
+  counting while still online" grace *after* the last game signal. That fixed the
+  wrong end — it invented unverified time on the tail and compounded with the
+  coalesce window to bridge ~10 min. **Removed.** The bridge only ever fills a gap
+  that is bracketed by the same game on both sides.
 
-Python was the alternative, and its advantage was spreadsheet parsing. That
-advantage was removed by keeping the spreadsheet importer outside the
-application: source workbooks are converted to JSON separately and the app
-ingests JSON, so no spreadsheet library appears in the dependency tree.
+## Per-purpose coalesce gaps
 
-### Every line item is a cash obligation
+- **Decision.** The `Coalescer` takes a per-instance `gap`. The Xbox *game*
+  reconnect window is 8 min (`XBOX_GAME_GAP`, env `XBOX_GAME_GAP_MIN`); the Xbox
+  *online* diagnostic and the *Steam* coalescers keep the 5-min `COALESCE_GAP`.
+- **Why.** Xbox console/PC presence blinks offline for minutes mid-game, so its
+  game window needs to be wide. Steam reports the title directly, so a tighter
+  window there avoids swallowing a genuine Steam break.
 
-An earlier design treated card-charged items as tracked-but-not-cash, on the
-theory that only the card's own payment needed money in the bank. That was
-wrong. Each line item is paid from an account and every one of them requires
-real money.
+## Platform metadata is session-scoped
 
-`chargedTo` remains on the model as reporting metadata — it records which card a
-charge lands on — but it never affects what must be in the bank.
+- **Decision.** The platform is captured on the coalescer **session** (`meta`)
+  when it opens, travels with that session through bridges, and is never
+  overwritten by a later game/device.
+- **Why.** A per-friend "last platform" global got clobbered when a new game
+  started before the old one flushed — moving it onto the session fixed the
+  mislabeling.
 
-### Bills carry forward until paid
+## Sources & platform from the merge winners
 
-The spreadsheet this replaces silently forgets an unpaid bill at month end. Here
-an unpaid item keeps its original due date, is flagged, and stays in the totals
-until settled or explicitly marked as not due for that month.
+- **Decision.** `sources` (the per-system icons) and each game's `platform` are
+  taken from the **winners** of `resolve_precedence`, not from every row that
+  shared a title.
+- **Why.** When Steam wins an overlapping minute, the losing Xbox presence for the
+  same instant shouldn't attach a phantom Xbox device to the title. A genuinely
+  separate Xbox game still surfaces Xbox because it wins its own minutes.
 
-`skipped` on `MonthlyPlan` is how "nothing owed this month" is recorded. It is
-deliberately distinct from an amount of zero.
+## PC/Windows presence is unreliable (irreducible)
 
-### The month splits at a fixed day, not at a payday
+- **Observation.** On Windows the `now_playing` title frequently drops to `None`
+  or reports a non-game title even during real play (party chat can steal the
+  "now playing" slot on the same PC). HA diagnostics confirmed PC entries
+  reporting non-game titles.
+- **Consequence.** There is no signal that separates "playing but the title
+  dropped" from "idle with the app open" on the same PC. The bridge recovers
+  *same-game* gaps; the residual is an HA-integration limit, not a collector bug.
 
-An earlier version derived the halves from the pay calendar. It produced
-lopsided periods — a four-day second half in some months — because paydays drift
-while bills stay pinned to days of the month.
+## HA collapses multi-device presence — the "phantom" device
 
-The split is a planning guideline set once, defaulting to the 15th. Paydays are
-a reference calendar the projection uses; no boundary or total derives from them.
-Individual items can be pinned to either half where the due date is not how the
-bill is actually paid.
+- **Observation.** When a kid's account is live on two devices (e.g. a console
+  they're playing on plus a PC with the Xbox app idling in party chat), HA
+  collapses them into one per-friend signal + a platform attribute that
+  flip-flops. That phantom idle device is why a console-only kid once showed
+  `platform=Windows` lines.
+- **Handled by** the bridge + session-scoped platform + source/platform-from-
+  winners.
+- **Rejected (deferred): a full cross-device phantom guard** (compare incoming
+  platform vs the active game's and reject mismatches). Considered and
+  deliberately **not built** — it's rare and doesn't affect credited minutes. See
+  ROADMAP.md for the evidence-gated version.
 
-### The projection is the point
+## Reliability
 
-The month view shows what is owed. The projection answers the question that was
-previously worked out by hand each month: given the balance now, the bills still
-outstanding, and the paydays ahead, how much can leave the account today.
+- **`suspend()` on HA reconnect, not `flush_all()`.** A transient socket drop
+  suspends open sessions into pending (bridgeable); `flush_all()` is only for a
+  deliberate exit. See README "Reliability behaviors."
+- **Graceful shutdown flushes to SQLite first, then one best-effort push.** A
+  deliberate restart is not a presence blip, so shutdown finalizes sessions at the
+  stop time and does *not* enter the reconnect bridge. SQLite is the safety net; a
+  failed push never blocks shutdown. Does not cover `kill -9` / power loss —
+  periodic checkpointing was considered and deliberately not added.
+- **Bounded timeouts** (push 5s, Steam 8s, shutdown push 5s / 7s outer guard). No
+  20s HTTP timeout is exercised anywhere in the running system.
 
-It walks the balance forward day by day and reports the lowest point reached. The
-horizon extends past the next payday on purpose — stopping there hides the
-cluster of fixed bills that lands at the start of the following month.
+## Steam & the merge
 
-### An actual entry is the paid flag
+- A Steam-configured kid is **Steam-primary**: their total is the union of Steam
+  gameplay and any Xbox gameplay that does *not* overlap Steam (Steam wins
+  overlapping minutes). This stops double-counting the Xbox-app-on-PC "online"
+  that shows while they're in a Steam game.
+- For Steam, "online" is derived from being in a game (`gameextrainfo`), so the
+  Steam session brackets Steam gameplay — no always-on Steam-client noise.
 
-One actual per line item per month, and its existence means settled. No separate
-checkbox to keep in sync. If per-charge detail is ever wanted, dropping the
-unique constraint and adding a date turns the same table into a transaction log.
+## Push to Kairos
 
-### Prisma 7 configuration
+- Pushes today's resolved totals + per-game breakdown + status + platforms every
+  5 min. **Idempotent** — Kairos upserts the day and replaces the whole game
+  breakdown, so re-sending "today so far" never accumulates and a corrected push
+  clears stale games.
+- In-progress (open + pending) sessions are included so a still-playing kid shows
+  current time; they're never written to SQLite, so no double-count.
+- `KAIROS_URL` must be the **internal** address — a LAN-to-LAN collector shouldn't
+  hairpin out through Cloudflare. Auth is the `X-Ingest-Token` header (not
+  Authelia), so going direct is fine.
 
-Prisma 7 removed `url` from the datasource block and requires a driver adapter.
-The connection string lives in `prisma.config.ts`, read from `process.env`
-directly rather than through Prisma's `env()` helper, which throws when the
-variable is unset and would break `prisma generate` during the image build.
+## Storage
 
-The generator is `prisma-client` with an explicit output path;
-`prisma-client-js` is deprecated.
+- **`DB_PATH` defaults next to the script**, not `./`. The stock `python` image
+  runs with the working dir at `/`, so `./game_playtime.db` landed at the
+  container root (ephemeral, wiped on recreate). Under Docker, point `DB_PATH` at
+  the mounted `/data` volume.
+- **Retention prune** on startup and once a day: delete rows older than
+  `RETAIN_DAYS` and `VACUUM`. Keeps the file flat forever.
 
-### Migrations apply; drift is reported, not corrected
+## Debugging discipline that worked
 
-The initial migration was hand-written because the tooling to generate it was
-not available at the time. Until the first successful deployment the entrypoint
-also reconciled any difference with `db push`, as a safety net.
-
-That net has served its purpose — the schema came up correctly — and it is gone
-as of 0.2.0. Startup now runs `migrate deploy` only. Drift is still detected and
-logged loudly, because knowing is valuable, but the schema is never reshaped
-outside the migration history.
-
-### No authentication in the application
-
-A proxy-authentication scheme was designed and rejected before it shipped:
-`AUTH_MODE`, a username header, and a shared secret verified on every request.
-
-The reasoning that produced it was that the application should not trust a
-username header, because a published host port lets anything set one; defending
-the header needs a shared secret; the secret needs a configuration contract
-between proxy and application.
-
-The flaw was in the premise — the published host port was treated as fixed, when
-it is the thing to remove. With the container on the proxy's network, no request
-arrives without passing authentication first, and there is nothing for the
-application to verify.
-
-The application also has no use for the authenticated identity. It is a
-single-household installation; every user who gets through the proxy sees the
-same data. Reading a username would answer a question nothing asks.
-
-**What would bring authentication back:** a second household member needing
-separate data, a genuine need to attribute a change to a person, or exposing the
-application somewhere the proxy does not front. None of those exist today.
-
-### Money is integer cents
-
-The database stores `Decimal(12,2)`, but the projection engine originally
-converted everything to JavaScript `number` and accumulated with `+` and `-`.
-Since the entire output of this application is one figure the user acts on,
-accumulated float error was unacceptable.
-
-The domain layer now works exclusively in integer cents, converted at the data
-boundary. `Decimal(12,2)` tops out at 9,999,999,999.99, which is 999999999999
-cents — comfortably inside `Number.MAX_SAFE_INTEGER`, so integer arithmetic is
-exact across the full range the column permits.
-
-### PeriodAssignment holds two halves
-
-`THIRD` and `LAST` were remnants of an earlier design that divided a month by its
-paydays and could produce three periods. The month is now split at a fixed day,
-and the calculation already collapsed those values onto the second half.
-Migration `0001` removes them.
-
-### No data in the repository
-
-The repository is public. It contains no account names, institution names,
-vendor names, payment links, or figures. Accounts, categories, and line items are
-created at runtime. `.gitignore` excludes spreadsheets, dumps, and the import
-directory so source workbooks cannot be committed by accident.
+Pull the actual SQLite rows and `docker logs -t` (timestamped), reconstruct
+against observed reality, and prefer evidence over theory. The diagnosis shifted
+several times (coalesce gap → PC title drop → phantom device) as new data
+arrived — let the data lead. A peer AI reviewer caught several real bugs across
+iterations (a duplicate `_recompute`, an unbounded shutdown POST, a source-by-title
+mislabel, a platform-metadata bug); the right response each time was to verify the
+claim against the code and own it, not defend the prior version.
