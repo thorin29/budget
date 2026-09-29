@@ -16,7 +16,7 @@
   </Overview>
   <Category>Productivity:</Category>
   <WebUI/>
-  <Icon/>
+  <Icon>https://raw.githubusercontent.com/thorin29/budget/main/assets/icon.png</Icon>
 
   <Config Name="WebUI Port" Target="3000" Default="" Mode="tcp"
           Description="Optional. Leave empty when the container sits on the reverse proxy network and is reached through the proxy."
