@@ -3,6 +3,16 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.9.3] — unreleased
+
+### Fixed
+
+- **The bills balance now carries into later months.** It is recorded per month,
+  so a new month found nothing and both transfer figures sat empty until a
+  balance was typed again. The most recent balance at or before the month being
+  viewed is used instead, and the field says which month it came from so a
+  carried figure is never mistaken for a fresh one.
+
 ## [0.9.2] — unreleased
 
 ### Added

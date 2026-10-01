@@ -237,6 +237,13 @@ export default async function MonthPage({
                       ? ""
                       : toDecimalString(view.billsBalanceCents)
                   }
+                  carriedFrom={
+                    view.billsBalanceFrom &&
+                    (view.billsBalanceFrom.year !== year ||
+                      view.billsBalanceFrom.month !== month)
+                      ? view.billsBalanceFrom
+                      : null
+                  }
                 />
               </div>
             )}

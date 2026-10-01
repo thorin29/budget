@@ -214,16 +214,24 @@ function asCurrency(raw: string): string {
   });
 }
 
+const MONTH_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
 export function BalanceForm({
   year,
   month,
   accountName,
   defaultValue,
+  carriedFrom,
 }: {
   year: number;
   month: number;
   accountName: string | null;
   defaultValue: string;
+  /** Set when the figure shown was entered in an earlier month. */
+  carriedFrom?: { year: number; month: number } | null;
 }) {
   const [state, action, pending] = useActionState(recordBalanceAction, INITIAL);
   // Held in state so a failed save does not discard what was typed.
@@ -257,6 +265,13 @@ export function BalanceForm({
           {pending ? "Saving…" : "Update"}
         </Button>
       </form>
+
+      {carriedFrom ? (
+        <p className="mt-2 text-xs text-muted">
+          Carried from {MONTH_SHORT[carriedFrom.month - 1]} {carriedFrom.year}.
+          Update it to record this month&rsquo;s position.
+        </p>
+      ) : null}
 
       {state.ok ? null : (
         <p className="mt-2 text-xs text-danger">{state.message}</p>
