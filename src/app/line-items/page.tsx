@@ -96,7 +96,11 @@ export default async function LineItemsPage() {
                             item.paidFromId ? accountName.get(item.paidFromId) : null,
                             SCHEDULE_LABELS[item.scheduleKind],
                             item.dueDay ? `day ${item.dueDay}` : null,
-                            half === 0 ? "first half" : "second half",
+                            item.paidFromSurplus
+                              ? "paid from what's left"
+                              : half === 0
+                                ? "first half"
+                                : "second half",
                             item.active ? null : "inactive",
                           ]
                             .filter(Boolean)

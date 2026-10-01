@@ -41,6 +41,7 @@ export default async function NewLineItemPage() {
           payScheduleId: null,
           plannedAmount: "",
           dueDay: null,
+          paidFromSurplus: false,
           periodAssignment: "AUTO",
           scheduleKind: "MONTHLY",
           anchorMonth: 1,

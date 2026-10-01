@@ -60,6 +60,7 @@ export default async function EditLineItemPage({
           payScheduleId: item.payScheduleId,
           plannedAmount: toDecimalString(item.plannedAmountCents),
           dueDay: item.dueDay,
+          paidFromSurplus: item.paidFromSurplus,
           periodAssignment: item.periodAssignment,
           scheduleKind: item.scheduleKind,
           anchorMonth: item.months[0] ?? 1,

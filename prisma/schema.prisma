@@ -140,6 +140,16 @@ model LineItem {
   /// actually pay it.
   periodAssignment PeriodAssignment @default(AUTO)
 
+  /// Paid with whatever is left after the bills, rather than competing with
+  /// them for cash. A revolving card whose payment is decided by what remains,
+  /// not fixed in advance.
+  ///
+  /// Such an item is kept out of each half's remaining, out of both transfer
+  /// figures, and out of the projection's obligations — which turns "safe to
+  /// pay today" into the amount available to send it. It is still tracked:
+  /// actuals, month adjustments and history are unaffected.
+  paidFromSurplus Boolean @default(false)
+
   scheduleKind ScheduleKind @default(MONTHLY)
   /// Months this item is due, 1-12. Always populated, including all twelve for
   /// MONTHLY, so scheduling is one query rather than a branch per kind.

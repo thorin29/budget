@@ -35,6 +35,8 @@ export interface LineItem {
   plannedAmountCents: Cents;
   dueDay: number | null;
   periodAssignment: PeriodAssignment;
+  /** Paid from what is left after the bills; kept out of the cash figures. */
+  paidFromSurplus: boolean;
   scheduleKind: ScheduleKind;
   months: number[];
   onlyYear: number | null;
@@ -61,6 +63,7 @@ const lineItemInput = z
     plannedAmountCents: z.number().int().min(0, "Cannot be negative"),
     dueDay: z.number().int().min(1).max(31).nullish(),
     periodAssignment: z.enum(PERIOD_ASSIGNMENTS).default("AUTO"),
+    paidFromSurplus: z.boolean().optional(),
     scheduleKind: z.enum(SCHEDULE_KINDS).default("MONTHLY"),
     /** The month a non-monthly schedule is anchored to. */
     anchorMonth: z.number().int().min(1).max(12).default(1),
@@ -121,6 +124,7 @@ type Row = {
   plannedAmount: { toString(): string };
   dueDay: number | null;
   periodAssignment: string;
+  paidFromSurplus: boolean;
   scheduleKind: string;
   months: number[];
   onlyYear: number | null;
@@ -148,6 +152,7 @@ function toLineItem(row: Row): LineItem {
     plannedAmountCents: toCents(row.plannedAmount),
     dueDay: row.dueDay,
     periodAssignment: row.periodAssignment as PeriodAssignment,
+    paidFromSurplus: row.paidFromSurplus,
     scheduleKind: row.scheduleKind as ScheduleKind,
     months: row.months,
     onlyYear: row.onlyYear,
@@ -193,6 +198,7 @@ async function toRowData(data: ReturnType<typeof parse>) {
     plannedAmount: toDecimalString(data.plannedAmountCents),
     dueDay: data.dueDay ?? null,
     periodAssignment: data.periodAssignment,
+    paidFromSurplus: data.kind === "INCOME" ? false : (data.paidFromSurplus ?? false),
     scheduleKind: data.scheduleKind,
     months: monthsForSchedule(data.scheduleKind, data.anchorMonth, data.months ?? []),
     onlyYear: data.scheduleKind === "ONE_OFF" ? (data.onlyYear ?? null) : null,

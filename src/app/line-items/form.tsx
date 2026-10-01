@@ -23,6 +23,7 @@ export interface LineItemDefaults {
   plannedAmount: string;
   dueDay: number | null;
   periodAssignment: string;
+  paidFromSurplus: boolean;
   scheduleKind: string;
   anchorMonth: number;
   months: number[];
@@ -170,6 +171,26 @@ export function LineItemForm({
               ))}
             </Select>
           </Field>
+        ) : null}
+
+        {!isIncome ? (
+          <label className="flex gap-3 self-end rounded-md border border-line bg-field px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              name="paidFromSurplus"
+              value="true"
+              defaultChecked={defaults.paidFromSurplus}
+              className="mt-0.5"
+            />
+            <span>
+              Paid from what&rsquo;s left over
+              <span className="block text-xs text-muted">
+                For a card you pay with whatever remains once the bills are
+                covered. It stops counting against the money available and the
+                projection reports what you can send it instead.
+              </span>
+            </span>
+          </label>
         ) : null}
 
         <Field

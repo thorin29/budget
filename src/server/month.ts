@@ -49,6 +49,8 @@ export interface MonthEntry {
   /** True when the month's budget differs from the plan. */
   adjusted: boolean;
   half: 0 | 1;
+  /** Paid from what is left over; kept out of the cash figures. */
+  paidFromSurplus: boolean;
   /** Set when the entry originates in an earlier, unpaid month. */
   carriedFrom: { year: number; month: number } | null;
 }
@@ -67,6 +69,13 @@ export interface MonthView {
   month: number;
   splitDay: number;
   halves: [HalfSummary, HalfSummary];
+  /**
+   * Paid from whatever is left after the bills. Excluded from the halves, the
+   * remaining figures and the transfer figures; tracked in its own right.
+   */
+  surplusItems: MonthEntry[];
+  surplusBudgetedCents: Cents;
+  surplusPaidCents: Cents;
   /** Genuinely outstanding items from earlier months, kept out of the halves. */
   carried: MonthEntry[];
   carriedCents: Cents;
@@ -121,6 +130,7 @@ interface LineItemRow {
   endMonth: number | null;
   paymentUrl: string | null;
   active: boolean;
+  paidFromSurplus: boolean;
 }
 
 interface NamedRow {
@@ -253,6 +263,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       skipped: false,
       adjusted: o.amountCents !== (planned.get(item.id) ?? 0),
       half: o.half,
+      paidFromSurplus: item.paidFromSurplus,
       carriedFrom: o.carriedOver ? { year: o.year, month: o.month } : null,
     };
   });
@@ -285,17 +296,24 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       skipped: plan?.skipped ?? false,
       adjusted: budgeted !== (planned.get(item.id) ?? 0),
       half: halfFor(item.dueDay, item.periodAssignment as never, splitDay),
+      paidFromSurplus: item.paidFromSurplus,
       carriedFrom: null,
     });
   }
 
   const halfDefs = monthHalves(year, month, splitDay);
 
+  // Items paid from the surplus leave the halves entirely: they do not compete
+  // with the bills for cash, they consume what is left after them.
+  const surplus = entries
+    .filter((e) => e.paidFromSurplus)
+    .sort((a, b) => (a.dueDay ?? 0) - (b.dueDay ?? 0));
+
   const carried = entries
-    .filter((e) => e.carriedFrom !== null)
+    .filter((e) => e.carriedFrom !== null && !e.paidFromSurplus)
     .sort((a, b) => a.year * 12 + a.month - (b.year * 12 + b.month));
 
-  const thisMonth = entries.filter((e) => e.carriedFrom === null);
+  const thisMonth = entries.filter((e) => e.carriedFrom === null && !e.paidFromSurplus);
 
   const buildHalf = (index: 0 | 1): HalfSummary => {
     const inHalf = thisMonth
@@ -339,6 +357,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
         skipped: plan?.skipped ?? false,
         adjusted: budgeted !== toCents(item.plannedAmount),
         half: halfFor(item.dueDay, item.periodAssignment as never, splitDay),
+        paidFromSurplus: false,
         carriedFrom: null,
       };
     })
@@ -357,6 +376,9 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     month,
     splitDay,
     halves,
+    surplusItems: surplus,
+    surplusBudgetedCents: surplus.reduce((sum, e) => sum + e.budgetedCents, 0),
+    surplusPaidCents: surplus.reduce((sum, e) => sum + (e.actualCents ?? 0), 0),
     carried,
     carriedCents,
     carryMonths: settings.carryMonths,

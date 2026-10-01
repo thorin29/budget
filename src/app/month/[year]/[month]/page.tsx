@@ -271,6 +271,58 @@ export default async function MonthPage({
                 {formatCents(view.totalRemainingCents)} still owed
               </p>
             </div>
+
+            {view.surplusItems.map((entry) => {
+              const free = view.transferAfterSecondCents;
+              const shortfall =
+                free === null ? null : free - entry.budgetedCents;
+
+              return (
+                <div
+                  key={entry.lineItemId}
+                  className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm"
+                >
+                  <div className="px-4 pt-4">
+                    <p className="font-medium">{entry.name}</p>
+                    <p className="mt-0.5 text-xs text-muted">
+                      {[
+                        entry.dueDay ? `due day ${entry.dueDay}` : null,
+                        entry.accountName,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+
+                    <p className="tnum mt-3 text-2xl font-semibold">
+                      {entry.actualCents === null
+                        ? formatCents(entry.budgetedCents)
+                        : formatCents(entry.actualCents)}
+                    </p>
+                    <p className="mt-1 text-xs text-muted">
+                      {entry.actualCents === null
+                        ? "planned — not counted against what is free"
+                        : `paid · ${formatCents(entry.budgetedCents)} planned`}
+                    </p>
+
+                    {shortfall !== null && entry.actualCents === null ? (
+                      <p
+                        className={`tnum mt-2 text-xs ${
+                          shortfall >= 0 ? "text-muted" : "text-danger"
+                        }`}
+                      >
+                        {shortfall >= 0
+                          ? `${formatCents(shortfall)} over after paying it`
+                          : `${formatCents(Math.abs(shortfall))} short of the planned payment`}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="mt-3 border-t border-line">
+                    {row(entry, year, month)}
+                  </div>
+                </div>
+              );
+            })}
           </aside>
         </div>
       )}

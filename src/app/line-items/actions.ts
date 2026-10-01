@@ -33,6 +33,7 @@ function readForm(form: FormData) {
     plannedAmountCents: amount ? parseCents(amount) : 0,
     dueDay: num(form, "dueDay"),
     periodAssignment: (str(form, "periodAssignment") || "AUTO") as never,
+    paidFromSurplus: str(form, "paidFromSurplus") === "true",
     scheduleKind: (str(form, "scheduleKind") || "MONTHLY") as never,
     anchorMonth: num(form, "anchorMonth") ?? 1,
     months: form.getAll("months").map((m) => Number(m)).filter(Number.isFinite),
