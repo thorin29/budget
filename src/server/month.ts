@@ -75,8 +75,14 @@ export interface MonthView {
   income: MonthEntry[];
   incomeExpectedCents: Cents;
   incomeReceivedCents: Cents;
-  /** Balance set aside for bills, as entered. Null when not yet recorded. */
+  /** Balance set aside for bills. Null until one has been recorded. */
   billsBalanceCents: Cents | null;
+  /**
+   * The month that balance was actually entered in. When it is earlier than the
+   * month being viewed, the figure is carried forward and worth marking as such
+   * — it is the last known position, not a fresh one.
+   */
+  billsBalanceFrom: { year: number; month: number } | null;
   billsAccountId: string | null;
   billsAccountName: string | null;
   /** Balance less the first half's remaining. */
@@ -164,10 +170,18 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     }),
     settings.billsAccountId
       ? prisma.balanceSnapshot.findFirst({
-          where: { accountId: settings.billsAccountId, year, month },
+          where: {
+            accountId: settings.billsAccountId,
+            OR: [{ year: { lt: year } }, { year, month: { lte: month } }],
+          },
+          orderBy: [{ year: "desc" }, { month: "desc" }],
         })
       : null,
-  ])) as [MonthlyPlanRow[], ActualRow[], { amount: { toString(): string } } | null];
+  ])) as [
+    MonthlyPlanRow[],
+    ActualRow[],
+    { amount: { toString(): string }; year: number; month: number } | null,
+  ];
 
   const planMap = new Map(
     plans.map((p) => [
@@ -333,6 +347,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   const carriedCents = carried.reduce((sum, e) => sum + e.budgetedCents, 0);
 
   const billsBalanceCents = balance ? toCents(balance.amount) : null;
+  const billsBalanceFrom = balance ? { year: balance.year, month: balance.month } : null;
   // Anything already overdue is owed now, so it weighs on the first half.
   const remainingFirst = halves[0].remainingCents + carriedCents;
   const remainingBoth = remainingFirst + halves[1].remainingCents;
@@ -349,6 +364,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     incomeExpectedCents: income.reduce((s, e) => s + e.budgetedCents, 0),
     incomeReceivedCents: income.reduce((s, e) => s + (e.actualCents ?? 0), 0),
     billsBalanceCents,
+    billsBalanceFrom,
     billsAccountId: settings.billsAccountId,
     billsAccountName: settings.billsAccountId
       ? (accountName.get(settings.billsAccountId) ?? null)
