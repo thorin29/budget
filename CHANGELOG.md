@@ -3,6 +3,27 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.10.0] — unreleased
+
+### Added
+
+- **"Paid from what's left over"** on a line item. For a card whose payment is
+  decided by whatever remains once the bills are covered, rather than fixed in
+  advance.
+
+  A flagged item leaves its half, stops counting toward either remaining figure,
+  and both transfer figures rise by its amount — so "free after both halves"
+  becomes genuinely what is available to send it. It also drops out of the
+  projection's obligations, which turns "safe to pay today" into the amount that
+  can go to that card rather than a figure that already assumed it was paid.
+
+  It is tracked in full: actuals, month adjustments and history are unaffected,
+  and it appears as its own card on the right of the month view, titled by the
+  item, showing its due day and whether the surplus covers the planned payment.
+
+  Off by default, so existing installations are unchanged. Migration `0003`.
+- 3 more tests covering the figures with and without the flag.
+
 ## [0.9.3] — unreleased
 
 ### Fixed

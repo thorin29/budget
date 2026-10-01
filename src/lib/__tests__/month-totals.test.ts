@@ -274,3 +274,76 @@ describe("carry window", () => {
     assert.equal(none[0].carriedOver, false);
   });
 });
+
+describe("items paid from what is left over", () => {
+  const base: LineItemForMonth = {
+    id: "x", name: "x", kind: "BILL", dueDay: 1, periodAssignment: "AUTO",
+    months: [1,2,3,4,5,6,7,8,9,10,11,12], scheduleKind: "MONTHLY", onlyYear: null,
+    startYear: null, startMonth: null, endYear: null, endMonth: null, active: true,
+  };
+
+  const bills = [
+    { ...base, id: "mortgage", name: "mortgage", dueDay: 1 },
+    { ...base, id: "energy", name: "energy", dueDay: 20 },
+  ];
+  const card = { ...base, id: "card", name: "card", kind: "SETTLEMENT" as const, dueDay: 1 };
+
+  const planned = new Map([
+    ["mortgage", 264800],
+    ["energy", 40000],
+    ["card", 450000],
+  ]);
+
+  /** Remaining as the month view computes it, with the card set aside. */
+  function figures(surplusIds: string[]) {
+    const obligations = buildObligations({
+      items: [...bills, card],
+      planned,
+      plans: new Map(),
+      settled: new Set(),
+      year: 2026, month: 10, splitDay: 15, carryMonths: 0,
+    });
+
+    const counted = obligations.filter((o) => !surplusIds.includes(o.lineItemId));
+    const setAside = obligations.filter((o) => surplusIds.includes(o.lineItemId));
+
+    const firstRemaining = counted
+      .filter((o) => o.half === 0)
+      .reduce((s, o) => s + o.amountCents, 0);
+    const bothRemaining = counted.reduce((s, o) => s + o.amountCents, 0);
+
+    const balance = 1136600; // $11,366
+    return {
+      firstRemaining,
+      bothRemaining,
+      freeAfterFirst: balance - firstRemaining,
+      freeAfterBoth: balance - bothRemaining,
+      setAsideTotal: setAside.reduce((s, o) => s + o.amountCents, 0),
+    };
+  }
+
+  it("counts the card against available cash when not flagged", () => {
+    const f = figures([]);
+    // Mortgage and the card both fall in the first half.
+    assert.equal(f.firstRemaining, 264800 + 450000);
+    assert.equal(f.freeAfterFirst, 1136600 - 714800);
+    assert.equal(f.freeAfterBoth, 1136600 - 754800);
+  });
+
+  it("frees that cash once flagged, and reports it separately", () => {
+    const f = figures(["card"]);
+    assert.equal(f.firstRemaining, 264800);
+    assert.equal(f.setAsideTotal, 450000);
+    // Both transfer figures rise by exactly the card's planned payment.
+    assert.equal(f.freeAfterFirst, 1136600 - 264800);
+    assert.equal(f.freeAfterBoth, 1136600 - 304800);
+    assert.equal(f.freeAfterBoth - figures([]).freeAfterBoth, 450000);
+  });
+
+  it("shows whether the surplus covers the planned payment", () => {
+    const f = figures(["card"]);
+    const shortfall = f.freeAfterBoth - 450000;
+    assert.equal(shortfall, 381800);
+    assert.ok(shortfall > 0, "surplus covers it at this balance");
+  });
+});

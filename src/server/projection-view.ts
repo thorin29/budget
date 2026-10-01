@@ -43,6 +43,7 @@ interface LineItemRow {
   active: boolean;
   plannedAmount: { toString(): string };
   payScheduleId: string | null;
+  paidFromSurplus: boolean;
 }
 
 interface PayScheduleRow {
@@ -104,7 +105,12 @@ export async function getProjection(options: {
   // the projection report a balance tens of thousands below reality.
   const trackedMonths = new Set(actuals.map((a) => `${a.year}:${a.month}`));
 
-  const forModel: LineItemForMonth[] = items.map((i) => ({
+  // Excluded here, which is the point of the flag: "safe to pay today" becomes
+  // the amount available to send these, rather than a figure that already
+  // assumes they are paid.
+  const obligationItems = items.filter((i) => !i.paidFromSurplus);
+
+  const forModel: LineItemForMonth[] = obligationItems.map((i) => ({
     id: i.id,
     name: i.name,
     kind: i.kind as LineItemForMonth["kind"],
@@ -119,7 +125,7 @@ export async function getProjection(options: {
     endMonth: i.endMonth,
     active: i.active,
   }));
-  const planned = new Map(items.map((i) => [i.id, toCents(i.plannedAmount)]));
+  const planned = new Map(obligationItems.map((i) => [i.id, toCents(i.plannedAmount)]));
 
   // Obligations for every month the horizon reaches, deduplicated: the sweep
   // for a later month also returns earlier unpaid ones.
