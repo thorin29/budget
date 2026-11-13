@@ -65,7 +65,7 @@ export async function createLineItemAction(
   } catch (error) {
     return toState(error);
   }
-  revalidatePath("/line-items");
+  revalidatePath("/", "layout");
   redirect("/line-items");
 }
 
@@ -79,7 +79,7 @@ export async function updateLineItemAction(
   } catch (error) {
     return toState(error);
   }
-  revalidatePath("/line-items");
+  revalidatePath("/", "layout");
   redirect("/line-items");
 }
 
@@ -92,6 +92,6 @@ export async function deleteLineItemAction(
   } catch (error) {
     return toState(error);
   }
-  revalidatePath("/line-items");
-  return { ok: true };
+  revalidatePath("/", "layout");
+  redirect("/line-items");
 }

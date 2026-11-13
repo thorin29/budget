@@ -1,10 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getMonthView, type MonthEntry } from "@/server/month";
-import { formatCents, toDecimalString } from "@/lib/money";
-import { versionLabel } from "@/lib/version";
-import { EmptyState } from "@/components/ui";
-import { BalanceForm, EntryRow } from "../../rows";
+import { prisma } from "@/lib/prisma";
+import { getMonthView } from "@/server/month";
+import { getProjection } from "@/server/projection-view";
+import { formatCents } from "@/lib/money";
+import { EmptyState, StatCard, buttonClass } from "@/components/ui";
+import { BalanceChart, toChartPoints } from "@/components/balance-chart";
+import { BalanceCard, MonthList, type MonthSection } from "../../rows";
+import { QuickEntry } from "../../quick-entry";
+import { shortDate, shortMonth, todayIso, toRow, type RowEntry } from "../../row-model";
 
 export const dynamic = "force-dynamic";
 
@@ -18,47 +22,14 @@ function shift(year: number, month: number, by: number) {
   return { year: Math.floor(ordinal / 12), month: (ordinal % 12) + 1 };
 }
 
-/** One row of the tables, wired to the month it belongs to. */
-function row(entry: MonthEntry, year: number, month: number) {
-  return (
-    <EntryRow
-      key={`${entry.lineItemId}-${entry.year}-${entry.month}`}
-      year={entry.carriedFrom ? entry.year : year}
-      month={entry.carriedFrom ? entry.month : month}
-      lineItemId={entry.lineItemId}
-      name={entry.name}
-      categoryName={entry.categoryName}
-      accountName={entry.accountName}
-      paymentUrl={entry.paymentUrl}
-      dueDay={entry.dueDay}
-      budgetedCents={entry.budgetedCents}
-      plannedCents={entry.plannedCents}
-      actualCents={entry.actualCents}
-      adjusted={entry.adjusted}
-      carriedFrom={entry.carriedFrom}
-      budgetedDisplay={toDecimalString(entry.budgetedCents)}
-    />
-  );
-}
+const ordinal = (n: number) => {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] ?? s[v] ?? s[0]}`;
+};
 
-function SectionHeader({ title, right }: { title: string; right: string }) {
-  return (
-    <div className="flex items-baseline justify-between border-b border-line bg-background/40 px-4 py-2.5">
-      <h2 className="text-sm font-semibold">{title}</h2>
-      <p className="tnum text-xs text-muted">{right}</p>
-    </div>
-  );
-}
-
-function ColumnLabels() {
-  return (
-    <div className="flex gap-3 border-b border-line px-4 py-1.5 text-[11px] uppercase tracking-wide text-muted">
-      <span className="flex-1">Item</span>
-      <span className="w-24 text-right">Budget</span>
-      <span className="w-24 text-right">Actual</span>
-    </div>
-  );
-}
+const paidOf = (rows: RowEntry[]) => rows.reduce((s, r) => s + (r.actualCents ?? 0), 0);
+const budgetOf = (rows: RowEntry[]) => rows.reduce((s, r) => s + r.budgetedCents, 0);
 
 export default async function MonthPage({
   params,
@@ -73,261 +44,306 @@ export default async function MonthPage({
     notFound();
   }
 
-  const view = await getMonthView(year, month);
+  const accountCount = await prisma.account.count();
+  if (accountCount === 0) return <Welcome />;
+
+  const [view, projection] = await Promise.all([
+    getMonthView(year, month),
+    getProjection().catch(() => null),
+  ]);
+
+  const today = todayIso();
   const previous = shift(year, month, -1);
   const next = shift(year, month, 1);
-
   const now = new Date();
   const isCurrent = year === now.getFullYear() && month === now.getMonth() + 1;
 
-  const hasItems =
-    view.halves[0].entries.length + view.halves[1].entries.length + view.income.length > 0;
+  const income = view.income.map((e) => toRow(e, today));
+  const carried = view.carried.map((e) => toRow(e, today));
+  const halves = view.halves.map((h) => h.entries.map((e) => toRow(e, today)));
+  const surplus = view.surplusItems.map((e) => toRow(e, today));
+
+  const allRows = [...carried, ...halves[0], ...halves[1], ...surplus, ...income];
+  const billRows = [...carried, ...halves[0], ...halves[1]];
+  const unpaidBills = billRows.filter((r) => r.actualCents === null);
+
+  const hasItems = allRows.length > 0;
+
+  const sections: MonthSection[] = [];
+  if (income.length) {
+    sections.push({
+      key: "income",
+      title: "Income",
+      summary: `${formatCents(view.incomeReceivedCents)} received of ${formatCents(view.incomeExpectedCents)}`,
+      rows: income,
+      progress: { value: view.incomeReceivedCents, max: view.incomeExpectedCents, tone: "info" },
+    });
+  }
+  if (carried.length) {
+    sections.push({
+      key: "carried",
+      title: `Unpaid from earlier`,
+      summary: `${formatCents(view.carriedCents)} owed now`,
+      rows: carried,
+      tone: "danger",
+      note: `Counted in the first half. If one cost nothing, record zero or choose “Nothing due this month” under More options. Only the last ${
+        view.carryMonths === 1 ? "month is" : `${view.carryMonths} months are`
+      } carried — change that in Settings → Planning.`,
+    });
+  }
+  view.halves.forEach((half, i) => {
+    sections.push({
+      key: `half-${i}`,
+      title: half.half.label,
+      summary: `${formatCents(half.paidCents)} paid · ${formatCents(half.remainingCents)} left`,
+      rows: halves[i],
+      progress: { value: half.budgetedCents - half.remainingCents, max: half.budgetedCents },
+    });
+  });
+  if (surplus.length) {
+    sections.push({
+      key: "surplus",
+      title: "Paid from what's left over",
+      summary: `${formatCents(view.surplusPaidCents)} paid of ${formatCents(view.surplusBudgetedCents)} planned`,
+      rows: surplus,
+    });
+  }
+
+  const comingUp = unpaidBills
+    .slice()
+    .sort((a, b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999"))
+    .slice(0, 5);
+
+  const lowDay =
+    projection && !projection.balanceMissing
+      ? Math.round(
+          (projection.lowPoint.date.getTime() -
+            Date.UTC(projection.asOf.getUTCFullYear(), projection.asOf.getUTCMonth(), projection.asOf.getUTCDate())) /
+            86_400_000,
+        )
+      : null;
+
+  const heroItem = view.surplusItems[0] ?? null;
+  const free = view.transferAfterSecondCents;
 
   return (
-    <div className="mx-auto min-h-screen max-w-6xl px-6 py-8">
-      <div className="flex items-center justify-between">
-        <Link href="/" className="text-sm text-muted hover:text-foreground">
-          Budget
-        </Link>
-        <div className="flex gap-4">
-          <Link href="/projection" className="text-sm text-muted hover:text-foreground">
-            What can I pay?
-          </Link>
-          <Link href="/line-items" className="text-sm text-muted hover:text-foreground">
-            Line items
-          </Link>
+    <div className="mx-auto max-w-[1180px]">
+      <header className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 className="text-[30px] font-bold leading-tight tracking-tight">
+            {MONTH_NAMES[month - 1]} {year}
+          </h1>
+          <p className="tnum mt-1 text-sm text-muted">
+            Split on the {ordinal(view.splitDay)} ·{" "}
+            {unpaidBills.length === 0
+              ? "every bill settled"
+              : `${unpaidBills.length} ${unpaidBills.length === 1 ? "bill" : "bills"} left · ${formatCents(
+                  view.totalRemainingCents,
+                )} still owed`}
+          </p>
         </div>
-      </div>
 
-      <header className="mt-4 flex flex-wrap items-center justify-between gap-4">
-        <h1 className="text-2xl font-semibold tracking-tight">
-          {MONTH_NAMES[month - 1]} {year}
-        </h1>
-
-        <nav className="flex items-center gap-1 rounded-lg border border-line bg-surface p-1 text-sm">
-          <Link
-            href={`/month/${previous.year}/${previous.month}`}
-            className="rounded-md px-3 py-1.5 text-muted transition hover:bg-accent-soft hover:text-foreground"
-          >
-            ← {MONTH_NAMES[previous.month - 1].slice(0, 3)}
-          </Link>
-          <Link
-            href="/month"
-            aria-current={isCurrent ? "page" : undefined}
-            className={`rounded-md px-3 py-1.5 transition ${
-              isCurrent
-                ? "bg-accent-soft font-medium text-foreground"
-                : "text-muted hover:bg-accent-soft hover:text-foreground"
-            }`}
-          >
-            Today
-          </Link>
-          <Link
-            href={`/month/${next.year}/${next.month}`}
-            className="rounded-md px-3 py-1.5 text-muted transition hover:bg-accent-soft hover:text-foreground"
-          >
-            {MONTH_NAMES[next.month - 1].slice(0, 3)} →
-          </Link>
-        </nav>
+        <div className="flex flex-wrap items-center gap-2">
+          <nav className="flex items-center rounded-xl border border-line bg-surface p-1 text-sm shadow-card" aria-label="Month">
+            <Link
+              href={`/month/${previous.year}/${previous.month}`}
+              className="rounded-lg px-2.5 py-1.5 text-muted transition hover:bg-neutral-soft hover:text-foreground"
+              aria-label={`${MONTH_NAMES[previous.month - 1]} ${previous.year}`}
+            >
+              ‹ {shortMonth(previous.month)}
+            </Link>
+            <Link
+              href="/month"
+              aria-current={isCurrent ? "page" : undefined}
+              className={`rounded-lg px-3 py-1.5 font-medium transition ${
+                isCurrent ? "bg-accent-soft text-accent-ink" : "text-muted hover:bg-neutral-soft hover:text-foreground"
+              }`}
+            >
+              Today
+            </Link>
+            <Link
+              href={`/month/${next.year}/${next.month}`}
+              className="rounded-lg px-2.5 py-1.5 text-muted transition hover:bg-neutral-soft hover:text-foreground"
+              aria-label={`${MONTH_NAMES[next.month - 1]} ${next.year}`}
+            >
+              {shortMonth(next.month)} ›
+            </Link>
+          </nav>
+          {hasItems ? <QuickEntry rows={allRows} today={today} /> : null}
+        </div>
       </header>
 
+      {/* ------------------------------------------------ summary cards */}
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {view.billsAccountId === null ? (
+          <div className="rounded-2xl border border-dashed border-line-strong bg-surface p-5 text-sm">
+            <p className="font-semibold">Pick a bills account</p>
+            <p className="mt-1 text-muted">
+              The free-money figures start from one account&rsquo;s balance.{" "}
+              <Link href="/settings/planning" className="font-semibold text-accent-text hover:underline">
+                Choose it in Settings
+              </Link>
+            </p>
+          </div>
+        ) : (
+          <BalanceCard
+            key={`${year}-${month}-${view.billsBalanceCents}`}
+            year={year}
+            month={month}
+            accountName={view.billsAccountName}
+            balanceCents={view.billsBalanceCents}
+            carriedFrom={
+              view.billsBalanceFrom &&
+              (view.billsBalanceFrom.year !== year || view.billsBalanceFrom.month !== month)
+                ? view.billsBalanceFrom
+                : null
+            }
+          />
+        )}
+
+        <StatCard
+          label="Free after the first half"
+          value={view.transferAfterFirstCents === null ? "—" : formatCents(view.transferAfterFirstCents)}
+          tone={view.transferAfterFirstCents !== null && view.transferAfterFirstCents < 0 ? "danger" : "default"}
+          detail={`${formatCents(view.halves[0].remainingCents + view.carriedCents)} still owed before the ${ordinal(view.splitDay)}`}
+        />
+
+        <StatCard
+          label="Free after the month"
+          value={free === null ? "—" : formatCents(free)}
+          tone={free !== null && free < 0 ? "danger" : "default"}
+          detail={`${formatCents(view.totalRemainingCents)} still owed this month`}
+        />
+
+        {heroItem ? (
+          <StatCard
+            tone="hero"
+            label={heroItem.name}
+            value={
+              heroItem.actualCents !== null
+                ? formatCents(heroItem.actualCents)
+                : free === null
+                  ? "—"
+                  : formatCents(Math.max(free, 0))
+            }
+            detail={
+              heroItem.actualCents !== null
+                ? `paid · ${formatCents(heroItem.budgetedCents)} planned`
+                : `available to send · ${formatCents(heroItem.budgetedCents)} planned`
+            }
+          />
+        ) : (
+          <StatCard
+            tone="hero"
+            label="Income this month"
+            value={formatCents(view.incomeReceivedCents)}
+            detail={`received of ${formatCents(view.incomeExpectedCents)} expected`}
+          />
+        )}
+      </div>
+
+      {/* ------------------------------------------------ list and rail */}
       {!hasItems ? (
         <div className="mt-6">
           <EmptyState>
-            Nothing due this month. Add line items and they will appear here.
+            Nothing due this month.{" "}
+            <Link href="/line-items?edit=new" className="font-semibold text-accent-text hover:underline">
+              Add a line item
+            </Link>{" "}
+            and it will appear here.
           </EmptyState>
         </div>
       ) : (
-        <div className="mt-6 grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
-          {/* ---------------------------------------------- tables */}
-          <div className="space-y-5">
-            <div className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm">
-              {view.income.length > 0 ? (
+        <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
+          <MonthList
+            sections={sections}
+            footer={{ paidCents: paidOf(billRows), budgetedCents: budgetOf(billRows) }}
+          />
+
+          <aside className="space-y-4 xl:sticky xl:top-7">
+            <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+              <div className="flex items-baseline justify-between">
+                <h2 className="text-base font-bold">Next {projection?.horizonDays ?? 45} days</h2>
+                <Link href="/projection" className="text-xs font-semibold text-accent-text hover:underline">
+                  Open
+                </Link>
+              </div>
+              {projection && !projection.balanceMissing ? (
                 <>
-                  <SectionHeader
-                    title="Income"
-                    right={`${formatCents(view.incomeReceivedCents)} received of ${formatCents(
-                      view.incomeExpectedCents,
-                    )}`}
-                  />
-                  <ColumnLabels />
-                  {view.income.map((entry) => row(entry, year, month))}
+                  <div className="mt-3">
+                    <BalanceChart
+                      opening={projection.openingBalanceCents}
+                      points={toChartPoints(projection.asOf, projection.days)}
+                      horizonDays={projection.horizonDays}
+                      lowDay={lowDay}
+                    />
+                  </div>
+                  <p className="tnum mt-3 text-sm">
+                    Low point{" "}
+                    <strong className={projection.lowPoint.balanceCents < 0 ? "text-danger" : ""}>
+                      {formatCents(projection.lowPoint.balanceCents)}
+                    </strong>
+                    <span className="text-muted">
+                      {" "}
+                      on {shortDate(projection.lowPoint.date.toISOString().slice(0, 10))}
+                    </span>
+                  </p>
+                  <p className="tnum mt-0.5 text-xs text-muted">
+                    Safe to send today: {formatCents(projection.safeToPayCents)}
+                  </p>
                 </>
-              ) : null}
-
-              {view.halves.map((half) => (
-                <div key={half.half.index}>
-                  <SectionHeader
-                    title={half.half.label}
-                    right={`${formatCents(half.paidCents)} paid · ${formatCents(
-                      half.remainingCents,
-                    )} remaining`}
-                  />
-                  <ColumnLabels />
-                  {half.entries.length === 0 ? (
-                    <p className="px-4 py-6 text-center text-sm text-muted">
-                      Nothing in this half.
-                    </p>
-                  ) : (
-                    half.entries.map((entry) => row(entry, year, month))
-                  )}
-                </div>
-              ))}
-
-              <div className="tnum flex justify-between border-t-2 border-line px-4 py-3 text-sm font-medium">
-                <span>Month total</span>
-                <span>
-                  {formatCents(view.totalPaidCents)} paid of{" "}
-                  {formatCents(view.totalBudgetedCents)}
-                </span>
-              </div>
-            </div>
-
-            {view.carriedCount > 0 ? (
-              <details className="overflow-hidden rounded-xl border border-danger/30 bg-danger/5">
-                <summary className="cursor-pointer px-4 py-2.5 text-sm text-danger">
-                  {view.carriedCount} unpaid{" "}
-                  {view.carriedCount === 1 ? "bill" : "bills"} from earlier months,{" "}
-                  {formatCents(view.carriedCents)} — counted in the first half
-                </summary>
-
-                <p className="border-t border-danger/20 px-4 py-2 text-xs text-muted">
-                  Open a row to settle it. If it cost nothing that month, record
-                  zero — or use &ldquo;nothing due this month&rdquo;, which removes it
-                  from the month rather than recording a payment. Only the last{" "}
-                  {view.carryMonths === 1
-                    ? "month"
-                    : `${view.carryMonths} months`}{" "}
-                  are carried; older gaps are treated as paid, which is changed in{" "}
-                  <Link href="/setup/preferences" className="text-accent hover:underline">
-                    preferences
-                  </Link>
-                  .
+              ) : (
+                <p className="mt-2 text-sm text-muted">
+                  Enter the bills balance and the next weeks are drawn here.
                 </p>
-
-                <div className="border-t border-danger/20 bg-surface">
-                  {view.carried.map((entry) => row(entry, year, month))}
-                </div>
-              </details>
-            ) : null}
-          </div>
-
-          {/* ---------------------------------------------- summary */}
-          <aside className="space-y-3 lg:sticky lg:top-8">
-            {view.billsAccountId === null ? (
-              <div className="rounded-xl border border-line bg-surface p-4 text-sm">
-                <p className="font-medium">Pick a bills account</p>
-                <p className="mt-1 text-muted">
-                  The transfer figures start from one bank account&rsquo;s balance.
-                  Choose it in{" "}
-                  <Link href="/setup/preferences" className="text-accent hover:underline">
-                    preferences
-                  </Link>
-                  .
-                </p>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-line bg-surface p-4 shadow-sm">
-                <BalanceForm
-                  year={year}
-                  month={month}
-                  accountName={view.billsAccountName}
-                  defaultValue={
-                    view.billsBalanceCents === null
-                      ? ""
-                      : toDecimalString(view.billsBalanceCents)
-                  }
-                  carriedFrom={
-                    view.billsBalanceFrom &&
-                    (view.billsBalanceFrom.year !== year ||
-                      view.billsBalanceFrom.month !== month)
-                      ? view.billsBalanceFrom
-                      : null
-                  }
-                />
-              </div>
-            )}
-
-            <div className="rounded-xl border border-line bg-surface p-4 shadow-sm">
-              <p className="text-xs text-muted">Free after the first half</p>
-              <p className="tnum mt-1 text-2xl font-semibold">
-                {view.transferAfterFirstCents === null
-                  ? "—"
-                  : formatCents(view.transferAfterFirstCents)}
-              </p>
-              <p className="tnum mt-1 text-xs text-muted">
-                {formatCents(view.halves[0].remainingCents + view.carriedCents)} still owed
-              </p>
+              )}
             </div>
 
-            <div className="rounded-xl border border-line bg-surface p-4 shadow-sm">
-              <p className="text-xs text-muted">Free after both halves</p>
-              <p className="tnum mt-1 text-2xl font-semibold">
-                {view.transferAfterSecondCents === null
-                  ? "—"
-                  : formatCents(view.transferAfterSecondCents)}
-              </p>
-              <p className="tnum mt-1 text-xs text-muted">
-                {formatCents(view.totalRemainingCents)} still owed
-              </p>
-            </div>
-
-            {view.surplusItems.map((entry) => {
-              const free = view.transferAfterSecondCents;
-              const shortfall =
-                free === null ? null : free - entry.budgetedCents;
-
-              return (
-                <div
-                  key={entry.lineItemId}
-                  className="overflow-hidden rounded-xl border border-line bg-surface shadow-sm"
-                >
-                  <div className="px-4 pt-4">
-                    <p className="font-medium">{entry.name}</p>
-                    <p className="mt-0.5 text-xs text-muted">
-                      {[
-                        entry.dueDay ? `due day ${entry.dueDay}` : null,
-                        entry.accountName,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-
-                    <p className="tnum mt-3 text-2xl font-semibold">
-                      {entry.actualCents === null
-                        ? formatCents(entry.budgetedCents)
-                        : formatCents(entry.actualCents)}
-                    </p>
-                    <p className="mt-1 text-xs text-muted">
-                      {entry.actualCents === null
-                        ? "planned — not counted against what is free"
-                        : `paid · ${formatCents(entry.budgetedCents)} planned`}
-                    </p>
-
-                    {shortfall !== null && entry.actualCents === null ? (
-                      <p
-                        className={`tnum mt-2 text-xs ${
-                          shortfall >= 0 ? "text-muted" : "text-danger"
+            <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+              <h2 className="text-base font-bold">Coming up</h2>
+              {comingUp.length === 0 ? (
+                <p className="mt-2 text-sm text-muted">Nothing left to pay this month.</p>
+              ) : (
+                <ul className="mt-3 space-y-2.5">
+                  {comingUp.map((r) => (
+                    <li key={`${r.lineItemId}-${r.year}-${r.month}`} className="flex items-center gap-3 text-sm">
+                      <span
+                        className={`tnum w-12 shrink-0 text-xs font-semibold ${
+                          r.status === "overdue" || r.status === "carried" ? "text-danger" : "text-muted"
                         }`}
                       >
-                        {shortfall >= 0
-                          ? `${formatCents(shortfall)} over after paying it`
-                          : `${formatCents(Math.abs(shortfall))} short of the planned payment`}
-                      </p>
-                    ) : null}
-                  </div>
-
-                  <div className="mt-3 border-t border-line">
-                    {row(entry, year, month)}
-                  </div>
-                </div>
-              );
-            })}
+                        {r.dueDate ? shortDate(r.dueDate) : "—"}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate">{r.name}</span>
+                      <span className="tnum shrink-0 text-muted">{formatCents(r.budgetedCents)}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </aside>
         </div>
       )}
+    </div>
+  );
+}
 
-      <footer className="mt-12 text-xs text-muted">{versionLabel()}</footer>
+function Welcome() {
+  return (
+    <div className="mx-auto max-w-2xl pt-10">
+      <h1 className="text-[30px] font-bold tracking-tight">Welcome</h1>
+      <p className="mt-2 max-w-prose text-muted">
+        Nothing is set up yet. Add the accounts money leaves from, then your bills — or import a
+        converted workbook and it creates them for you.
+      </p>
+      <div className="mt-6 flex flex-wrap gap-3">
+        <Link href="/settings/accounts" className={buttonClass("primary")}>
+          Add accounts
+        </Link>
+        <Link href="/settings/data" className={buttonClass("quiet")}>
+          Import a workbook
+        </Link>
+      </div>
     </div>
   );
 }

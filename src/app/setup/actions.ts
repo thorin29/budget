@@ -17,10 +17,11 @@ export interface FormState {
 const EMPTY: FormState = { ok: true };
 
 /** Wraps an action so a validation failure becomes form state, not a crash. */
-async function run(path: string, work: () => Promise<void>): Promise<FormState> {
+async function run(_path: string, work: () => Promise<void>): Promise<FormState> {
   try {
     await work();
-    revalidatePath(path);
+    // Settings feed the month view, the projection and the sidebar alike.
+    revalidatePath("/", "layout");
     return EMPTY;
   } catch (error) {
     if (error instanceof ValidationError) {

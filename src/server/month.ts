@@ -44,6 +44,8 @@ export interface MonthEntry {
   plannedCents: Cents;
   /** Null until something is entered. Its presence means settled. */
   actualCents: Cents | null;
+  /** When it was paid, as YYYY-MM-DD, if that was recorded. */
+  paidOn: string | null;
   /** Explicitly nothing owed this month — distinct from zero. */
   skipped: boolean;
   /** True when the month's budget differs from the plan. */
@@ -151,6 +153,7 @@ interface ActualRow {
   year: number;
   month: number;
   amount: { toString(): string };
+  paidOn: Date | null;
 }
 
 export async function getMonthView(year: number, month: number): Promise<MonthView> {
@@ -201,6 +204,12 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   );
   const actualMap = new Map(
     actuals.map((a) => [key(a.lineItemId, a.year, a.month), toCents(a.amount)]),
+  );
+  const paidOnMap = new Map(
+    actuals.map((a) => [
+      key(a.lineItemId, a.year, a.month),
+      a.paidOn ? a.paidOn.toISOString().slice(0, 10) : null,
+    ]),
   );
   const settled = new Set(actuals.map((a) => key(a.lineItemId, a.year, a.month)));
 
@@ -260,6 +269,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       budgetedCents: o.amountCents,
       plannedCents: planned.get(item.id) ?? 0,
       actualCents: null,
+      paidOn: null,
       skipped: false,
       adjusted: o.amountCents !== (planned.get(item.id) ?? 0),
       half: o.half,
@@ -293,6 +303,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       budgetedCents: budgeted,
       plannedCents: planned.get(item.id) ?? 0,
       actualCents: actual,
+      paidOn: paidOnMap.get(k) ?? null,
       skipped: plan?.skipped ?? false,
       adjusted: budgeted !== (planned.get(item.id) ?? 0),
       half: halfFor(item.dueDay, item.periodAssignment as never, splitDay),
@@ -354,6 +365,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
         budgetedCents: budgeted,
         plannedCents: toCents(item.plannedAmount),
         actualCents: actualMap.get(k) ?? null,
+        paidOn: paidOnMap.get(k) ?? null,
         skipped: plan?.skipped ?? false,
         adjusted: budgeted !== toCents(item.plannedAmount),
         half: halfFor(item.dueDay, item.periodAssignment as never, splitDay),
@@ -431,6 +443,7 @@ export async function recordActual(
   month: number,
   amountCents: Cents,
   note?: string,
+  paidOn?: Date | null,
 ): Promise<void> {
   if (!Number.isInteger(amountCents) || amountCents < 0) {
     throw new ValidationError({ amount: ["Enter an amount of zero or more"] });
@@ -445,10 +458,16 @@ export async function recordActual(
       year,
       month,
       amount: toDecimalString(amountCents),
+      paidOn: paidOn ?? null,
       note: note || null,
       source: "manual",
     },
-    update: { amount: toDecimalString(amountCents), note: note || null },
+    update: {
+      amount: toDecimalString(amountCents),
+      note: note || null,
+      // Left alone when not supplied, so an edit elsewhere keeps the date.
+      ...(paidOn === undefined ? {} : { paidOn }),
+    },
   });
 }
 

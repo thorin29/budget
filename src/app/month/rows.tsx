@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import {
   adjustMonthAction,
   clearActualAction,
@@ -8,273 +8,479 @@ import {
   recordBalanceAction,
   type FormState,
 } from "./actions";
-import { formatCents } from "@/lib/money";
-import { Button, TextInput } from "@/components/ui";
+import { formatCents, toDecimalString } from "@/lib/money";
+import { describeDifference, tryParseCents } from "@/lib/quick-entry";
+import { Pill, ProgressBar, TextInput, buttonClass, type PillTone } from "@/components/ui";
+import { shortDate, shortMonth, type RowEntry } from "./row-model";
 
 const INITIAL: FormState = { ok: true };
 
-export interface EntryProps {
-  year: number;
-  month: number;
-  lineItemId: string;
-  name: string;
-  categoryName: string | null;
-  accountName: string | null;
-  paymentUrl: string | null;
-  dueDay: number | null;
-  budgetedCents: number;
-  plannedCents: number;
-  actualCents: number | null;
-  adjusted: boolean;
-  carriedFrom: { year: number; month: number } | null;
-  budgetedDisplay: string;
+// ---------------------------------------------------------------- list
+
+export interface MonthSection {
+  key: string;
+  title: string;
+  /** Right-hand summary, e.g. "$420.00 of $1,180.00 paid". */
+  summary: string;
+  rows: RowEntry[];
+  progress?: { value: number; max: number; tone?: "accent" | "info" };
+  tone?: "danger";
+  note?: string;
 }
 
-const MONTH_NAMES = [
-  "January", "February", "March", "April", "May", "June",
-  "July", "August", "September", "October", "November", "December",
-];
+type Filter = "all" | "unpaid" | "paid";
 
-export function EntryRow(props: EntryProps) {
-  const [open, setOpen] = useState(false);
-  const paid = props.actualCents !== null;
+const isSettled = (r: RowEntry) => r.actualCents !== null;
+
+export function MonthList({
+  sections,
+  footer,
+}: {
+  sections: MonthSection[];
+  footer: { paidCents: number; budgetedCents: number };
+}) {
+  const [filter, setFilter] = useState<Filter>("all");
+
+  const counts = {
+    all: sections.reduce((n, s) => n + s.rows.length, 0),
+    unpaid: sections.reduce((n, s) => n + s.rows.filter((r) => !isSettled(r)).length, 0),
+    paid: sections.reduce((n, s) => n + s.rows.filter(isSettled).length, 0),
+  };
+
+  const keep = (r: RowEntry) =>
+    filter === "all" ? true : filter === "paid" ? isSettled(r) : !isSettled(r);
 
   return (
-    <div className={`border-t border-line first:border-t-0 ${paid ? "bg-accent-soft/40" : ""}`}>
-      <div className="flex items-center gap-3 px-4 py-2.5">
+    <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
+        <h2 className="text-base font-bold">Bills &amp; income</h2>
+        <div className="inline-flex rounded-[10px] bg-neutral-soft p-1 text-sm" role="tablist">
+          {(["all", "unpaid", "paid"] as const).map((f) => (
+            <button
+              key={f}
+              type="button"
+              role="tab"
+              aria-selected={filter === f}
+              onClick={() => setFilter(f)}
+              className={`rounded-lg px-3 py-1 font-medium capitalize transition ${
+                filter === f ? "bg-surface text-foreground shadow-card" : "text-muted hover:text-foreground"
+              }`}
+            >
+              {f} <span className="tnum text-subtle">{counts[f]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {sections.map((section) => {
+        const rows = section.rows.filter(keep);
+        return (
+          <section
+            key={section.key}
+            className={section.tone === "danger" ? "bg-danger-soft/40" : ""}
+          >
+            <div className="border-b border-line bg-sunken px-5 py-2.5">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3
+                  className={`font-sans text-[13px] font-semibold uppercase tracking-wide ${
+                    section.tone === "danger" ? "text-danger" : "text-neutral"
+                  }`}
+                >
+                  {section.title}
+                </h3>
+                <p className="tnum text-xs text-muted">{section.summary}</p>
+              </div>
+              {section.progress ? (
+                <ProgressBar
+                  className="mt-2"
+                  value={section.progress.value}
+                  max={section.progress.max}
+                  tone={section.progress.tone}
+                />
+              ) : null}
+              {section.note ? <p className="mt-1.5 text-xs text-muted">{section.note}</p> : null}
+            </div>
+
+            {rows.length === 0 ? (
+              <p className="border-b border-line px-5 py-4 text-center text-sm text-subtle">
+                {section.rows.length === 0 ? "Nothing in this half." : `Nothing ${filter} here.`}
+              </p>
+            ) : (
+              rows.map((row) => (
+                <EntryRow key={`${row.lineItemId}-${row.year}-${row.month}`} row={row} />
+              ))
+            )}
+          </section>
+        );
+      })}
+
+      <div className="tnum flex flex-wrap justify-between gap-2 px-5 py-3.5 text-sm">
+        <span className="font-semibold">Bills this month</span>
+        <span>
+          <strong>{formatCents(footer.paidCents)}</strong>
+          <span className="text-muted"> paid of {formatCents(footer.budgetedCents)}</span>
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------- row
+
+function statusPill(row: RowEntry): { tone: PillTone; label: string } {
+  switch (row.status) {
+    case "paid":
+      return { tone: "ok", label: row.paidOn ? `Paid ${shortDate(row.paidOn)}` : "Paid" };
+    case "received":
+      return { tone: "ok", label: row.paidOn ? `Received ${shortDate(row.paidOn)}` : "Received" };
+    case "expected":
+      return { tone: "info", label: "Expected" };
+    case "carried":
+      return { tone: "danger", label: `Unpaid from ${shortMonth(row.month)}` };
+    case "overdue":
+      return { tone: "danger", label: "Overdue" };
+    case "soon":
+      return {
+        tone: "warn",
+        label:
+          row.daysUntilDue === 0
+            ? "Due today"
+            : row.daysUntilDue === 1
+              ? "Due tomorrow"
+              : `Due in ${row.daysUntilDue} days`,
+      };
+    default:
+      return { tone: "neutral", label: "Upcoming" };
+  }
+}
+
+function StatusDot({ row }: { row: RowEntry }) {
+  if (row.actualCents !== null) {
+    return (
+      <span aria-hidden className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-white">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M5 12l5 5L20 7" />
+        </svg>
+      </span>
+    );
+  }
+  const late = row.status === "overdue" || row.status === "carried";
+  return (
+    <span
+      aria-hidden
+      className={`h-5 w-5 shrink-0 rounded-full border-2 border-dashed ${late ? "border-danger" : "border-line-strong"}`}
+    />
+  );
+}
+
+export function EntryRow({ row }: { row: RowEntry }) {
+  const [open, setOpen] = useState(false);
+  const pill = statusPill(row);
+  const paid = row.actualCents !== null;
+
+  const meta = [
+    row.dueDate ? `${row.kind === "INCOME" ? "Arrives" : "Due"} ${shortDate(row.dueDate)}` : null,
+    row.accountName,
+    row.categoryName,
+    row.adjusted ? "budget adjusted" : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <div className={`border-b border-line last:border-b-0 ${open ? "bg-sunken" : ""}`}>
+      <div className="flex items-center gap-3 px-5 py-3">
+        <StatusDot row={row} />
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold">{row.name}</p>
+          {meta ? <p className="mt-0.5 truncate text-xs text-muted">{meta}</p> : null}
+        </div>
+
+        <span className="hidden sm:inline-flex">
+          <Pill tone={pill.tone}>{pill.label}</Pill>
+        </span>
+
+        <span className="tnum hidden w-24 shrink-0 text-right text-sm text-muted md:block">
+          {formatCents(row.budgetedCents)}
+        </span>
+
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          className="group -mx-2 flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-1 text-left transition hover:bg-accent-soft"
+          aria-label={`${paid ? "Change" : "Add"} amount for ${row.name}`}
+          className={`tnum w-28 shrink-0 rounded-[10px] px-2.5 py-1.5 text-right text-sm transition ${
+            paid
+              ? "font-semibold hover:bg-neutral-soft"
+              : "border border-dashed border-line-strong text-muted hover:border-accent hover:text-accent-text"
+          } ${open ? "ring-2 ring-accent/40" : ""}`}
         >
-          <span
-            aria-hidden
-            className={`shrink-0 text-xs text-muted transition-transform ${
-              open ? "rotate-90" : ""
-            }`}
-          >
-            ▸
-          </span>
-          <span className="min-w-0">
-          <span className="text-sm font-medium">{props.name}</span>
-          <span className="ml-2 text-xs text-muted">
-            {[
-              props.dueDay ? `day ${props.dueDay}` : null,
-              props.accountName,
-              props.adjusted ? "adjusted" : null,
-            ]
-              .filter(Boolean)
-              .join(" · ")}
-          </span>
-          {props.carriedFrom ? (
-            <span className="ml-2 rounded bg-danger/10 px-1.5 py-0.5 text-[11px] text-danger">
-              unpaid from {MONTH_NAMES[props.carriedFrom.month - 1].slice(0, 3)}{" "}
-              {props.carriedFrom.year}
-            </span>
-          ) : null}
-          </span>
-          <span className="ml-auto shrink-0 pl-2 text-xs text-muted opacity-0 transition group-hover:opacity-100">
-            {open ? "close" : paid ? "edit" : "settle"}
-          </span>
+          {paid ? formatCents(row.actualCents as number) : "Add amount"}
         </button>
-
-        <span className="tnum w-24 shrink-0 text-right text-sm text-muted">
-          {formatCents(props.budgetedCents)}
-        </span>
-        <span
-          className={`tnum w-24 shrink-0 text-right text-sm ${paid ? "" : "text-muted/40"}`}
-        >
-          {paid ? formatCents(props.actualCents as number) : "—"}
-        </span>
       </div>
 
-      {open ? <EntryEditor {...props} /> : null}
+      {open ? <EntryPanel row={row} onClose={() => setOpen(false)} /> : null}
     </div>
   );
 }
 
-function EntryEditor(props: EntryProps) {
+/**
+ * The only way a payment is recorded: type or accept the amount, then press
+ * Confirm. There is deliberately no one-tap tick — a stray click must never
+ * mark a bill as paid.
+ */
+function EntryPanel({ row, onClose }: { row: RowEntry; onClose: () => void }) {
   const [payState, pay, paying] = useActionState(recordActualAction, INITIAL);
   const [clearState, clear, clearing] = useActionState(clearActualAction, INITIAL);
   const [adjustState, adjust, adjusting] = useActionState(adjustMonthAction, INITIAL);
+  const [amount, setAmount] = useState(
+    toDecimalString(row.actualCents ?? row.budgetedCents),
+  );
+  const [more, setMore] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const income = row.kind === "INCOME";
+  const paid = row.actualCents !== null;
+  const cents = tryParseCents(amount);
+
+  // Close once a save lands. Each submission yields a fresh state object.
+  const lastPay = useRef(payState);
+  const lastClear = useRef(clearState);
+  const lastAdjust = useRef(adjustState);
+  useEffect(() => {
+    const changed =
+      payState !== lastPay.current || clearState !== lastClear.current || adjustState !== lastAdjust.current;
+    lastPay.current = payState;
+    lastClear.current = clearState;
+    lastAdjust.current = adjustState;
+    if (changed && payState.ok && clearState.ok && adjustState.ok) onClose();
+  }, [payState, clearState, adjustState, onClose]);
+
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
 
   const error = [payState, clearState, adjustState].find((s) => !s.ok)?.message;
 
+  const hidden = (
+    <>
+      <input type="hidden" name="lineItemId" value={row.lineItemId} />
+      <input type="hidden" name="year" value={row.year} />
+      <input type="hidden" name="month" value={row.month} />
+    </>
+  );
+
   return (
-    <div className="border-t border-line bg-background/60 px-4 py-4">
-      {error ? <p className="mb-3 text-xs text-danger">{error}</p> : null}
+    <div
+      className="px-5 pb-4"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") {
+          e.stopPropagation();
+          onClose();
+        }
+      }}
+    >
+      <form
+        action={pay}
+        className="rounded-xl border border-line bg-surface p-4 shadow-card"
+      >
+        {hidden}
+        {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <form action={pay} className="flex items-end gap-2">
-          <input type="hidden" name="lineItemId" value={props.lineItemId} />
-          <input type="hidden" name="year" value={props.year} />
-          <input type="hidden" name="month" value={props.month} />
-          <label className="flex-1">
-            <span className="mb-1 block text-xs font-medium">
-              {props.actualCents === null ? "Record what was paid" : "Change what was paid"}
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="w-40">
+            <span className="mb-1.5 block text-[13px] font-semibold">
+              {income ? "Amount received" : "Amount paid"}
             </span>
-            <TextInput
-              name="amount"
-              inputMode="decimal"
-              defaultValue={
-                props.actualCents === null ? props.budgetedDisplay : undefined
-              }
-              placeholder={props.budgetedDisplay}
-              required
-            />
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-subtle">$</span>
+              <TextInput
+                ref={inputRef}
+                name="amount"
+                inputMode="decimal"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="tnum pl-6 text-base font-semibold"
+                required
+              />
+            </div>
           </label>
-          <Button type="submit" disabled={paying}>
-            {paying ? "…" : "Save"}
-          </Button>
-        </form>
 
-        <form action={adjust} className="flex items-end gap-2">
-          <input type="hidden" name="lineItemId" value={props.lineItemId} />
-          <input type="hidden" name="year" value={props.year} />
-          <input type="hidden" name="month" value={props.month} />
-          <label className="flex-1">
-            <span className="mb-1 block text-xs font-medium">
-              Budget for this month only
+          <label className="w-44">
+            <span className="mb-1.5 block text-[13px] font-semibold">
+              {income ? "Received on" : "Paid on"}
             </span>
-            <TextInput
-              name="amount"
-              inputMode="decimal"
-              defaultValue={props.budgetedDisplay}
-              placeholder="Leave empty to use the plan"
-            />
+            <TextInput type="date" name="paidOn" defaultValue={row.defaultPaidOn} />
           </label>
-          <Button type="submit" variant="quiet" disabled={adjusting}>
-            {adjusting ? "…" : "Set"}
-          </Button>
-        </form>
-      </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-4 text-xs">
-        <span className="text-muted">
-          Plan is {formatCents(props.plannedCents)}
-          {props.adjusted ? " — this month differs" : ""}
-        </span>
+          <p className="tnum min-w-0 flex-1 pb-2 text-sm text-muted">
+            {cents === null
+              ? "Enter an amount"
+              : `${income ? "Expected" : "Budget"} ${formatCents(row.budgetedCents)} · ${describeDifference(
+                  cents,
+                  row.budgetedCents,
+                  formatCents,
+                )}`}
+          </p>
+        </div>
 
-        {props.actualCents !== null ? (
-          <form action={clear}>
-            <input type="hidden" name="lineItemId" value={props.lineItemId} />
-            <input type="hidden" name="year" value={props.year} />
-            <input type="hidden" name="month" value={props.month} />
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMore((v) => !v)}
+            aria-expanded={more}
+            className="text-sm font-medium text-muted hover:text-foreground"
+          >
+            {more ? "Fewer options" : "More options"}
+          </button>
+          {row.paymentUrl ? (
+            <a
+              href={row.paymentUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="ml-2 text-sm font-medium text-info hover:underline"
+            >
+              Open payment page ↗
+            </a>
+          ) : null}
+
+          <span className="flex-1" />
+
+          {paid ? (
             <button
               type="submit"
+              formAction={clear}
+              formNoValidate
               disabled={clearing}
-              className="rounded-md border border-danger/40 px-2.5 py-1 font-medium text-danger transition hover:bg-danger hover:text-white disabled:opacity-50"
+              className={buttonClass("danger")}
             >
-              Mark unpaid
+              {income ? "Mark not received" : "Mark unpaid"}
+            </button>
+          ) : null}
+          <button type="button" onClick={onClose} className={buttonClass("quiet")}>
+            Cancel
+          </button>
+          <button type="submit" disabled={paying || cents === null} className={buttonClass("primary")}>
+            {paying ? "Saving…" : cents === null ? "Confirm" : `Confirm ${formatCents(cents)}`}
+          </button>
+        </div>
+      </form>
+
+      {more ? (
+        <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-line-strong p-4">
+          <form action={adjust} className="flex items-end gap-2">
+            {hidden}
+            <label className="w-44">
+              <span className="mb-1.5 block text-[13px] font-semibold">This month&rsquo;s budget</span>
+              <TextInput
+                name="amount"
+                inputMode="decimal"
+                defaultValue={toDecimalString(row.budgetedCents)}
+                placeholder="Empty uses the plan"
+                className="tnum"
+              />
+            </label>
+            <button type="submit" disabled={adjusting} className={buttonClass("quiet")}>
+              Set
             </button>
           </form>
-        ) : null}
 
-        <form action={adjust}>
-          <input type="hidden" name="lineItemId" value={props.lineItemId} />
-          <input type="hidden" name="year" value={props.year} />
-          <input type="hidden" name="month" value={props.month} />
-          <input type="hidden" name="skipped" value="true" />
-          <button
-            type="submit"
-            disabled={adjusting}
-            className="rounded-md border border-accent/40 bg-accent-soft px-2.5 py-1 font-medium text-accent transition hover:bg-accent hover:text-white disabled:opacity-50"
-          >
-            Nothing due this month
-          </button>
-        </form>
+          <p className="pb-2 text-xs text-muted">
+            Usual amount {formatCents(row.plannedCents)}
+            {row.adjusted ? " — this month differs" : ""}
+          </p>
 
-        {props.paymentUrl ? (
-          <a
-            href={props.paymentUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-accent hover:underline"
-          >
-            Pay
-          </a>
-        ) : null}
-      </div>
+          <span className="flex-1" />
+
+          {!paid ? (
+            <form action={adjust}>
+              {hidden}
+              <input type="hidden" name="skipped" value="true" />
+              <button type="submit" disabled={adjusting} className={buttonClass("quiet")}>
+                Nothing due this month
+              </button>
+            </form>
+          ) : null}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-/** "1234.5" -> "$1,234.50". Returns the input unchanged if it is not a number. */
-function asCurrency(raw: string): string {
-  const cleaned = raw.replace(/[$,\s]/g, "");
-  if (cleaned === "") return "";
-  const value = Number(cleaned);
-  if (!Number.isFinite(value)) return raw;
-  return value.toLocaleString("en-US", {
-    style: "currency",
-    currency: "USD",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
+// ---------------------------------------------------------------- balance
 
-const MONTH_SHORT = [
-  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
-];
-
-export function BalanceForm({
+export function BalanceCard({
   year,
   month,
   accountName,
-  defaultValue,
+  balanceCents,
   carriedFrom,
 }: {
   year: number;
   month: number;
   accountName: string | null;
-  defaultValue: string;
+  balanceCents: number | null;
   /** Set when the figure shown was entered in an earlier month. */
-  carriedFrom?: { year: number; month: number } | null;
+  carriedFrom: { year: number; month: number } | null;
 }) {
   const [state, action, pending] = useActionState(recordBalanceAction, INITIAL);
-  // Held in state so a failed save does not discard what was typed.
-  const [value, setValue] = useState(asCurrency(defaultValue));
+  const [editing, setEditing] = useState(balanceCents === null);
+  const [value, setValue] = useState(balanceCents === null ? "" : toDecimalString(balanceCents));
+
+  const last = useRef(state);
+  useEffect(() => {
+    if (state !== last.current && state.ok) setEditing(false);
+    last.current = state;
+  }, [state]);
 
   return (
-    <div>
-      <form action={action}>
-        <input type="hidden" name="year" value={year} />
-        <input type="hidden" name="month" value={month} />
+    <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+      <p className="text-[13px] font-medium text-muted">In {accountName ?? "bills"} now</p>
 
-        <label className="block">
-          <span className="mb-1 block text-xs font-medium">
-            Currently in {accountName ?? "bills"}
-          </span>
-          <TextInput
-            name="amount"
-            inputMode="decimal"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            // Formatted when idle; stripped back to digits while editing, so
-            // the separators never get in the way of typing.
-            onFocus={(e) => setValue(e.target.value.replace(/[$,\s]/g, ""))}
-            onBlur={(e) => setValue(asCurrency(e.target.value))}
-            className="tnum text-lg"
-            required
-          />
-        </label>
-
-        <Button type="submit" disabled={pending} className="mt-2 w-full">
-          {pending ? "Saving…" : "Update"}
-        </Button>
-      </form>
-
-      {carriedFrom ? (
-        <p className="mt-2 text-xs text-muted">
-          Carried from {MONTH_SHORT[carriedFrom.month - 1]} {carriedFrom.year}.
-          Update it to record this month&rsquo;s position.
-        </p>
-      ) : null}
-
-      {state.ok ? null : (
-        <p className="mt-2 text-xs text-danger">{state.message}</p>
+      {editing ? (
+        <form action={action} className="mt-1.5">
+          <input type="hidden" name="year" value={year} />
+          <input type="hidden" name="month" value={month} />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-subtle">$</span>
+              <TextInput
+                name="amount"
+                inputMode="decimal"
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
+                className="tnum pl-6 text-base font-semibold"
+                autoFocus={balanceCents !== null}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape" && balanceCents !== null) setEditing(false);
+                }}
+                required
+              />
+            </div>
+            <button type="submit" disabled={pending} className={buttonClass("primary")}>
+              {pending ? "…" : "Save"}
+            </button>
+          </div>
+          {state.ok ? null : <p className="mt-2 text-xs text-danger">{state.message}</p>}
+        </form>
+      ) : (
+        <>
+          <p className="tnum font-heading mt-1.5 text-[26px] font-bold leading-tight tracking-tight">
+            {formatCents(balanceCents ?? 0)}
+          </p>
+          <p className="mt-1 text-xs text-muted">
+            {carriedFrom ? `Last entered in ${shortMonth(carriedFrom.month)} ${carriedFrom.year} · ` : ""}
+            <button
+              type="button"
+              onClick={() => setEditing(true)}
+              className="font-semibold text-accent-text hover:underline"
+            >
+              Update
+            </button>
+          </p>
+        </>
       )}
     </div>
   );

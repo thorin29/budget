@@ -68,7 +68,7 @@ export function AccountRow({
   const [, action, pending] = useActionState(removeAccountAction, INITIAL);
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-md border border-line bg-surface px-4 py-3">
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface px-4 py-3">
       <div className="min-w-0">
         <span className={account.active ? "" : "text-muted line-through"}>
           {account.name}

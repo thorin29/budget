@@ -1,35 +1,6 @@
-import Link from "next/link";
-import { listImportBatches } from "@/server/import";
-import { versionLabel } from "@/lib/version";
-import { PageHeading } from "@/components/ui";
-import { Importer } from "./importer";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function ImportPage() {
-  const batches = await listImportBatches();
-
-  return (
-    <div className="mx-auto min-h-screen max-w-4xl px-6 py-10">
-      <div className="flex items-center justify-between">
-        <Link href="/" className="text-sm text-muted hover:text-foreground">
-          Budget
-        </Link>
-        <Link href="/setup" className="text-sm text-muted hover:text-foreground">
-          Setup
-        </Link>
-      </div>
-
-      <div className="mt-4">
-        <PageHeading
-          title="Import"
-          description="Load a year from a converted workbook. Nothing is written until you have reviewed what it will do."
-        />
-      </div>
-
-      <Importer batches={batches} />
-
-      <footer className="mt-12 text-xs text-muted">{versionLabel()}</footer>
-    </div>
-  );
+/** Moved into Settings in 0.11.0; kept so old bookmarks still land. */
+export default function Moved() {
+  redirect("/settings/data");
 }

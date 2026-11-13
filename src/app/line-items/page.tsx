@@ -1,128 +1,221 @@
 import Link from "next/link";
-import { listLineItems } from "@/server/line-items";
+import { getLineItem, listLineItems } from "@/server/line-items";
 import { listAccounts } from "@/server/accounts";
 import { listCategories } from "@/server/categories";
-import { formatCents } from "@/lib/money";
+import { listPaySchedules } from "@/server/pay-schedule";
+import { NotFoundError } from "@/server/errors";
+import { formatCents, toDecimalString } from "@/lib/money";
 import { getSettings } from "@/server/settings";
 import { halfFor } from "@/lib/month-model";
-import { Button, EmptyState, PageHeading } from "@/components/ui";
-import { DeleteLineItem } from "./row";
-import { versionLabel } from "@/lib/version";
+import { EmptyState, PageHeading, Pill, buttonClass } from "@/components/ui";
+import { LineItemForm, type LineItemDefaults } from "./form";
+import { createLineItemAction, updateLineItemAction } from "./actions";
+import { Drawer } from "./drawer";
 
 export const dynamic = "force-dynamic";
 
 const KIND_LABELS: Record<string, string> = {
   BILL: "Bills",
-  SETTLEMENT: "Card settlements",
+  SETTLEMENT: "Card payoffs",
   INCOME: "Income",
 };
 
 const SCHEDULE_LABELS: Record<string, string> = {
-  MONTHLY: "monthly",
-  QUARTERLY: "quarterly",
-  SEMI_ANNUAL: "twice a year",
-  ANNUAL: "yearly",
-  CUSTOM: "some months",
-  ONE_OFF: "one-off",
+  MONTHLY: "Monthly",
+  QUARTERLY: "Quarterly",
+  SEMI_ANNUAL: "Twice a year",
+  ANNUAL: "Yearly",
+  CUSTOM: "Some months",
+  ONE_OFF: "One-off",
 };
 
-export default async function LineItemsPage() {
-  const [items, accounts, categories, settings] = await Promise.all([
+const BLANK: LineItemDefaults = {
+  name: "",
+  kind: "BILL",
+  categoryId: null,
+  paidFromId: null,
+  chargedToId: null,
+  payScheduleId: null,
+  plannedAmount: "",
+  dueDay: null,
+  paidFromSurplus: false,
+  periodAssignment: "AUTO",
+  scheduleKind: "MONTHLY",
+  anchorMonth: 1,
+  months: [],
+  onlyYear: null,
+  startYear: null,
+  startMonth: null,
+  endYear: null,
+  endMonth: null,
+  paymentUrl: "",
+  notes: "",
+  active: true,
+};
+
+async function loadEditing(edit: string | undefined): Promise<LineItemDefaults | null> {
+  if (!edit) return null;
+  if (edit === "new") return BLANK;
+  try {
+    const item = await getLineItem(edit);
+    return {
+      id: item.id,
+      name: item.name,
+      kind: item.kind,
+      categoryId: item.categoryId,
+      paidFromId: item.paidFromId,
+      chargedToId: item.chargedToId,
+      payScheduleId: item.payScheduleId,
+      plannedAmount: toDecimalString(item.plannedAmountCents),
+      dueDay: item.dueDay,
+      paidFromSurplus: item.paidFromSurplus,
+      periodAssignment: item.periodAssignment,
+      scheduleKind: item.scheduleKind,
+      anchorMonth: item.months[0] ?? 1,
+      months: item.months,
+      onlyYear: item.onlyYear,
+      startYear: item.startYear,
+      startMonth: item.startMonth,
+      endYear: item.endYear,
+      endMonth: item.endMonth,
+      paymentUrl: item.paymentUrl ?? "",
+      notes: item.notes ?? "",
+      active: item.active,
+    };
+  } catch (error) {
+    if (error instanceof NotFoundError) return null;
+    throw error;
+  }
+}
+
+export default async function LineItemsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ edit?: string; show?: string }>;
+}) {
+  const query = await searchParams;
+  const showInactive = query.show === "all";
+
+  const [items, accounts, categories, paySchedules, settings, editing] = await Promise.all([
     listLineItems({ includeInactive: true }),
     listAccounts({ includeInactive: true }),
     listCategories({ includeInactive: true }),
+    listPaySchedules(),
     getSettings(),
+    loadEditing(query.edit),
   ]);
 
   const accountName = new Map(accounts.map((a) => [a.id, a.name]));
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
+  const inactiveCount = items.filter((i) => !i.active).length;
+  const visible = showInactive ? items : items.filter((i) => i.active);
+  const base = showInactive ? "/line-items?show=all" : "/line-items";
+  const join = (extra: string) => `${base}${base.includes("?") ? "&" : "?"}${extra}`;
 
   const groups = (["BILL", "SETTLEMENT", "INCOME"] as const)
-    .map((kind) => ({ kind, items: items.filter((i) => i.kind === kind) }))
+    .map((kind) => ({ kind, items: visible.filter((i) => i.kind === kind) }))
     .filter((g) => g.items.length > 0);
 
   return (
-    <div className="mx-auto min-h-screen max-w-4xl px-6 py-10">
-      <Link href="/" className="text-sm text-muted hover:text-foreground">
-        Budget
-      </Link>
-
-      <div className="mt-4">
-        <PageHeading
-          title="Line items"
-          description="The recurring things that make up a month. The planned amount is the usual figure; a single month that differs is edited on the month view."
-          action={
-            <Link href="/line-items/new">
-              <Button>Add</Button>
+    <div className="mx-auto max-w-[1000px]">
+      <PageHeading
+        title="Line items"
+        description="The recurring things that make up a month. The usual amount lives here; a single month that differs is changed on the month view."
+        action={
+          <div className="flex items-center gap-2">
+            {inactiveCount > 0 ? (
+              <Link href={showInactive ? "/line-items" : "/line-items?show=all"} className={buttonClass("ghost")}>
+                {showInactive ? "Hide inactive" : `Show inactive (${inactiveCount})`}
+              </Link>
+            ) : null}
+            <Link href={join("edit=new")} className={buttonClass("primary")}>
+              Add line item
             </Link>
-          }
-        />
-      </div>
+          </div>
+        }
+      />
 
       {items.length === 0 ? (
         <EmptyState>
-          Nothing added yet. Start with the bills you pay every month — the
-          irregular ones are easier once the shape is familiar.
+          Nothing added yet. Start with the bills you pay every month — the irregular ones are easier
+          once the shape is familiar.
         </EmptyState>
       ) : (
-        <div className="space-y-8">
+        <div className="space-y-6">
           {groups.map((group) => (
-            <section key={group.kind}>
-              <h2 className="mb-2 text-sm font-medium text-muted">
-                {KIND_LABELS[group.kind]}
-              </h2>
-              <div className="overflow-hidden rounded-lg border border-line">
-                {group.items.map((item, index) => {
-                  const half = halfFor(item.dueDay, item.periodAssignment, settings.splitDay);
-                  return (
-                    <div
-                      key={item.id}
-                      className={`flex items-center gap-4 bg-surface px-4 py-3 ${
-                        index > 0 ? "border-t border-line" : ""
-                      }`}
-                    >
-                      <div className="min-w-0 flex-1">
-                        <Link
-                          href={`/line-items/${item.id}`}
-                          className={`font-medium hover:underline ${
-                            item.active ? "" : "text-muted line-through"
-                          }`}
-                        >
-                          {item.name}
-                        </Link>
-                        <p className="mt-0.5 truncate text-xs text-muted">
-                          {[
-                            item.categoryId ? categoryName.get(item.categoryId) : null,
-                            item.paidFromId ? accountName.get(item.paidFromId) : null,
-                            SCHEDULE_LABELS[item.scheduleKind],
-                            item.dueDay ? `day ${item.dueDay}` : null,
-                            item.paidFromSurplus
-                              ? "paid from what's left"
-                              : half === 0
-                                ? "first half"
-                                : "second half",
-                            item.active ? null : "inactive",
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </div>
-
-                      <span className="tnum shrink-0 text-sm">
-                        {formatCents(item.plannedAmountCents)}
-                      </span>
-
-                      <DeleteLineItem id={item.id} name={item.name} />
-                    </div>
-                  );
-                })}
+            <section key={group.kind} className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+              <div className="flex items-baseline justify-between border-b border-line bg-sunken px-5 py-2.5">
+                <h2 className="font-sans text-[13px] font-semibold uppercase tracking-wide text-neutral">
+                  {KIND_LABELS[group.kind]}
+                </h2>
+                <p className="tnum text-xs text-muted">
+                  {group.items.length} · {formatCents(group.items.filter((i) => i.active).reduce((s, i) => s + i.plannedAmountCents, 0))} usual
+                </p>
               </div>
+              {group.items.map((item) => {
+                const half = halfFor(item.dueDay, item.periodAssignment, settings.splitDay);
+                return (
+                  <Link
+                    key={item.id}
+                    href={join(`edit=${item.id}`)}
+                    scroll={false}
+                    className="flex items-center gap-4 border-b border-line px-5 py-3 transition last:border-b-0 hover:bg-sunken"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className={`truncate text-sm font-semibold ${item.active ? "" : "text-muted line-through"}`}>
+                        {item.name}
+                      </p>
+                      <p className="mt-0.5 truncate text-xs text-muted">
+                        {[
+                          item.dueDay ? `Day ${item.dueDay}` : null,
+                          item.paidFromId ? accountName.get(item.paidFromId) : null,
+                          item.categoryId ? categoryName.get(item.categoryId) : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                    </div>
+                    <span className="hidden gap-1.5 sm:flex">
+                      <Pill tone="neutral">{SCHEDULE_LABELS[item.scheduleKind]}</Pill>
+                      {item.kind === "INCOME" ? null : item.paidFromSurplus ? (
+                        <Pill tone="info">From what&rsquo;s left</Pill>
+                      ) : (
+                        <Pill tone="neutral">{half === 0 ? "1st half" : "2nd half"}</Pill>
+                      )}
+                      {item.active ? null : <Pill tone="warn">Inactive</Pill>}
+                    </span>
+                    <span className="tnum w-24 shrink-0 text-right text-sm font-semibold">
+                      {formatCents(item.plannedAmountCents)}
+                    </span>
+                  </Link>
+                );
+              })}
             </section>
           ))}
         </div>
       )}
 
-      <footer className="mt-12 text-xs text-muted">{versionLabel()}</footer>
+      {editing ? (
+        <Drawer closeHref={base} title={editing.id ? editing.name : "New line item"}>
+          <LineItemForm
+            key={editing.id ?? "new"}
+            action={editing.id ? updateLineItemAction : createLineItemAction}
+            submitLabel={editing.id ? "Save" : "Add line item"}
+            cancelHref={base}
+            categories={categories
+              .filter((c) => c.active || c.id === editing.categoryId)
+              .map((c) => ({ id: c.id, name: c.name }))}
+            accounts={accounts
+              .filter((a) => a.active || a.id === editing.paidFromId)
+              .map((a) => ({ id: a.id, name: a.name }))}
+            cards={accounts
+              .filter((a) => a.kind === "CREDIT_CARD" && (a.active || a.id === editing.chargedToId))
+              .map((a) => ({ id: a.id, name: a.name }))}
+            paySchedules={paySchedules.map((p) => ({ id: p.id, name: p.name }))}
+            defaults={editing}
+          />
+        </Drawer>
+      ) : null}
     </div>
   );
 }

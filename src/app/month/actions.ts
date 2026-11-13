@@ -13,14 +13,24 @@ export interface FormState {
 const str = (form: FormData, key: string) => String(form.get(key) ?? "").trim();
 const int = (form: FormData, key: string) => Number(str(form, key));
 
+/** YYYY-MM-DD from a date input, as a UTC midnight. Empty means not given. */
+function date(form: FormData, key: string): Date | undefined {
+  const raw = str(form, key);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return undefined;
+  const value = new Date(`${raw}T00:00:00Z`);
+  return Number.isNaN(value.getTime()) ? undefined : value;
+}
+
 async function run(
-  year: number,
-  month: number,
+  _year: number,
+  _month: number,
   work: () => Promise<void>,
 ): Promise<FormState> {
   try {
     await work();
-    revalidatePath(`/month/${year}/${month}`);
+    // A payment moves the month, the projection and the year at once, and a
+    // carried row belongs to a month other than the one on screen.
+    revalidatePath("/", "layout");
     return { ok: true };
   } catch (error) {
     if (error instanceof ValidationError) {
@@ -39,7 +49,14 @@ export async function recordActualAction(
   const year = int(form, "year");
   const month = int(form, "month");
   return run(year, month, async () => {
-    await recordActual(str(form, "lineItemId"), year, month, parseCents(str(form, "amount")));
+    await recordActual(
+      str(form, "lineItemId"),
+      year,
+      month,
+      parseCents(str(form, "amount")),
+      undefined,
+      date(form, "paidOn"),
+    );
   });
 }
 

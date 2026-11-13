@@ -34,7 +34,7 @@ export function CategoryRow({
   const [, action, pending] = useActionState(removeCategoryAction, INITIAL);
 
   return (
-    <div className="flex items-center justify-between gap-4 rounded-md border border-line bg-surface px-4 py-3">
+    <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface px-4 py-3">
       <span className={category.active ? "" : "text-muted line-through"}>
         {category.name}
         {category.active ? "" : <span className="ml-2 text-xs">inactive</span>}

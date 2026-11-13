@@ -234,7 +234,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
 
           <section>
             <h2 className="mb-2 text-sm font-medium text-muted">Accounts</h2>
-            <div className="overflow-hidden rounded-lg border border-line bg-surface">
+            <div className="overflow-hidden rounded-2xl border border-line bg-surface">
               {plan.accounts.map((account) => (
                 <div
                   key={account.key}
@@ -270,7 +270,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
 
           <section>
             <h2 className="mb-2 text-sm font-medium text-muted">Line items</h2>
-            <div className="overflow-hidden rounded-lg border border-line bg-surface">
+            <div className="overflow-hidden rounded-2xl border border-line bg-surface">
               {plan.lineItems.map((item) => {
                 const isExcluded = excluded.has(item.key);
                 return (
@@ -396,7 +396,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
       {batches.length > 0 ? (
         <section className="mt-10">
           <h2 className="mb-2 text-sm font-medium text-muted">Previous imports</h2>
-          <div className="overflow-hidden rounded-lg border border-line bg-surface">
+          <div className="overflow-hidden rounded-2xl border border-line bg-surface">
             {batches.map((batch) => (
               <div
                 key={batch.id}

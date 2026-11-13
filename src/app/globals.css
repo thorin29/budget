@@ -1,32 +1,228 @@
 @import "tailwindcss";
 
-:root {
-  /* A muted warm grey, so the white cards read as raised rather than flush. */
-  --background: #dedbd4;
+/*
+ * Two looks, each with a light and a dark variant.
+ *
+ *   data-theme  cool (default) | warm
+ *   data-mode   system (default) | light | dark
+ *
+ * Both attributes sit on <html>, set from cookies in the root layout. Every
+ * colour in the interface comes from these tokens — components never name a
+ * hex value — so a theme is nothing more than a block of variables.
+ *
+ * The light blocks also match a nested [data-theme], which is how the
+ * appearance settings preview one look while the page wears the other.
+ */
+
+:root,
+[data-theme="cool"] {
+  --font-body: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-heading: "Plus Jakarta Sans Variable", var(--font-body);
+
+  --background: #f4f5f7;
   --surface: #ffffff;
-  /* Inputs sit on cards, not on the page, so they need their own value —
-     slightly off the card white so the field edge is visible without a heavy
-     border. */
-  --field: #f7f6f3;
-  --border: #d5d2ca;
-  --foreground: #1a1a19;
-  --muted: #6b6b66;
-  --accent: #2f5d50;
-  --accent-soft: #eaf1ee;
-  --danger: #9b2c2c;
+  --field: #ffffff;
+  --sunken: #f9fafb;
+  --border: #e4e7ec;
+  --border-strong: #d0d5dd;
+  --foreground: #101828;
+  --muted: #5d6b7e;
+  --subtle: #667085;
+
+  --accent: #0e8f5b;
+  --accent-text: #0b7a4d;
+  --accent-soft: #e7f6ee;
+  --accent-ink: #075e3b;
+
+  --info: #2457d6;
+  --info-soft: #e0eaff;
+
+  --hero: #0f2e22;
+  --hero-text: #ffffff;
+  --hero-muted: #a6e3c4;
+
+  --ok: #067647;
+  --ok-soft: #dcfae6;
+  --danger: #b42318;
+  --danger-soft: #fee4e2;
+  --warn: #93370d;
+  --warn-soft: #fef0c7;
+  --neutral: #475467;
+  --neutral-soft: #f2f4f7;
+  --over: #e8590c;
+
+  --shadow: 0 1px 2px rgb(16 24 40 / 0.05);
+  --shadow-lg: 0 24px 64px rgb(16 24 40 / 0.28);
+}
+
+[data-theme="warm"] {
+  --font-heading: "Fraunces Variable", ui-serif, Georgia, serif;
+
+  --background: #f6f1e9;
+  --surface: #fffcf7;
+  --field: #fffcf7;
+  --sunken: #faf6ef;
+  --border: #e8dfd2;
+  --border-strong: #d8ccbb;
+  --foreground: #1e1a16;
+  --muted: #6b5e50;
+  --subtle: #7a6c5d;
+
+  --accent: #2f6b4f;
+  --accent-text: #2f6b4f;
+  --accent-soft: #e6efe6;
+  --accent-ink: #24553e;
+
+  --info: #c2772e;
+  --info-soft: #f8ebd6;
+
+  --hero: #2b231c;
+  --hero-text: #fffcf7;
+  --hero-muted: #f3d9b8;
+
+  --ok: #2f5a28;
+  --ok-soft: #e3eedf;
+  --danger: #9b2c1c;
+  --danger-soft: #f8dcd3;
+  --warn: #7a4108;
+  --warn-soft: #fbe9c9;
+  --neutral: #5a4e42;
+  --neutral-soft: #f1ebe2;
+  --over: #c2772e;
+
+  --shadow: 0 1px 2px rgb(30 26 22 / 0.06);
+  --shadow-lg: 0 24px 64px rgb(30 26 22 / 0.3);
+}
+
+/*
+ * ------------------------------------------------------------ dark variants
+ * "dark" applies them outright; "system" applies the same values inside the
+ * media query below. The duplication is the price of doing this in plain CSS.
+ */
+
+:root[data-mode="dark"] {
+  color-scheme: dark;
+  --background: #0c111d;
+  --surface: #161b26;
+  --field: #1f242f;
+  --sunken: #121722;
+  --border: #2a303c;
+  --border-strong: #3b4250;
+  --foreground: #f5f5f6;
+  --muted: #a3acb9;
+  --subtle: #94969c;
+  --accent: #2fb57b;
+  --accent-text: #47cd8f;
+  --accent-soft: #10342a;
+  --accent-ink: #a6e3c4;
+  --info: #6f97ff;
+  --info-soft: #1b2a52;
+  --hero: #0f2e22;
+  --hero-text: #ffffff;
+  --hero-muted: #a6e3c4;
+  --ok: #75e0a7;
+  --ok-soft: #0f3324;
+  --danger: #f97066;
+  --danger-soft: #3d1714;
+  --warn: #fdb022;
+  --warn-soft: #3a2a0c;
+  --neutral: #cecfd2;
+  --neutral-soft: #262b36;
+  --over: #fd853a;
+  --shadow: none;
+}
+
+:root[data-mode="dark"][data-theme="warm"] {
+  --background: #16120e;
+  --surface: #211b15;
+  --field: #2a231c;
+  --sunken: #1b1611;
+  --border: #3a3027;
+  --border-strong: #4a3e33;
+  --foreground: #f6efe5;
+  --muted: #bfae9a;
+  --subtle: #a89885;
+  --accent: #5fa37f;
+  --accent-text: #7cbf99;
+  --accent-soft: #1e3328;
+  --accent-ink: #c6e2cf;
+  --info: #e0a160;
+  --info-soft: #3a2a17;
+  --hero: #3a2e22;
+  --hero-text: #fffcf7;
+  --hero-muted: #f3d9b8;
+  --ok: #a9d39c;
+  --ok-soft: #22331d;
+  --danger: #f08a75;
+  --danger-soft: #3d1c15;
+  --warn: #f1b66a;
+  --warn-soft: #3a2810;
+  --neutral: #ddd2c4;
+  --neutral-soft: #2e261f;
+  --over: #e0a160;
 }
 
 @media (prefers-color-scheme: dark) {
-  :root {
-    --background: #14161a;
-    --surface: #1b1e23;
-    --field: #24282e;
-    --border: #2c3138;
-    --foreground: #e9eaec;
-    --muted: #9aa0a8;
-    --accent: #6fb3a0;
-    --accent-soft: #1f2d2a;
-    --danger: #e08585;
+  :root[data-mode="system"] {
+    color-scheme: dark;
+    --background: #0c111d;
+    --surface: #161b26;
+    --field: #1f242f;
+    --sunken: #121722;
+    --border: #2a303c;
+    --border-strong: #3b4250;
+    --foreground: #f5f5f6;
+    --muted: #a3acb9;
+    --subtle: #94969c;
+    --accent: #2fb57b;
+    --accent-text: #47cd8f;
+    --accent-soft: #10342a;
+    --accent-ink: #a6e3c4;
+    --info: #6f97ff;
+    --info-soft: #1b2a52;
+    --hero: #0f2e22;
+    --hero-text: #ffffff;
+    --hero-muted: #a6e3c4;
+    --ok: #75e0a7;
+    --ok-soft: #0f3324;
+    --danger: #f97066;
+    --danger-soft: #3d1714;
+    --warn: #fdb022;
+    --warn-soft: #3a2a0c;
+    --neutral: #cecfd2;
+    --neutral-soft: #262b36;
+    --over: #fd853a;
+    --shadow: none;
+  }
+
+  :root[data-mode="system"][data-theme="warm"] {
+    --background: #16120e;
+    --surface: #211b15;
+    --field: #2a231c;
+    --sunken: #1b1611;
+    --border: #3a3027;
+    --border-strong: #4a3e33;
+    --foreground: #f6efe5;
+    --muted: #bfae9a;
+    --subtle: #a89885;
+    --accent: #5fa37f;
+    --accent-text: #7cbf99;
+    --accent-soft: #1e3328;
+    --accent-ink: #c6e2cf;
+    --info: #e0a160;
+    --info-soft: #3a2a17;
+    --hero: #3a2e22;
+    --hero-text: #fffcf7;
+    --hero-muted: #f3d9b8;
+    --ok: #a9d39c;
+    --ok-soft: #22331d;
+    --danger: #f08a75;
+    --danger-soft: #3d1c15;
+    --warn: #f1b66a;
+    --warn-soft: #3a2810;
+    --neutral: #ddd2c4;
+    --neutral-soft: #2e261f;
+    --over: #e0a160;
   }
 }
 
@@ -34,22 +230,64 @@
   --color-background: var(--background);
   --color-surface: var(--surface);
   --color-field: var(--field);
+  --color-sunken: var(--sunken);
   --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
   --color-foreground: var(--foreground);
   --color-muted: var(--muted);
+  --color-subtle: var(--subtle);
   --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
   --color-accent-soft: var(--accent-soft);
+  --color-accent-ink: var(--accent-ink);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+  --color-hero: var(--hero);
+  --color-hero-text: var(--hero-text);
+  --color-hero-muted: var(--hero-muted);
+  --color-ok: var(--ok);
+  --color-ok-soft: var(--ok-soft);
   --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --color-neutral: var(--neutral);
+  --color-neutral-soft: var(--neutral-soft);
+  --color-over: var(--over);
+  --font-sans: var(--font-body);
+  --font-heading: var(--font-heading);
+  --shadow-card: var(--shadow);
+  --shadow-pop: var(--shadow-lg);
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  -webkit-font-smoothing: antialiased;
+/*
+ * Base element styles sit in the base layer so utility classes (font-sans on
+ * a heading, say) still win over them.
+ */
+@layer base {
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-body);
+  }
+
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-heading);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  input[type="range"] {
+    accent-color: var(--accent);
+  }
 }
 
-/* Tabular figures everywhere money appears, so columns line up. */
+/* Tabular figures keep columns of money aligned. */
 .tnum {
   font-variant-numeric: tabular-nums;
 }

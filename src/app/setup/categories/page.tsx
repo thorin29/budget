@@ -1,30 +1,6 @@
-import { listCategories } from "@/server/categories";
-import { PageHeading } from "@/components/ui";
-import { CategoryForm, CategoryRow } from "./form";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function CategoriesPage() {
-  const categories = await listCategories({ includeInactive: true });
-
-  return (
-    <div>
-      <PageHeading
-        title="Categories"
-        description="Groupings used for reporting. These can grow over time — there is no need to get the full set right now."
-      />
-
-      <CategoryForm />
-
-      <div className="mt-8 space-y-2">
-        {categories.length === 0 ? (
-          <p className="text-sm text-muted">Nothing added yet.</p>
-        ) : (
-          categories.map((category) => (
-            <CategoryRow key={category.id} category={category} />
-          ))
-        )}
-      </div>
-    </div>
-  );
+/** Moved into Settings in 0.11.0; kept so old bookmarks still land. */
+export default function Moved() {
+  redirect("/settings/categories");
 }

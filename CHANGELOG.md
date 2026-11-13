@@ -3,6 +3,26 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.11.0] — unreleased
+
+### Changed
+
+- New look: sidebar navigation, new fonts and colours, cards across the top of the month.
+- Month view: All / Unpaid / Paid filter, progress per half, status on every bill, and a
+  "Next 45 days" and "Coming up" panel.
+- Recording a payment always takes a confirmation: click the amount, check it and the date,
+  press Confirm. The paid date is now saved.
+- What can I pay? has a slider for a payment today, a chart and a day-by-day list.
+- Line items open in a side panel, with a month grid for how often.
+- Setup and Import are now one Settings area. Old links redirect.
+
+### Added
+
+- ⌘K / Ctrl+K: type an item and amount, Enter to review, Enter to record.
+- Year & reports: every item by month, monthly and category totals, change on last year,
+  CSV download.
+- Appearance setting: cool or warm theme, light, dark or match device.
+
 ## [0.10.0] — unreleased
 
 ### Added
