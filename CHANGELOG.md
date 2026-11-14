@@ -3,6 +3,13 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.11.2] — unreleased
+
+### Security
+
+- Test tools: Vitest 3 → 5 with Vite 8. Clears the last advisories; `npm audit` is now clean,
+  dev included. Nothing in the image changes.
+
 ## [0.11.1] — unreleased
 
 ### Security
