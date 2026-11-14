@@ -10,7 +10,7 @@ leave it today.
 Everything runs on your own server against your own PostgreSQL database. The app
 makes no outside requests — fonts are bundled.
 
-> **Status:** v0.15.0. Month view, cash projection, line items, year reports,
+> **Status:** v0.15.1. Month view, cash projection, line items, year reports,
 > import, export, sign-in for up to two people, and a token-secured API for a
 > phone app all work. See `CHANGELOG.md`.
 

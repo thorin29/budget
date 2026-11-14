@@ -3,6 +3,12 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.15.1]
+
+### Changed
+- New icon to match the phone app: the Ledger mark in Cobalt, for the browser tab, home-screen
+  install, the sidebar and the Unraid template.
+
 ## [0.15.0] — unreleased
 
 ### Added
