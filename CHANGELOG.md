@@ -3,6 +3,13 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.16.0]
+
+### Changed
+- The web now looks like the phone app: Figtree type, Phosphor icons, cool grays and one accent.
+  Settings → Appearance offers the phone's six accents (Cobalt by default) in place of Cool and
+  Warm, plus light, dark or match device. A browser that chose Cool or Warm starts on Cobalt.
+
 ## [0.15.1]
 
 ### Changed

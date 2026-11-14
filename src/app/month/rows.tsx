@@ -12,6 +12,7 @@ import { formatCents, toDecimalString } from "@/lib/money";
 import { describeDifference, tryParseCents } from "@/lib/quick-entry";
 import { Pill, ProgressBar, TextInput, buttonClass, type PillTone } from "@/components/ui";
 import { shortDate, shortMonth, type RowEntry } from "./row-model";
+import { Icon } from "@/components/icons";
 
 const INITIAL: FormState = { ok: true };
 
@@ -157,10 +158,8 @@ function statusPill(row: RowEntry): { tone: PillTone; label: string } {
 function StatusDot({ row }: { row: RowEntry }) {
   if (row.actualCents !== null) {
     return (
-      <span aria-hidden className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-white">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 12l5 5L20 7" />
-        </svg>
+      <span aria-hidden className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-accent text-on-accent">
+        <Icon name="check" size={12} />
       </span>
     );
   }

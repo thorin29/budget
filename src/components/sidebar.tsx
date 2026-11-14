@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { Icon, type IconName } from "@/components/icons";
 import { signOutAction } from "@/app/sign-in/actions";
 
 interface NavItem {
@@ -10,66 +10,33 @@ interface NavItem {
   label: string;
   /** Path prefixes that count as this section. */
   match: string[];
-  icon: ReactNode;
+  icon: IconName;
 }
-
-const stroke = {
-  width: 18,
-  height: 18,
-  viewBox: "0 0 24 24",
-  fill: "none",
-  stroke: "currentColor",
-  strokeWidth: 1.8,
-  strokeLinecap: "round" as const,
-  strokeLinejoin: "round" as const,
-  "aria-hidden": true,
-};
 
 const MAIN: NavItem[] = [
   {
     href: "/month",
     label: "This month",
     match: ["/month"],
-    icon: (
-      <svg {...stroke}>
-        <rect x="3.5" y="5" width="17" height="15" rx="2.5" />
-        <path d="M3.5 10h17M8 3v4M16 3v4" />
-      </svg>
-    ),
+    icon: "calendar-blank",
   },
   {
     href: "/projection",
     label: "What can I pay?",
     match: ["/projection"],
-    icon: (
-      <svg {...stroke}>
-        <path d="M3 17l5-5 4 3 8-8" />
-        <path d="M15 7h5v5" />
-      </svg>
-    ),
+    icon: "chart-line",
   },
   {
     href: "/line-items",
     label: "Line items",
     match: ["/line-items"],
-    icon: (
-      <svg {...stroke}>
-        <path d="M9 6h11M9 12h11M9 18h11" />
-        <circle cx="4.5" cy="6" r="1" />
-        <circle cx="4.5" cy="12" r="1" />
-        <circle cx="4.5" cy="18" r="1" />
-      </svg>
-    ),
+    icon: "list-bullets",
   },
   {
     href: "/year",
     label: "Year & reports",
     match: ["/year"],
-    icon: (
-      <svg {...stroke}>
-        <path d="M5 20V11M12 20V5M19 20v-6" />
-      </svg>
-    ),
+    icon: "chart-bar",
   },
 ];
 
@@ -77,12 +44,7 @@ const SETTINGS: NavItem = {
   href: "/settings",
   label: "Settings",
   match: ["/settings", "/setup", "/import"],
-  icon: (
-    <svg {...stroke}>
-      <circle cx="12" cy="12" r="3" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z" />
-    </svg>
-  ),
+  icon: "gear-six",
 };
 
 function isActive(pathname: string, item: NavItem) {
@@ -101,7 +63,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
           : "text-muted hover:bg-neutral-soft hover:text-foreground"
       }`}
     >
-      <span className={active ? "text-accent-text" : ""}>{item.icon}</span>
+      <Icon name={item.icon} weight={active ? "fill" : "regular"} size={19} className={active ? "text-accent-text" : ""} />
       {item.label}
     </Link>
   );
@@ -110,7 +72,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
 function Mark() {
   return (
     <Link href="/month" className="flex items-center gap-2.5">
-      <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-accent text-white">
+      <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-accent text-on-accent">
         <svg width="18" height="18" viewBox="0 0 48 48" fill="currentColor" aria-hidden>
           <rect x="10" y="12" width="20" height="6" rx="3" />
           <rect x="10" y="21" width="26" height="6" rx="3" opacity="0.75" />

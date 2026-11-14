@@ -6,6 +6,7 @@ import { formatCents, toDecimalString } from "@/lib/money";
 import { describeDifference, parseQuickQuery, rankMatches } from "@/lib/quick-entry";
 import { buttonClass } from "@/components/ui";
 import { shortDate, type RowEntry } from "./row-model";
+import { Icon } from "@/components/icons";
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
@@ -157,10 +158,7 @@ export function QuickEntry({ rows, today }: { rows: RowEntry[]; today: string })
             </h2>
 
             <div className="flex items-center gap-3 border-b border-line px-5 py-4">
-              <svg aria-hidden width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" className="shrink-0 text-subtle">
-                <circle cx="11" cy="11" r="7" />
-                <path d="M20 20l-3.5-3.5" />
-              </svg>
+              <Icon name="magnifying-glass" size={22} className="shrink-0 text-subtle" />
               <label htmlFor="qe" className="sr-only">
                 Item and amount
               </label>
@@ -191,10 +189,8 @@ export function QuickEntry({ rows, today }: { rows: RowEntry[]; today: string })
                 }`}
               >
                 <div className="flex items-center gap-3.5">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-white">
-                    <svg aria-hidden width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M5 12l5 5L20 7" />
-                    </svg>
+                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-accent text-on-accent">
+                    <Icon name="check" size={20} />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[15px] font-semibold text-accent-ink">

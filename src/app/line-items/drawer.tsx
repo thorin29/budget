@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect } from "react";
+import { Icon } from "@/components/icons";
 
 /** A panel over the right edge. Closing is navigation, so Back works too. */
 export function Drawer({
@@ -48,9 +49,7 @@ export function Drawer({
             aria-label="Close"
             className="rounded-lg p-1.5 text-muted transition hover:bg-neutral-soft hover:text-foreground"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-              <path d="M6 6l12 12M18 6L6 18" />
-            </svg>
+            <Icon name="x" size={20} />
           </Link>
         </div>
         <div className="min-h-0 flex-1">{children}</div>

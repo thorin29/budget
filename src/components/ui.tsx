@@ -92,7 +92,7 @@ export function Select(props: React.ComponentProps<"select">) {
 }
 
 export const BUTTON_STYLES = {
-  primary: "bg-accent text-white hover:brightness-95 shadow-card",
+  primary: "bg-accent text-on-accent hover:brightness-95 shadow-card",
   quiet: "border border-line-strong bg-surface text-foreground hover:bg-neutral-soft",
   danger: "text-danger hover:bg-danger-soft",
   ghost: "text-muted hover:bg-neutral-soft hover:text-foreground",

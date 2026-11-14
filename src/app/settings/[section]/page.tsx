@@ -175,9 +175,13 @@ async function Security() {
 
 // ---------------------------------------------------------------- appearance
 
-const THEME_OPTIONS: Array<{ value: Theme; label: string; detail: string }> = [
-  { value: "cool", label: "Cool", detail: "Crisp greys, green accent, geometric headings" },
-  { value: "warm", label: "Warm", detail: "Paper tones, forest green, serif headings" },
+const THEME_OPTIONS: Array<{ value: Theme; label: string }> = [
+  { value: "cobalt", label: "Cobalt" },
+  { value: "violet", label: "Violet" },
+  { value: "graphite", label: "Graphite" },
+  { value: "forest", label: "Forest" },
+  { value: "plum", label: "Plum" },
+  { value: "teal", label: "Teal" },
 ];
 
 const MODE_OPTIONS: Array<{ value: Mode; label: string }> = [
@@ -195,8 +199,9 @@ async function Appearance() {
     <Card className="p-6">
       <SectionHeading title="Appearance" description="Saved in this browser, so a phone and a desktop can differ." />
 
-      <h3 className="font-sans text-[13px] font-semibold">Theme</h3>
-      <form action={setAppearanceAction} className="mt-2 grid gap-4 sm:grid-cols-2">
+      <h3 className="font-sans text-[13px] font-semibold">Accent</h3>
+      <p className="mt-0.5 text-xs text-muted">The same six as the phone app. Each phone picks its own under More → Appearance.</p>
+      <form action={setAppearanceAction} className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {THEME_OPTIONS.map((option) => {
           const active = option.value === theme;
           return (
@@ -210,40 +215,22 @@ async function Appearance() {
                 active ? "border-accent" : "border-line hover:border-line-strong"
               }`}
             >
-              {/* A miniature of the month view in that theme. */}
-              <div data-theme={option.value} className="bg-background p-4 text-foreground">
-                <div className="flex gap-2">
-                  <div className="flex-1 rounded-lg border border-line bg-surface p-2.5">
-                    <p className="text-[10px] text-muted">Free after the month</p>
-                    <p className="font-heading tnum text-base font-bold">$1,240.00</p>
-                  </div>
-                  <div className="flex-1 rounded-lg bg-hero p-2.5 text-hero-text">
-                    <p className="text-[10px] text-hero-muted">Available to send</p>
-                    <p className="font-heading tnum text-base font-bold">$860.00</p>
-                  </div>
+              {/* A miniature of the safe-to-send card in that accent. */}
+              <div data-theme={option.value} className="bg-background p-3 text-foreground">
+                <div className="rounded-lg bg-hero p-2.5 text-hero-text">
+                  <p className="text-[10px] text-hero-muted">Safe to send today</p>
+                  <p className="font-heading tnum text-base font-bold">$412.00</p>
                 </div>
-                <div className="mt-2 space-y-1.5 rounded-lg border border-line bg-surface p-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full bg-accent" />
-                    <span className="h-1.5 flex-1 rounded bg-neutral-soft" />
-                    <span className="rounded-full bg-ok-soft px-1.5 text-[9px] font-semibold text-ok">Paid</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="h-3 w-3 rounded-full border-2 border-dashed border-line-strong" />
-                    <span className="h-1.5 flex-1 rounded bg-neutral-soft" />
-                    <span className="rounded-full bg-warn-soft px-1.5 text-[9px] font-semibold text-warn">Soon</span>
-                  </div>
+                <div className="mt-2 flex items-center gap-2 rounded-lg border border-line bg-surface p-2">
+                  <span className="h-3 w-3 rounded-full bg-accent" />
+                  <span className="h-1.5 flex-1 rounded bg-neutral-soft" />
+                  <span className="rounded-full bg-accent-soft px-1.5 text-[9px] font-semibold text-accent-ink">Paid</span>
                 </div>
               </div>
-              <div className="flex items-center justify-between gap-3 bg-surface px-4 py-3">
-                <span>
-                  <span className="block text-sm font-semibold">{option.label}</span>
-                  <span className="block text-xs text-muted">{option.detail}</span>
-                </span>
+              <div className="flex items-center justify-between gap-2 bg-surface px-3 py-2.5">
+                <span className="text-sm font-semibold">{option.label}</span>
                 {active ? (
-                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-ink">
-                    In use
-                  </span>
+                  <span className="rounded-full bg-accent-soft px-2 py-0.5 text-xs font-semibold text-accent-ink">In use</span>
                 ) : null}
               </div>
             </button>

@@ -2,7 +2,7 @@
 
 export const SECTIONS = [
   { slug: "security", label: "Sign-in & people", detail: "Password, phones, second person" },
-  { slug: "appearance", label: "Appearance", detail: "Theme and light or dark" },
+  { slug: "appearance", label: "Appearance", detail: "Accent and light or dark" },
   { slug: "planning", label: "Planning", detail: "Bills account, split day, look-ahead" },
   { slug: "accounts", label: "Accounts", detail: "Where money leaves from" },
   { slug: "categories", label: "Categories", detail: "Groupings for reports" },

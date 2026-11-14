@@ -85,7 +85,7 @@ export function AuthCard({ title, lead, children }: { title: string; lead?: Reac
     <div className="flex min-h-[80vh] items-center justify-center">
       <div className="w-full max-w-sm">
         <div className="mb-6 flex items-center gap-2.5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-accent text-white">
+          <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-accent text-on-accent">
             <svg width="18" height="18" viewBox="0 0 48 48" fill="currentColor" aria-hidden>
               <rect x="10" y="12" width="20" height="6" rx="3" />
               <rect x="10" y="21" width="26" height="6" rx="3" opacity="0.75" />

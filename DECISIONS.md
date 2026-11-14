@@ -391,3 +391,12 @@ connection and sends them when it is back. Two rules keep that safe:
 Known gap, accepted: if an entry was *removed* on the web after the phone
 queued a payment for it, the queued payment recreates it — there is nothing
 left to compare against. The phone lists what it synced so it can be spotted.
+
+## One look with the phone (0.16)
+
+The web takes the phone app's design: Figtree (bundled, no font requests),
+Phosphor icons inlined as paths (no icon dependency), the phone's cool grays,
+and its six accents, each with a light and a dark tone. The accent is the
+`data-theme` attribute; the hero card is the accent itself, with
+`--on-accent` for text on it (white in light mode, a dark tint in dark mode,
+since dark-mode accents are light). Old Cool/Warm cookies fall back to Cobalt.

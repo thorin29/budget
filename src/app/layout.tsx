@@ -1,8 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { cookies } from "next/headers";
-import "@fontsource-variable/inter/wght.css";
-import "@fontsource-variable/plus-jakarta-sans/wght.css";
-import "@fontsource-variable/fraunces/wght.css";
+import "@fontsource-variable/figtree/wght.css";
 import "./globals.css";
 import { MODE_COOKIE, THEME_COOKIE, readMode, readTheme } from "@/lib/appearance";
 import { versionLabel } from "@/lib/version";
@@ -15,7 +13,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0e8f5b",
+  themeColor: "#2851d6",
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

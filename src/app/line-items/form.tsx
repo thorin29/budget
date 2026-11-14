@@ -257,7 +257,7 @@ export function LineItemForm({
                   onClick={() => toggleMonth(i + 1)}
                   aria-pressed={on}
                   className={`rounded-lg py-1.5 text-xs font-semibold transition ${
-                    on ? "bg-accent text-white" : "bg-neutral-soft text-muted hover:text-foreground"
+                    on ? "bg-accent text-on-accent" : "bg-neutral-soft text-muted hover:text-foreground"
                   }`}
                 >
                   {m}
