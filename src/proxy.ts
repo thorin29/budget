@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { buildCsp, makeNonce, parseFrameAncestors } from "@/lib/csp";
-import { decide, kindOf } from "@/lib/auth/gate";
+import { decide, isNavigation, kindOf } from "@/lib/auth/gate";
 import { SESSION_COOKIE } from "@/lib/auth/rules";
 import { userCount, userFromToken } from "@/server/session";
 
@@ -25,7 +25,14 @@ export async function proxy(request: NextRequest) {
   if (!hasUsers) hasUsers = (await userCount()) > 0;
   const user = hasUsers ? await userFromToken(request.cookies.get(SESSION_COOKIE)?.value) : null;
 
-  const decision = decide({ pathname, search, kind, hasUsers, signedIn: user !== null });
+  const decision = decide({
+    pathname,
+    search,
+    kind,
+    hasUsers,
+    signedIn: user !== null,
+    navigation: isNavigation(request.headers),
+  });
 
   if (decision.type === "deny") {
     return NextResponse.json(

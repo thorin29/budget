@@ -3,6 +3,13 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.14.1] — unreleased
+
+### Fixed
+
+- Signing in could land on "page could not be found": a background request from the browser (the
+  tab icon) was remembered as the page to return to. Only real pages are remembered now.
+
 ## [0.14.0] — unreleased
 
 ### Added

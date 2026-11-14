@@ -131,7 +131,7 @@ If you put Budget on the internet behind an authenticating proxy, let only
 the phone API through without the proxy's sign-in, and nothing else:
 
 ```
-^/api/v1(/.*)?$   → bypass        (above the catch-all rule)
+^/api/v1([/?].*)?$   → bypass     (above the catch-all rule)
 everything else   → your proxy's sign-in, two-factor recommended
 ```
 

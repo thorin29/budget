@@ -4,7 +4,7 @@ import { decodeSession, encodeSession } from "../auth/session-token";
 import { safeNext } from "../auth/safe-next";
 import { createLimiter } from "../auth/rate-limit";
 import { clientIp } from "../auth/client-ip";
-import { decide } from "../auth/gate";
+import { decide, isNavigation } from "../auth/gate";
 import { normalizeUsername, passwordProblem, usernameProblem } from "../auth/rules";
 
 describe("password hashing", () => {
@@ -54,6 +54,13 @@ describe("safeNext", () => {
     for (const bad of ["//evil.com", "/\\evil.com", "https://evil.com", "evil.com", "/\u0000x", "/a\\b", ""]) {
       expect(safeNext(bad)).toBe("/month");
     }
+  });
+
+  it("never returns to a file or framework path", () => {
+    for (const bad of ["/favicon.ico", "/icon.png?v=2", "/robots.txt", "/_next/static/x", "/api/v1/meta", "/apple-touch-icon.png"]) {
+      expect(safeNext(bad)).toBe("/month");
+    }
+    expect(safeNext("/year/2026/csv")).toBe("/year/2026/csv");
   });
 
   it("never returns to the sign-in pages", () => {
@@ -130,6 +137,11 @@ describe("gate", () => {
     expect(page("/")).toEqual({ type: "redirect", to: "/sign-in" });
   });
 
+  it("refuses a background fetch instead of making it the return-to page", () => {
+    expect(page("/favicon.ico", { navigation: false })).toEqual({ type: "deny" });
+    expect(page("/favicon.ico", { navigation: false, hasUsers: false })).toEqual({ type: "deny" });
+  });
+
   it("refuses signed-out actions outright", () => {
     expect(decide({ pathname: "/month", kind: "action", hasUsers: true, signedIn: false })).toEqual({ type: "deny" });
   });
@@ -149,5 +161,14 @@ describe("gate", () => {
   it("lets a signed-in user through and away from the sign-in page", () => {
     expect(page("/month", { signedIn: true })).toEqual({ type: "allow" });
     expect(page("/sign-in", { signedIn: true })).toEqual({ type: "redirect", to: "/month" });
+  });
+});
+
+describe("isNavigation", () => {
+  it("tells page loads and client navigations from background fetches", () => {
+    expect(isNavigation(new Headers({ "sec-fetch-mode": "navigate" }))).toBe(true);
+    expect(isNavigation(new Headers({ "sec-fetch-mode": "cors", rsc: "1" }))).toBe(true);
+    expect(isNavigation(new Headers({ "sec-fetch-mode": "no-cors", "sec-fetch-dest": "image" }))).toBe(false);
+    expect(isNavigation(new Headers())).toBe(true);
   });
 });
