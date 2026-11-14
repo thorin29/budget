@@ -226,3 +226,75 @@ else.
 Fonts come from npm packages and are served by the app. Loading them from a
 font CDN would be the one outside request the app makes, and would tell a third
 party when the budget is opened.
+
+### Payment links are http(s) only
+
+A stored link is rendered as a clickable href, and URL validation alone
+accepted `javascript:` and `data:` — a stored script. Links are checked by one
+helper (`safeHttpUrl`) on the way in (form, import) and again on the way out, so
+a value saved before the check can never become a live link.
+
+### A strict CSP with a per-request nonce
+
+`src/proxy.ts` mints a nonce for every request and sets the policy; Next stamps
+the nonce on each script it renders and `'strict-dynamic'` lets those load the
+app's chunks. Styles keep `'unsafe-inline'` because React style attributes
+cannot carry a nonce and inline styles cannot run code. There is no
+`upgrade-insecure-requests`, because the LAN address is plain HTTP. Framing is
+same-origin unless `FRAME_ANCESTORS` names more. `nosniff` and
+`Referrer-Policy: same-origin` come from `next.config` so static files get them
+too. Every page is rendered per request already, which a nonce requires.
+
+After a change, click through every page and watch the console for
+"Refused to …".
+
+### The browser never calls /api/v1
+
+The web interface uses server actions only; `/api/v1` is for the phone and will
+take device tokens only (0.14). The importer was the one exception and moved to
+server actions in 0.12. Files marked `"use server"` export only actions —
+every export there is callable from outside — and helpers live in plain modules.
+
+### Size caps on every body
+
+API routes read at most 256 KB, import at most 5 MB, checked against the
+declared length and again against the bytes read; over the cap is a 413. Server
+actions are capped at 6 MB, room for the import document.
+
+### Framework endpoints we don't use are off
+
+Nothing uses `next/image`, so its optimizer is disabled (`images.unoptimized`).
+It has had advisories, and it would answer without sign-in.
+
+### Upgrades follow one routine
+
+1. Check what's flagged: `npm audit --omit=dev` (what ships), then `npm audit`.
+2. Read the official upgrade guide for the target version; grep for every
+   breaking change before editing.
+3. Security patches first and alone; one major upgrade per release.
+4. Pin exact versions (`--save-exact`); Prisma's client, adapter and CLI
+   always identical, including the CLI the Dockerfile installs.
+5. `npm run preflight`, `npm test`.
+6. Production build, start the built server, click through every page in a
+   real browser with the console open. A green build alone proves nothing.
+7. Audit again; note anything left and why it can wait.
+8. Record it: a changelog line, and the table below.
+
+`npm audit fix` without `--force` is fine for indirect packages; `--force` is how
+majors sneak in, so those are done by hand. The lockfile is regenerated with
+`rm -rf node_modules package-lock.json && npm install` and checked for the
+other platforms' optional packages before it ships.
+
+### Current versions
+
+| Part | Version | Note |
+| --- | --- | --- |
+| Next.js | 16.4.6 | |
+| React / React DOM | 19.3.1 | |
+| Prisma client / adapter-pg / CLI | 7.10.1 | All three identical, Dockerfile CLI included |
+| pg | 8.23.1 | Pool: max 10, connect timeout 5 s, idle 30 s |
+| zod | 4.6.7 | |
+| TypeScript | 5.9.3 | |
+| Tailwind | 4.3.5 | |
+| Vitest / Vite | 5.1.0 / 8.3.8 | Dev only |
+| Node | 24 (`node:24-alpine`) | |

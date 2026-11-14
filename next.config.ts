@@ -20,6 +20,29 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: pkg.version,
   },
+  // Native Node modules the bundler must leave alone.
+  serverExternalPackages: ["pg", "@prisma/adapter-pg"],
+  // Nothing uses next/image, so its optimizer endpoint stays off: it has had
+  // advisories and would otherwise answer without sign-in.
+  images: { unoptimized: true },
+  experimental: {
+    serverActions: {
+      // The importer sends a whole converted workbook (up to 5 MB) plus choices.
+      bodySizeLimit: "6mb",
+    },
+  },
+  // On every response, static files included. The CSP is per request, in proxy.ts.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "same-origin" },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

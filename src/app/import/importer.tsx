@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Card, ErrorBanner, Select } from "@/components/ui";
 import type { ImportBatchSummary, ImportPlan } from "@/server/import";
+import { applyImportAction, previewImportAction, revertImportAction } from "./actions";
 
 type AccountKind = "BANK" | "CREDIT_CARD" | "CASH" | "OTHER";
 type ItemKind = "BILL" | "SETTLEMENT" | "INCOME";
@@ -37,21 +38,10 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
     confineToYear,
   });
 
-  async function post(action: string, extra: Record<string, unknown> = {}) {
-    const response = await fetch("/api/v1/import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, document, choices: choices(), ...extra }),
-    });
-    const body = await response.json();
-    if (!response.ok) {
-      throw new Error(
-        body?.error?.issues
-          ? Object.values(body.error.issues).flat().join(". ")
-          : (body?.error?.message ?? "Request failed"),
-      );
-    }
-    return body;
+  /** Unwraps an action result, turning a refusal into a thrown message. */
+  function unwrap<T>(result: { ok: true; data: T } | { ok: false; message: string }): T {
+    if (!result.ok) throw new Error(result.message);
+    return result.data;
   }
 
   async function onFile(file: File) {
@@ -62,19 +52,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
       const parsed = JSON.parse(await file.text());
       setDocument(parsed);
 
-      const response = await fetch("/api/v1/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "preview", document: parsed }),
-      });
-      const body = await response.json();
-      if (!response.ok) {
-        throw new Error(
-          body?.error?.issues
-            ? Object.values(body.error.issues).flat().join(". ")
-            : (body?.error?.message ?? "Could not read that file"),
-        );
-      }
+      const body = unwrap(await previewImportAction(parsed));
 
       setPlan(body as ImportPlan);
       setKinds(
@@ -99,7 +77,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
   async function refreshPlan() {
     if (!document) return;
     try {
-      setPlan((await post("preview")) as ImportPlan);
+      setPlan(unwrap(await previewImportAction(document, choices())));
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Failed");
     }
@@ -109,7 +87,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
     setBusy(true);
     setError(undefined);
     try {
-      const result = await post("apply");
+      const result = unwrap(await applyImportAction(document, choices()));
       setDone(
         `Imported ${result.created.lineItems} new line items, ` +
           `${result.written.actuals} actuals and ${result.written.overrides} month adjustments.`,
@@ -127,7 +105,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
   async function revert(batchId: string) {
     setBusy(true);
     try {
-      await post("revert", { batchId, document: undefined });
+      unwrap(await revertImportAction(batchId));
       router.refresh();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not revert");

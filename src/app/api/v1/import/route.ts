@@ -6,7 +6,7 @@ import {
   revertImport,
   validateAmounts,
 } from "@/server/import";
-import { fail, ok, readJson } from "@/server/http";
+import { IMPORT_BODY_LIMIT, fail, ok, readJson } from "@/server/http";
 import { ValidationError } from "@/server/errors";
 
 export const dynamic = "force-dynamic";
@@ -25,7 +25,7 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const body = (await readJson(request)) as {
+    const body = (await readJson(request, IMPORT_BODY_LIMIT)) as {
       action?: string;
       document?: unknown;
       choices?: never;

@@ -354,10 +354,10 @@ function About() {
         <dd className="tnum font-semibold">{APP_VERSION}</dd>
         <dt className="text-muted">Build</dt>
         <dd className="tnum">{BUILD_SHA ? BUILD_SHA.slice(0, 7) : "local"}</dd>
-        <dt className="text-muted">Health</dt>
+        <dt className="text-muted">API</dt>
         <dd>
-          <a href="/api/health" className="text-accent-text hover:underline">
-            /api/health
+          <a href="/api/v1/meta" className="text-accent-text hover:underline">
+            /api/v1/meta
           </a>
         </dd>
       </dl>

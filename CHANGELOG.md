@@ -3,6 +3,23 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.12.0] — unreleased
+
+### Security
+
+- Payment links accept only `http://` and `https://` addresses. Anything else is refused when saved,
+  dropped on import, and never shown as a link.
+- Strict Content-Security-Policy on every page, plus `nosniff`, referrer and framing headers.
+- Request size limits: 5 MB for import, 256 KB for other API calls.
+- Unused image-optimizer endpoint turned off.
+- `/api/health` reports status only; the version moved to `/api/v1/meta`.
+
+### Changed
+
+- The importer runs through the app itself instead of calling the API from the browser.
+- Every dependency pinned to an exact version; database connections time out instead of hanging.
+- `npm run preflight` type-checks against the real database client without Docker.
+
 ## [0.11.2] — unreleased
 
 ### Security

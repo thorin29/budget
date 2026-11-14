@@ -7,11 +7,11 @@
  */
 
 import { NextResponse } from "next/server";
-import { ConflictError, NotFoundError, ValidationError } from "./errors";
+import { ConflictError, NotFoundError, PayloadTooLargeError, ValidationError } from "./errors";
 
 export interface ApiError {
   error: {
-    code: "validation_failed" | "not_found" | "conflict" | "bad_request" | "internal";
+    code: "validation_failed" | "not_found" | "conflict" | "bad_request" | "too_large" | "internal";
     message: string;
     issues?: Record<string, string[]>;
   };
@@ -46,6 +46,13 @@ export function fail(error: unknown): NextResponse {
     );
   }
 
+  if (error instanceof PayloadTooLargeError) {
+    return NextResponse.json<ApiError>(
+      { error: { code: "too_large", message: error.message } },
+      { status: 413 },
+    );
+  }
+
   console.error("Unhandled error in API route:", error);
   return NextResponse.json<ApiError>(
     { error: { code: "internal", message: "Something went wrong" } },
@@ -53,11 +60,44 @@ export function fail(error: unknown): NextResponse {
   );
 }
 
-/** Reads a JSON body, turning a malformed one into a 400 rather than a crash. */
-export async function readJson(request: Request): Promise<unknown> {
+/** Default cap for a JSON body. Every route but import stays far under it. */
+export const DEFAULT_BODY_LIMIT = 256 * 1024;
+
+/** The import document is the one large body. */
+export const IMPORT_BODY_LIMIT = 5 * 1024 * 1024;
+
+/**
+ * Reads a JSON body, refusing one over `maxBytes` (413) and turning a
+ * malformed one into a 400 rather than a crash. The declared length is checked
+ * first, then the bytes actually read, so a missing or false header does not
+ * get around the cap.
+ */
+export async function readJson(request: Request, maxBytes = DEFAULT_BODY_LIMIT): Promise<unknown> {
+  const declared = Number(request.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) throw new PayloadTooLargeError(maxBytes);
+
+  const text = await readText(request, maxBytes);
   try {
-    return await request.json();
+    return JSON.parse(text);
   } catch {
     throw new ValidationError({ body: ["Expected a JSON body"] }, "Malformed JSON");
   }
+}
+
+async function readText(request: Request, maxBytes: number): Promise<string> {
+  if (!request.body) return "";
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      throw new PayloadTooLargeError(maxBytes);
+    }
+    chunks.push(value);
+  }
+  return new TextDecoder().decode(Buffer.concat(chunks));
 }

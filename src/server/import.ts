@@ -6,6 +6,7 @@
  * approved it, and every import is recorded as a batch that can be undone whole.
  */
 
+import { safeHttpUrl } from "@/lib/safe-url";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ValidationError, NotFoundError } from "./errors";
@@ -168,7 +169,7 @@ export async function buildPlan(
         ? (accountByKey.get(item.accountKey)?.name ?? null)
         : null,
       categoryName: item.categoryName ?? null,
-      hasPaymentUrl: Boolean(item.paymentUrl),
+      hasPaymentUrl: safeHttpUrl(item.paymentUrl) !== null,
       warnings: item.warnings,
     })),
     totals: {
@@ -291,7 +292,8 @@ export async function applyImport(
       dueDay: item.dueDay ?? null,
       months: item.months,
       scheduleKind,
-      paymentUrl: item.paymentUrl || null,
+      // A link that is not plain http(s) is dropped rather than stored.
+      paymentUrl: safeHttpUrl(item.paymentUrl),
       ...bounds,
     };
 

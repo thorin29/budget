@@ -20,7 +20,14 @@ function createClient(): PrismaClient {
     throw new Error("DATABASE_URL is not set");
   }
 
-  const adapter = new PrismaPg({ connectionString });
+  // node-postgres has no connection timeout by default: a database that stops
+  // answering would hang every request instead of failing.
+  const adapter = new PrismaPg({
+    connectionString,
+    max: 10,
+    connectionTimeoutMillis: 5_000,
+    idleTimeoutMillis: 30_000,
+  });
 
   return new PrismaClient({
     adapter,

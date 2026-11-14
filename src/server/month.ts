@@ -13,6 +13,7 @@
  *    than the budget settles the item; it does not leave a balance owing.
  */
 
+import { safeHttpUrl } from "@/lib/safe-url";
 import { prisma } from "@/lib/prisma";
 import { toCents, toDecimalString, type Cents } from "@/lib/money";
 import { ValidationError } from "./errors";
@@ -264,7 +265,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       kind: item.kind as MonthEntry["kind"],
       categoryName: item.categoryId ? (categoryName.get(item.categoryId) ?? null) : null,
       accountName: item.paidFromId ? (accountName.get(item.paidFromId) ?? null) : null,
-      paymentUrl: item.paymentUrl,
+      paymentUrl: safeHttpUrl(item.paymentUrl),
       dueDay: item.dueDay,
       budgetedCents: o.amountCents,
       plannedCents: planned.get(item.id) ?? 0,
@@ -298,7 +299,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       kind: item.kind as MonthEntry["kind"],
       categoryName: item.categoryId ? (categoryName.get(item.categoryId) ?? null) : null,
       accountName: item.paidFromId ? (accountName.get(item.paidFromId) ?? null) : null,
-      paymentUrl: item.paymentUrl,
+      paymentUrl: safeHttpUrl(item.paymentUrl),
       dueDay: item.dueDay,
       budgetedCents: budgeted,
       plannedCents: planned.get(item.id) ?? 0,
@@ -360,7 +361,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
         kind: "INCOME" as const,
         categoryName: item.categoryId ? (categoryName.get(item.categoryId) ?? null) : null,
         accountName: item.paidFromId ? (accountName.get(item.paidFromId) ?? null) : null,
-        paymentUrl: item.paymentUrl,
+        paymentUrl: safeHttpUrl(item.paymentUrl),
         dueDay: item.dueDay,
         budgetedCents: budgeted,
         plannedCents: toCents(item.plannedAmount),

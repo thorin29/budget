@@ -10,8 +10,8 @@ leave it today.
 Everything runs on your own server against your own PostgreSQL database. The app
 makes no outside requests — fonts are bundled.
 
-> **Status:** v0.11.0. Month view, cash projection, line items, year reports,
-> import and export all work. See `CHANGELOG.md`.
+> **Status:** v0.12.0. Month view, cash projection, line items, year reports,
+> import and export all work. Built-in sign-in is next. See `CHANGELOG.md`.
 
 ## What it does
 
@@ -86,6 +86,7 @@ import a workbook under Settings → Import & export. Nothing is pre-populated.
 | `DATA_DIR`             | no       | Where uploads and backups are written. Defaults to `/app/data`. |
 | `DEFAULT_SPLIT_DAY`    | no       | Day the planning split falls on. Defaults to `15`.              |
 | `DEFAULT_HORIZON_DAYS` | no       | Days the projection looks ahead. Defaults to `45`.              |
+| `FRAME_ANCESTORS`      | no       | Origins allowed to embed the app in a frame. Empty = none.      |
 
 See `.env.example` for the full list.
 
@@ -96,9 +97,14 @@ data volume at your appdata share.
 
 ## Security
 
-The application has no login of its own. Put it behind something that
-authenticates — a reverse proxy with an auth layer, a VPN, or a trusted network.
-`DECISIONS.md` explains why.
+The application has no login of its own yet; built-in sign-in arrives in 0.13.
+Until then, put it behind something that authenticates — a reverse proxy with an
+auth layer, a VPN, or a trusted network.
+
+Already in place: a strict Content-Security-Policy with a fresh nonce on every
+page, `nosniff` and `same-origin` referrer headers, payment links limited to
+`http`/`https`, request size caps, and no image-optimizer endpoint. The
+container runs as an unprivileged user. `DECISIONS.md` has the reasoning.
 
 ## Privacy
 
@@ -128,11 +134,16 @@ Startup runs `prisma migrate deploy` only. Drift between the database and
 `npm test` runs the tests and `npm run typecheck` the type check. CI runs both
 before an image is built.
 
+`npm run preflight` generates the real Prisma client and type-checks against
+it, even where Prisma's engine downloads are blocked, so a local type check
+matches the one in the Docker build.
+
 ## Versioning
 
 The running version is shown in the sidebar, under Settings → About, and by
-`/api/health`, stamped with the commit it was built from. `CHANGELOG.md` records
-what changed.
+`/api/v1/meta`. `/api/health` reports only whether the app and database are up.
+`CHANGELOG.md` records what changed; `DECISIONS.md` keeps the current
+toolchain versions and the upgrade routine.
 
 ## Tech
 

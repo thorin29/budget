@@ -36,3 +36,14 @@ export function isUniqueViolation(error: unknown): boolean {
     (error as { code?: string }).code === "P2002"
   );
 }
+
+/** A request body over the route's size cap. */
+export class PayloadTooLargeError extends Error {
+  readonly limitBytes: number;
+
+  constructor(limitBytes: number) {
+    super(`Request body is larger than ${Math.round(limitBytes / 1024)} KB`);
+    this.name = "PayloadTooLargeError";
+    this.limitBytes = limitBytes;
+  }
+}

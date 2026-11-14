@@ -8,6 +8,7 @@
  * Decimal(12,2); conversion happens here and nowhere else.
  */
 
+import { safeHttpUrl } from "@/lib/safe-url";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { NotFoundError, ValidationError } from "./errors";
@@ -74,7 +75,12 @@ const lineItemInput = z
     startMonth: z.number().int().min(1).max(12).nullish(),
     endYear: z.number().int().min(1900).max(2999).nullish(),
     endMonth: z.number().int().min(1).max(12).nullish(),
-    paymentUrl: z.union([z.literal(""), z.url("Must be a full URL")]).nullish(),
+    paymentUrl: z
+      .union([
+        z.literal(""),
+        z.string().refine((v) => safeHttpUrl(v) !== null, "Must be a full http:// or https:// address"),
+      ])
+      .nullish(),
     notes: z.string().trim().max(2000).nullish(),
     active: z.boolean().optional(),
     sortOrder: z.number().int().optional(),
@@ -160,7 +166,7 @@ function toLineItem(row: Row): LineItem {
     startMonth: row.startMonth,
     endYear: row.endYear,
     endMonth: row.endMonth,
-    paymentUrl: row.paymentUrl,
+    paymentUrl: safeHttpUrl(row.paymentUrl),
     notes: row.notes,
     active: row.active,
     sortOrder: row.sortOrder,
@@ -206,7 +212,7 @@ async function toRowData(data: ReturnType<typeof parse>) {
     startMonth: data.startMonth ?? null,
     endYear: data.endYear ?? null,
     endMonth: data.endMonth ?? null,
-    paymentUrl: data.paymentUrl || null,
+    paymentUrl: safeHttpUrl(data.paymentUrl),
     notes: data.notes || null,
     active: data.active ?? true,
     sortOrder: data.sortOrder ?? 0,
