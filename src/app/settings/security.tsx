@@ -6,9 +6,12 @@ import { Button, ErrorBanner, Field, TextInput, buttonClass } from "@/components
 import { MIN_PASSWORD } from "@/lib/auth/rules";
 import {
   changePasswordAction,
+  createEnrollCodeAction,
   createInviteAction,
   removeUserAction,
+  revokeDeviceAction,
   signOutEverywhereAction,
+  type EnrollCodeState,
 } from "./account-actions";
 
 const INITIAL: AuthFormState = { ok: true };
@@ -127,6 +130,64 @@ export function RemoveUser({ userId, username }: { userId: string; username: str
       <input type="hidden" name="userId" value={userId} />
       <button type="submit" disabled={pending} className={buttonClass("danger", "bg-danger-soft")}>
         {pending ? "Removing…" : `Yes, remove ${username}`}
+      </button>
+      <button type="button" onClick={() => setArmed(false)} className="text-sm text-muted hover:text-foreground">
+        Keep
+      </button>
+      {!state.ok ? <span className="text-xs text-danger">{state.message}</span> : null}
+    </form>
+  );
+}
+
+export function AddPhone() {
+  const [result, setResult] = useState<EnrollCodeState | null>(null);
+  const [pending, start] = useTransition();
+
+  if (result?.ok) {
+    const until = new Date(result.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+    return (
+      <div className="flex flex-wrap items-start gap-5 rounded-xl border border-line bg-sunken p-4">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={result.qr} alt="QR code for adding a phone" width={148} height={148} className="rounded-lg bg-white p-1.5" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm">In the phone app, scan the code or type this, with your password. It works once, until {until}.</p>
+          <p className="tnum mt-2 select-all font-mono text-2xl font-bold tracking-widest">{result.code}</p>
+          <p className="mt-2 text-xs text-muted">Shown only now. Make a new one if it runs out.</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {result && !result.ok ? <ErrorBanner message={result.message} /> : null}
+      <button
+        type="button"
+        disabled={pending}
+        onClick={() => start(async () => setResult(await createEnrollCodeAction()))}
+        className={buttonClass("quiet")}
+      >
+        {pending ? "Creating…" : "Add a phone"}
+      </button>
+    </div>
+  );
+}
+
+export function RevokeDevice({ deviceId, name }: { deviceId: string; name: string }) {
+  const [state, submit, pending] = useActionState(revokeDeviceAction, INITIAL);
+  const [armed, setArmed] = useState(false);
+  if (!armed) {
+    return (
+      <button type="button" onClick={() => setArmed(true)} className={buttonClass("danger")}>
+        Sign out phone
+      </button>
+    );
+  }
+  return (
+    <form action={submit} className="flex items-center gap-2">
+      <input type="hidden" name="deviceId" value={deviceId} />
+      <button type="submit" disabled={pending} className={buttonClass("danger", "bg-danger-soft")}>
+        {pending ? "Signing out…" : `Yes, sign out ${name}`}
       </button>
       <button type="button" onClick={() => setArmed(false)} className="text-sm text-muted hover:text-foreground">
         Keep

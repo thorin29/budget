@@ -1,3 +1,4 @@
+import { requireDevice } from "@/server/device-auth";
 import { getProjection } from "@/server/projection-view";
 import { fail, ok } from "@/server/http";
 
@@ -5,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    await requireDevice(request);
     const params = new URL(request.url).searchParams;
     const pay = Number(params.get("proposedPaymentCents"));
     const days = Number(params.get("horizonDays"));

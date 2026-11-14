@@ -27,7 +27,15 @@ import { setAppearanceAction } from "../actions";
 import { SECTIONS, type SectionSlug } from "../sections";
 import { currentUser, listUsers } from "@/server/auth";
 import { MAX_USERS } from "@/lib/auth/rules";
-import { ChangePasswordForm, InviteSecondPerson, RemoveUser, SignOutEverywhere } from "../security";
+import {
+  AddPhone,
+  ChangePasswordForm,
+  InviteSecondPerson,
+  RemoveUser,
+  RevokeDevice,
+  SignOutEverywhere,
+} from "../security";
+import { listDevices } from "@/server/device-auth";
 
 export const dynamic = "force-dynamic";
 
@@ -65,6 +73,7 @@ const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "nume
 
 async function Security() {
   const [me, users] = await Promise.all([currentUser(), listUsers()]);
+  const devices = me ? await listDevices(me.id) : [];
   const others = users.filter((u) => u.id !== me?.id);
 
   return (
@@ -86,10 +95,40 @@ async function Security() {
       </Card>
 
       <Card className="p-6">
+        <h3 className="font-sans text-base font-bold">Your phones</h3>
+        <p className="mt-1 text-sm text-muted">
+          Each phone has its own sign-in. Signing one out stops it at once; changing your password signs out all of
+          them.
+        </p>
+        {devices.length ? (
+          <ul className="mt-3 divide-y divide-line rounded-xl border border-line">
+            {devices.map((d) => (
+              <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                <span>
+                  <span className="font-semibold">{d.name}</span>
+                  <span className="block text-xs text-muted">
+                    Added {dateFormat.format(d.createdAt)}
+                    {d.lastSeenAt ? ` · last used ${dateFormat.format(d.lastSeenAt)}` : ""} · sign-in lasts until{" "}
+                    {dateFormat.format(d.expiresAt)}
+                  </span>
+                </span>
+                <RevokeDevice deviceId={d.id} name={d.name} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="mt-3 text-sm text-subtle">No phones yet.</p>
+        )}
+        <div className="mt-4">
+          <AddPhone />
+        </div>
+      </Card>
+
+      <Card className="p-6">
         <h3 className="font-sans text-base font-bold">Sessions</h3>
         <p className="mt-1 text-sm text-muted">
-          Lost a phone or signed in somewhere you shouldn&rsquo;t have? This ends every session of yours, this one
-          included.
+          Lost a phone or signed in somewhere you shouldn&rsquo;t have? This ends every session of yours — this
+          browser, other browsers and your phones.
         </p>
         <div className="mt-4">
           <SignOutEverywhere />

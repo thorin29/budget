@@ -10,9 +10,9 @@ leave it today.
 Everything runs on your own server against your own PostgreSQL database. The app
 makes no outside requests — fonts are bundled.
 
-> **Status:** v0.13.0. Month view, cash projection, line items, year reports,
-> import, export and sign-in for up to two people all work. Phone API tokens
-> are next. See `CHANGELOG.md`.
+> **Status:** v0.14.0. Month view, cash projection, line items, year reports,
+> import, export, sign-in for up to two people, and a token-secured API for a
+> phone app all work. See `CHANGELOG.md`.
 
 ## What it does
 
@@ -124,6 +124,48 @@ Also in place: a strict Content-Security-Policy with a fresh nonce on every
 page, `nosniff` and `same-origin` referrer headers, payment links limited to
 `http`/`https`, request size caps, and no image-optimizer endpoint. The
 container runs as an unprivileged user. `DECISIONS.md` has the reasoning.
+
+### Exposing it
+
+If you put Budget on the internet behind an authenticating proxy, let only
+the phone API through without the proxy's sign-in, and nothing else:
+
+```
+^/api/v1(/.*)?$   → bypass        (above the catch-all rule)
+everything else   → your proxy's sign-in, two-factor recommended
+```
+
+Every `/api/v1` route checks a device token itself and never accepts the
+browser's cookie; the build fails if a route forgets. Keep PostgreSQL
+unreachable from outside the container network, and keep backups private:
+they hold every figure and the cookie-signing secret.
+
+## Phone API
+
+`/api/v1` is for the phone app. Every route needs
+`Authorization: Bearer <device token>` except these three:
+
+| Route | Purpose |
+| --- | --- |
+| `GET /api/v1/meta` | App name, version and API version |
+| `POST /api/v1/auth/login` | `{username, password}` → `{proof}`, valid five minutes |
+| `POST /api/v1/auth/enroll` | `{proof, code, name}` → `{token, expiresAt, device}` |
+
+The `code` comes from **Settings → Sign-in & people → Add a phone** on the web
+(text or QR; 15 minutes, one use). A password alone cannot add a phone. The
+token is returned once: store it in the Android Keystore. It lasts a year;
+`POST /api/v1/auth/refresh` swaps it for a fresh one, `GET /api/v1/auth/me`
+confirms it, and `POST /api/v1/auth/logout` ends it.
+
+A refused request is a 401 whose `error.code` says what to do:
+`missing_bearer` (send the token), `invalid_token`, `device_revoked`,
+`device_expired` or `reauth_required` (enrol again). Changing your password or
+"Sign out everywhere" signs out every phone. Too many attempts get a 429 with
+`Retry-After`.
+
+Recording money: `PUT /api/v1/months/{year}/{month}/actuals` with
+`{lineItemId, amount, paidOn?}`, `DELETE …/actuals?lineItemId=…`, and
+`PUT …/balance` with `{amount}`. The phone keeps the web's confirmation step.
 
 ## Privacy
 

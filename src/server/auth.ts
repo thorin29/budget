@@ -226,19 +226,27 @@ export async function changePassword(
   if (p) throw new ValidationError({ password: [p] });
   if (input.password !== input.confirm) throw new ValidationError({ confirm: ["Does not match"] });
 
-  return prisma.user.update({
-    where: { id: user.id },
-    data: {
-      passwordHash: await hashPassword(input.password as string),
-      credentialVersion: { increment: 1 },
-    },
-    select: { id: true, username: true, credentialVersion: true },
-  });
+  const [updated] = await prisma.$transaction([
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: await hashPassword(input.password as string),
+        credentialVersion: { increment: 1 },
+      },
+      select: { id: true, username: true, credentialVersion: true },
+    }),
+    // Phones sign in again too; the version check would refuse them anyway.
+    prisma.device.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } }),
+  ]);
+  return updated;
 }
 
-/** Ends every session of this user, this browser included. */
+/** Ends every session of this user, this browser and their phones included. */
 export async function signOutEverywhere(user: SessionUser): Promise<void> {
-  await prisma.user.update({ where: { id: user.id }, data: { credentialVersion: { increment: 1 } } });
+  await prisma.$transaction([
+    prisma.user.update({ where: { id: user.id }, data: { credentialVersion: { increment: 1 } } }),
+    prisma.device.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } }),
+  ]);
 }
 
 /** Removes the other account. You cannot remove yourself. */

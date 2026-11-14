@@ -1,3 +1,4 @@
+import { requireDevice } from "@/server/device-auth";
 import {
   applyImport,
   buildPlan,
@@ -11,8 +12,9 @@ import { ValidationError } from "@/server/errors";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    await requireDevice(request);
     return ok({ batches: await listImportBatches() });
   } catch (error) {
     return fail(error);
@@ -25,6 +27,7 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
+    await requireDevice(request);
     const body = (await readJson(request, IMPORT_BODY_LIMIT)) as {
       action?: string;
       document?: unknown;

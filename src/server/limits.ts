@@ -17,6 +17,10 @@ export const limits = {
   joinByIp: createLimiter({ limit: 5, windowMs: FIFTEEN_MINUTES }),
   passwordByUser: createLimiter({ limit: 5, windowMs: FIFTEEN_MINUTES }),
   inviteByUser: createLimiter({ limit: 5, windowMs: FIFTEEN_MINUTES }),
+  enrollByIp: createLimiter({ limit: 10, windowMs: FIFTEEN_MINUTES }),
+  enrollByUser: createLimiter({ limit: 5, windowMs: FIFTEEN_MINUTES }),
+  enrollCodeByUser: createLimiter({ limit: 10, windowMs: FIFTEEN_MINUTES }),
+  refreshByDevice: createLimiter({ limit: 10, windowMs: FIFTEEN_MINUTES }),
 };
 
 export async function callerIp(): Promise<string> {

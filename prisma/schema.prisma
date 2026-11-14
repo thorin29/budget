@@ -329,8 +329,10 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  actuals ActualEntry[]
-  invites InviteCode[]
+  actuals     ActualEntry[]
+  invites     InviteCode[]
+  devices     Device[]
+  enrollCodes EnrollCode[]
 }
 
 /// One-time code that lets the second user create an account. Only its
@@ -342,4 +344,39 @@ model InviteCode {
   createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
   expiresAt   DateTime
   createdAt   DateTime @default(now())
+}
+
+// ---------------------------------------------------------------------------
+// Phones. Each has its own bearer token; only the token's SHA-256 is stored.
+// ---------------------------------------------------------------------------
+
+model Device {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// What the person called it, e.g. "Pixel".
+  name   String
+
+  tokenHash String @unique
+  /// The user's credentialVersion when the token was issued. A password change
+  /// or "sign out everywhere" moves the user's on, and this token stops working.
+  credentialVersion Int
+
+  expiresAt  DateTime
+  lastSeenAt DateTime?
+  revokedAt  DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([userId])
+}
+
+/// One-time code shown on the web to add a phone. Hash only; 15 minutes; one
+/// live code per user; deleted on use.
+model EnrollCode {
+  id        String   @id @default(cuid())
+  codeHash  String   @unique
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 }

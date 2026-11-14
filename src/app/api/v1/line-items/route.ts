@@ -1,3 +1,4 @@
+import { requireDevice } from "@/server/device-auth";
 import { createLineItem, listLineItems } from "@/server/line-items";
 import { created, fail, ok, readJson } from "@/server/http";
 
@@ -5,6 +6,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   try {
+    await requireDevice(request);
     const includeInactive = new URL(request.url).searchParams.get("includeInactive") === "true";
     return ok({ lineItems: await listLineItems({ includeInactive }) });
   } catch (error) {
@@ -14,6 +16,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await requireDevice(request);
     return created(await createLineItem((await readJson(request)) as never));
   } catch (error) {
     return fail(error);

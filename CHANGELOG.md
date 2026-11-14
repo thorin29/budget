@@ -3,6 +3,22 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.14.0] — unreleased
+
+### Added
+
+- Phones: add one from Settings → Sign-in & people with a one-time code or QR plus your password.
+- Each phone is listed with when it was last used, and can be signed out on its own.
+- The API can record and clear payments and set the bills balance, for the phone app.
+
+### Security
+
+- The API accepts device tokens only, never the browser's sign-in. Tokens are stored as hashes,
+  expire after a year, and can be refreshed or revoked.
+- Changing your password or signing out everywhere also signs out every phone.
+- The build fails if any API route skips the token check.
+- Migration `0005`.
+
 ## [0.13.0] — unreleased
 
 ### Added

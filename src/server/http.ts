@@ -8,10 +8,19 @@
 
 import { NextResponse } from "next/server";
 import { ConflictError, NotFoundError, PayloadTooLargeError, ValidationError } from "./errors";
+import { DeviceAuthError, type DeviceAuthCode } from "./device-auth";
 
 export interface ApiError {
   error: {
-    code: "validation_failed" | "not_found" | "conflict" | "bad_request" | "too_large" | "internal";
+    code:
+      | "validation_failed"
+      | "not_found"
+      | "conflict"
+      | "bad_request"
+      | "too_large"
+      | "rate_limited"
+      | "internal"
+      | DeviceAuthCode;
     message: string;
     issues?: Record<string, string[]>;
   };
@@ -27,6 +36,18 @@ export function created<T>(data: T): NextResponse {
 
 /** Translates a domain error into a response. Anything unexpected is a 500. */
 export function fail(error: unknown): NextResponse {
+  if (error instanceof DeviceAuthError) {
+    return NextResponse.json<ApiError>(
+      { error: { code: error.code, message: error.message } },
+      { status: 401, headers: { "WWW-Authenticate": `Bearer error="${error.code}"`, "Cache-Control": "no-store" } },
+    );
+  }
+  if (error instanceof RateLimitedError) {
+    return NextResponse.json<ApiError>(
+      { error: { code: "rate_limited", message: error.message } },
+      { status: 429, headers: { "Retry-After": String(error.retryAfter) } },
+    );
+  }
   if (error instanceof ValidationError) {
     return NextResponse.json<ApiError>(
       { error: { code: "validation_failed", message: error.message, issues: error.issues } },
@@ -100,4 +121,14 @@ async function readText(request: Request, maxBytes: number): Promise<string> {
     chunks.push(value);
   }
   return new TextDecoder().decode(Buffer.concat(chunks));
+}
+
+/** Over a rate limit; carries the seconds until the caller may try again. */
+export class RateLimitedError extends Error {
+  readonly retryAfter: number;
+  constructor(retryAfter: number) {
+    super("Too many attempts. Try again later.");
+    this.name = "RateLimitedError";
+    this.retryAfter = Math.max(1, retryAfter);
+  }
 }

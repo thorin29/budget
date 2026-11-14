@@ -2,7 +2,7 @@
  * Who may reach what. Pure, so every rule is unit-tested; the proxy feeds it
  * facts and acts on the answer.
  *
- * Paths gate pages and API routes. They cannot gate server actions: an action
+ * Paths gate pages. They cannot gate server actions: an action
  * is chosen by an id in a header, whatever the path it is posted to. That is
  * why every action also calls requireUser() itself.
  */
@@ -37,6 +37,10 @@ export function decide({
   signedIn: boolean;
 }): GateDecision {
   if (PUBLIC.has(pathname)) return { type: "allow" };
+
+  // The phone API authenticates every request itself with a device token and
+  // never reads the browser cookie; see server/device-auth.ts.
+  if (pathname === "/api/v1" || pathname.startsWith("/api/v1/")) return { type: "allow" };
 
   // First run: the only way in is creating the first account.
   if (!hasUsers) {

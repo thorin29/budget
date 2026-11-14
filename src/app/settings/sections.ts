@@ -1,7 +1,7 @@
 /** Settings sections, shared by the server page and the client nav. */
 
 export const SECTIONS = [
-  { slug: "security", label: "Sign-in & people", detail: "Password, sessions, second person" },
+  { slug: "security", label: "Sign-in & people", detail: "Password, phones, second person" },
   { slug: "appearance", label: "Appearance", detail: "Theme and light or dark" },
   { slug: "planning", label: "Planning", detail: "Bills account, split day, look-ahead" },
   { slug: "accounts", label: "Accounts", detail: "Where money leaves from" },

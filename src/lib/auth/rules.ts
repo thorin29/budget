@@ -34,3 +34,18 @@ export function passwordProblem(password: unknown): string | null {
   if (password.length > MAX_PASSWORD) return `At most ${MAX_PASSWORD} characters`;
   return null;
 }
+
+/** A phone's token lasts a year unless it refreshes or is revoked. */
+export const DEVICE_TOKEN_DAYS = 365;
+
+/** The add-a-phone code shown on the web. */
+export const ENROLL_MINUTES = 15;
+
+/** The proof a password sign-in hands the phone, spent on enrolment. */
+export const LOGIN_PROOF_MINUTES = 5;
+
+/** Phones per person. Generous; a lost phone should be revoked anyway. */
+export const MAX_DEVICES_PER_USER = 10;
+
+/** lastSeenAt is written at most this often, so reads don't all become writes. */
+export const LAST_SEEN_MINUTES = 15;

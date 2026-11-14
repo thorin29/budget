@@ -43,11 +43,10 @@ decision to be recorded here, not something to do in passing.
 
 ## Open
 
-### Device tokens for the phone (0.14)
+### Offline entries on the phone
 
-`/api/v1` currently accepts the web session. 0.14 switches it to per-device
-bearer tokens (hash stored, expiring, revocable, enrolled with password plus a
-one-time code) so that path alone can skip Authelia.
+Not decided. If the phone should queue payments while offline, the API needs
+an idempotency key on writes; the security model does not change.
 
 ### A one-tap paid tick
 
@@ -338,7 +337,37 @@ other platforms' optional packages before it ships.
 | TypeScript | 5.9.3 | |
 | Tailwind | 4.3.5 | |
 | Vitest / Vite | 5.1.0 / 8.3.8 | Dev only |
+| qrcode | 1.5.4 | Add-a-phone QR, rendered on the server |
 | Node | 24 (`node:24-alpine`) | |
 
 If a backup leaks: delete the `auth.sessionSecret` row from `Setting` and
 restart (everyone is signed out), then change both passwords.
+
+### The phone API takes device tokens only (0.14)
+
+`/api/v1` is the one path the outer proxy lets through, so it can rely on
+nothing the proxy does. Every route calls `requireDevice()`; the browser's
+session cookie is never read there; `scripts/check-auth.mjs` fails the build
+if a route forgets. Only `meta`, `auth/login` and `auth/enroll` are public.
+
+- **Tokens:** `bud_` + 32 random bytes, returned once; only the SHA-256 is
+  stored. A year's life, refreshable (the old token dies on refresh),
+  revocable from Settings or by the phone itself.
+- **Adding a phone takes two factors:** the password (step 1 returns a
+  five-minute signed proof) and a one-time code made on the web by the same
+  person (15 minutes, one live per person, hash stored, deleted on use). A
+  stolen password alone can't add a phone; a glimpsed code alone is useless.
+- **The QR** carries `budget://enroll?server=…&code=…`. The server address
+  comes from the page you are on, so it is never built into the app.
+- **credentialVersion** is copied onto each device. Changing the password or
+  signing out everywhere revokes every phone, and the version check refuses
+  any that slipped through.
+- **Stable 401 codes** (`missing_bearer`, `invalid_token`, `device_revoked`,
+  `device_expired`, `reauth_required`) so the phone reacts precisely, and it
+  confirms with `/auth/me` before discarding its enrolment.
+- **Rate limits:** phone sign-in shares the web's limits, so two doors don't
+  double the guesses; enrolment is limited per IP and per person; refresh per
+  device.
+- **No ownership checks between the two people.** The budget is shared by
+  design; only device revocation is scoped to the device's owner.
+- `lastSeenAt` is written at most every 15 minutes.

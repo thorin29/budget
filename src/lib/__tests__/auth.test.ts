@@ -112,7 +112,10 @@ describe("gate", () => {
   it("sends everything to account setup until the first user exists", () => {
     expect(page("/month", { hasUsers: false })).toEqual({ type: "redirect", to: "/setup-account" });
     expect(page("/setup-account", { hasUsers: false })).toEqual({ type: "allow" });
-    expect(decide({ pathname: "/api/v1/accounts", kind: "api", hasUsers: false, signedIn: false })).toEqual({ type: "deny" });
+    expect(decide({ pathname: "/year/2026/csv", kind: "page", hasUsers: false, signedIn: false })).toEqual({
+      type: "redirect",
+      to: "/setup-account",
+    });
   });
 
   it("closes account setup once a user exists", () => {
@@ -127,9 +130,15 @@ describe("gate", () => {
     expect(page("/")).toEqual({ type: "redirect", to: "/sign-in" });
   });
 
-  it("refuses signed-out API calls and actions outright", () => {
-    expect(decide({ pathname: "/api/v1/accounts", kind: "api", hasUsers: true, signedIn: false })).toEqual({ type: "deny" });
+  it("refuses signed-out actions outright", () => {
     expect(decide({ pathname: "/month", kind: "action", hasUsers: true, signedIn: false })).toEqual({ type: "deny" });
+  });
+
+  it("hands every /api/v1 request to the route, which checks the device token", () => {
+    expect(decide({ pathname: "/api/v1/accounts", kind: "api", hasUsers: true, signedIn: false })).toEqual({ type: "allow" });
+    expect(decide({ pathname: "/api/v1/accounts", kind: "api", hasUsers: false, signedIn: false })).toEqual({ type: "allow" });
+    // A look-alike path is not the API.
+    expect(decide({ pathname: "/api/v1x/secret", kind: "api", hasUsers: true, signedIn: false })).toEqual({ type: "deny" });
   });
 
   it("keeps health and meta public", () => {
