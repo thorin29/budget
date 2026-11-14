@@ -16,7 +16,7 @@
 import { safeHttpUrl } from "@/lib/safe-url";
 import { prisma } from "@/lib/prisma";
 import { toCents, toDecimalString, type Cents } from "@/lib/money";
-import { ValidationError } from "./errors";
+import { ChangedElsewhereError, ValidationError } from "./errors";
 import {
   buildObligations,
   halfFor,
@@ -437,6 +437,18 @@ function monthsBetween(
 
 // ---------------------------------------------------------------- mutations
 
+/**
+ * Refuses a write entered before the stored value last changed. `enteredAt` is
+ * when the person pressed Confirm on the phone; a queued offline write keeps
+ * it, so if the web changed the entry after that, the stale write is refused.
+ * Two minutes of grace absorbs clock drift between phone and server.
+ */
+const CLOCK_GRACE_MS = 2 * 60_000;
+function assertNotStale(storedAt: Date | null | undefined, enteredAt: Date | undefined) {
+  if (!storedAt || !enteredAt) return;
+  if (storedAt.getTime() > enteredAt.getTime() + CLOCK_GRACE_MS) throw new ChangedElsewhereError();
+}
+
 /** Records what was actually paid. Its presence settles the item for the month. */
 export async function recordActual(
   lineItemId: string,
@@ -446,12 +458,21 @@ export async function recordActual(
   note?: string,
   paidOn?: Date | null,
   recordedById?: string,
+  enteredAt?: Date,
 ): Promise<void> {
   if (!Number.isInteger(amountCents) || amountCents < 0) {
     throw new ValidationError({ amount: ["Enter an amount of zero or more"] });
   }
   const item = await prisma.lineItem.findUnique({ where: { id: lineItemId } });
   if (!item) throw new ValidationError({ lineItemId: ["No such line item"] });
+
+  if (enteredAt) {
+    const current = (await prisma.actualEntry.findUnique({
+      where: { lineItemId_year_month: { lineItemId, year, month } },
+      select: { updatedAt: true },
+    })) as { updatedAt: Date } | null;
+    assertNotStale(current?.updatedAt, enteredAt);
+  }
 
   await prisma.actualEntry.upsert({
     where: { lineItemId_year_month: { lineItemId, year, month } },
@@ -480,7 +501,15 @@ export async function clearActual(
   lineItemId: string,
   year: number,
   month: number,
+  enteredAt?: Date,
 ): Promise<void> {
+  if (enteredAt) {
+    const current = (await prisma.actualEntry.findUnique({
+      where: { lineItemId_year_month: { lineItemId, year, month } },
+      select: { updatedAt: true },
+    })) as { updatedAt: Date } | null;
+    assertNotStale(current?.updatedAt, enteredAt);
+  }
   await prisma.actualEntry
     .delete({ where: { lineItemId_year_month: { lineItemId, year, month } } })
     .catch(() => undefined);
@@ -531,12 +560,21 @@ export async function recordBillsBalance(
   year: number,
   month: number,
   amountCents: Cents,
+  enteredAt?: Date,
 ): Promise<void> {
   const settings = await getSettings();
   if (!settings.billsAccountId) {
     throw new ValidationError({
       billsAccountId: ["Choose a bills account in preferences first"],
     });
+  }
+
+  if (enteredAt) {
+    const current = (await prisma.balanceSnapshot.findUnique({
+      where: { accountId_year_month: { accountId: settings.billsAccountId, year, month } },
+      select: { asOf: true },
+    })) as { asOf: Date } | null;
+    assertNotStale(current?.asOf, enteredAt);
   }
 
   await prisma.balanceSnapshot.upsert({

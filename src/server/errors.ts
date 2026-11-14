@@ -47,3 +47,15 @@ export class PayloadTooLargeError extends Error {
     this.limitBytes = limitBytes;
   }
 }
+
+/**
+ * A queued phone write that is older than a change made since (on the web or
+ * the other phone). Refused rather than applied, so a stale offline entry can't
+ * silently overwrite a newer one.
+ */
+export class ChangedElsewhereError extends Error {
+  constructor(message = "Changed since this was entered. Check it and enter it again.") {
+    super(message);
+    this.name = "ChangedElsewhereError";
+  }
+}

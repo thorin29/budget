@@ -7,7 +7,7 @@
  */
 
 import { NextResponse } from "next/server";
-import { ConflictError, NotFoundError, PayloadTooLargeError, ValidationError } from "./errors";
+import { ChangedElsewhereError, ConflictError, NotFoundError, PayloadTooLargeError, ValidationError } from "./errors";
 import { DeviceAuthError, type DeviceAuthCode } from "./device-auth";
 
 export interface ApiError {
@@ -19,6 +19,7 @@ export interface ApiError {
       | "bad_request"
       | "too_large"
       | "rate_limited"
+      | "changed_elsewhere"
       | "internal"
       | DeviceAuthCode;
     message: string;
@@ -40,6 +41,12 @@ export function fail(error: unknown): NextResponse {
     return NextResponse.json<ApiError>(
       { error: { code: error.code, message: error.message } },
       { status: 401, headers: { "WWW-Authenticate": `Bearer error="${error.code}"`, "Cache-Control": "no-store" } },
+    );
+  }
+  if (error instanceof ChangedElsewhereError) {
+    return NextResponse.json<ApiError>(
+      { error: { code: "changed_elsewhere", message: error.message } },
+      { status: 409 },
     );
   }
   if (error instanceof RateLimitedError) {

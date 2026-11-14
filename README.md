@@ -10,7 +10,7 @@ leave it today.
 Everything runs on your own server against your own PostgreSQL database. The app
 makes no outside requests — fonts are bundled.
 
-> **Status:** v0.14.0. Month view, cash projection, line items, year reports,
+> **Status:** v0.15.0. Month view, cash projection, line items, year reports,
 > import, export, sign-in for up to two people, and a token-secured API for a
 > phone app all work. See `CHANGELOG.md`.
 
@@ -164,8 +164,18 @@ A refused request is a 401 whose `error.code` says what to do:
 `Retry-After`.
 
 Recording money: `PUT /api/v1/months/{year}/{month}/actuals` with
-`{lineItemId, amount, paidOn?}`, `DELETE …/actuals?lineItemId=…`, and
-`PUT …/balance` with `{amount}`. The phone keeps the web's confirmation step.
+`{lineItemId, amount, paidOn?, enteredAt?}`, `DELETE …/actuals?lineItemId=…&enteredAt=…`,
+and `PUT …/balance` with `{amount, enteredAt?}`. The phone keeps the web's
+confirmation step.
+
+The phone can queue these while offline. Each write carries:
+
+- an `Idempotency-Key` header, made when Confirm was pressed, so a write sent
+  twice (a retry after a dropped connection) is applied once and the first
+  answer is returned again;
+- `enteredAt`, when Confirm was pressed. If the entry changed after that (on
+  the web or the other phone), the write is refused with 409
+  `changed_elsewhere` instead of overwriting the newer value.
 
 ## Privacy
 

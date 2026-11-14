@@ -43,10 +43,10 @@ decision to be recorded here, not something to do in passing.
 
 ## Open
 
-### Offline entries on the phone
+### Bank sync
 
-Not decided. If the phone should queue payments while offline, the API needs
-an idempotency key on writes; the security model does not change.
+Still only an idea. If it comes, every outside fetch goes through one guarded
+helper (https only, no private addresses, no redirects) before anything else.
 
 ### A one-tap paid tick
 
@@ -371,3 +371,23 @@ if a route forgets. Only `meta`, `auth/login` and `auth/enroll` are public.
 - **No ownership checks between the two people.** The budget is shared by
   design; only device revocation is scoped to the device's owner.
 - `lastSeenAt` is written at most every 15 minutes.
+
+### The phone queues writes while offline (0.15)
+
+The phone keeps a queue of payments and balance changes made without a
+connection and sends them when it is back. Two rules keep that safe:
+
+- **Applied once.** Each write carries an `Idempotency-Key` made when Confirm
+  was pressed. The server keeps the first answer per device and key for 30
+  days and returns it to any repeat, so a retry after a dropped connection is
+  never applied twice. The same key on a different request is refused.
+  Refusals (409, 422) are kept like successes; a 5xx or 401 is not, so the
+  write can be tried again.
+- **Never overwrites newer.** Each write carries `enteredAt`, when Confirm was
+  pressed. If the stored entry changed after that (plus two minutes for clock
+  drift), the write is refused with 409 `changed_elsewhere` and the phone shows
+  it for the person to check. A timestamp more than a day ahead is ignored.
+
+Known gap, accepted: if an entry was *removed* on the web after the phone
+queued a payment for it, the queued payment recreates it — there is nothing
+left to compare against. The phone lists what it synced so it can be spotted.

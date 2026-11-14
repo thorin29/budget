@@ -367,6 +367,8 @@ model Device {
   revokedAt  DateTime?
   createdAt  DateTime  @default(now())
 
+  idempotency IdempotencyRecord[]
+
   @@index([userId])
 }
 
@@ -379,4 +381,22 @@ model EnrollCode {
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime
   createdAt DateTime @default(now())
+}
+
+/// A phone write already applied, by the key the phone sent with it. A queued
+/// offline write that is sent twice (a retry after a dropped connection) gets
+/// the first answer back instead of being applied again. Kept 30 days.
+model IdempotencyRecord {
+  id        String   @id @default(cuid())
+  deviceId  String
+  device    Device   @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  key       String
+  method    String
+  path      String
+  status    Int
+  body      String
+  createdAt DateTime @default(now())
+
+  @@unique([deviceId, key])
+  @@index([createdAt])
 }

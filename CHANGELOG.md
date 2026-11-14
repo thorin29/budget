@@ -3,6 +3,14 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.15.0] — unreleased
+
+### Added
+
+- Ready for the phone app's offline mode: a payment entered without a connection is sent later,
+  applied once even if sent twice, and refused if it was changed elsewhere in the meantime.
+- Migration `0006`.
+
 ## [0.14.1] — unreleased
 
 ### Fixed
