@@ -219,6 +219,10 @@ model ActualEntry {
   source      String  @default("manual") // manual | import
   importBatch String?
 
+  // Who entered it. Null for imports and for entries made before sign-in.
+  recordedById String?
+  recordedBy   User?   @relation(fields: [recordedById], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -305,4 +309,37 @@ model ImportBatch {
   finishedAt DateTime?
   revertedAt DateTime?
   summary    Json?
+}
+
+// ---------------------------------------------------------------------------
+// Sign-in. At most two users, both equal: there are no roles.
+// ---------------------------------------------------------------------------
+
+model User {
+  id           String @id @default(cuid())
+  /// Lower-case, 3 to 32 of a-z 0-9 . _ -
+  username     String @unique
+  /// scrypt$N$r$p$salt$hash, never the password.
+  passwordHash String
+  /// Bumped on every password change or "sign out everywhere": every cookie
+  /// carrying an older value stops working at once.
+  credentialVersion Int @default(1)
+
+  lastSignInAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  actuals ActualEntry[]
+  invites InviteCode[]
+}
+
+/// One-time code that lets the second user create an account. Only its
+/// SHA-256 hash is stored; it lasts 15 minutes and is deleted on use.
+model InviteCode {
+  id          String   @id @default(cuid())
+  codeHash    String   @unique
+  createdById String
+  createdBy   User     @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
 }

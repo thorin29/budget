@@ -21,11 +21,12 @@ decision to be recorded here, not something to do in passing.
 4. **This is month-level budgeting, not transaction accounting.** One
    `ActualEntry` settles one line item for one month, and its existence means
    paid.
-5. **Access control belongs to the deployment, not the application.** The
-   application has no authentication and does not identify users; whatever
-   fronts it decides who reaches it.
-6. **No authentication modes.** Deployment styles the project does not use are
-   not configuration options.
+5. **Never trust a layer you don't control to protect a route.** The proxy in
+   front (Authelia) is the first wall; the app checks every request itself, so
+   a gap in the proxy config fails closed. Every server action calls
+   `requireUser()`, and the build fails if one doesn't.
+6. **No authentication modes.** Sign-in is always on; no environment variable
+   turns a security check off.
 7. **Financial dates are date-only.** A due date is a calendar day and never
    becomes a timezone-sensitive timestamp.
 8. **Business logic does not live in React components or route handlers.** They
@@ -42,11 +43,11 @@ decision to be recorded here, not something to do in passing.
 
 ## Open
 
-### Proxy authentication, later
+### Device tokens for the phone (0.14)
 
-Not set up for now. If the app is ever fronted by a proxy that passes the
-signed-in user, revisit an auth mode that trusts it — see "No authentication in
-the application" below for what that would take.
+`/api/v1` currently accepts the web session. 0.14 switches it to per-device
+bearer tokens (hash stored, expiring, revocable, enrolled with password plus a
+one-time code) so that path alone can skip Authelia.
 
 ### A one-tap paid tick
 
@@ -137,7 +138,46 @@ as of 0.2.0. Startup now runs `migrate deploy` only. Drift is still detected and
 logged loudly, because knowing is valuable, but the schema is never reshaped
 outside the migration history.
 
-### No authentication in the application
+### Built-in sign-in (0.13), replacing "no authentication in the application"
+
+Before going public the app needed its own sign-in behind Authelia, so a proxy
+misconfiguration does not open it, and the phone needs an API that
+authenticates every request. The earlier reasoning is kept below for history.
+
+- **Two equal users, no roles.** At most two accounts; both see and change
+  everything. No admin, PIN or auto-lock: there is nobody to keep out of
+  settings.
+- **One gate.** `src/proxy.ts` runs on every request on the Node runtime and
+  asks `lib/auth/gate.ts`, a pure, tested module. Paths cannot gate server
+  actions (they are chosen by an id in a header), so every action also calls
+  `requireUser()`, and `scripts/check-auth.mjs` fails the build if one doesn't.
+- **Stateless signed cookies.** `userId.expiry.credentialVersion` plus an
+  HMAC-SHA256 signature; `HttpOnly`, `SameSite=Lax`, `Secure` over HTTPS, 30
+  days. The secret is 32 random bytes minted into the database on first use
+  (`SESSION_SECRET` can override it), never a default.
+- **credentialVersion** on each user: a password change or "sign out
+  everywhere" bumps it, which voids every other cookie at once.
+- **Passwords:** scrypt (N=2^15, r=8, p=1) with a per-password salt; one
+  `MIN_PASSWORD` (10) for every door. A wrong username costs the same time as a
+  wrong password, and the message never says which was wrong.
+- **First account needs a code from the container log.** Reaching the page is
+  not enough; reading the server's log proves you run it. The page closes for
+  good once an account exists.
+- **The second account** joins with a one-time code from Settings: 15 minutes,
+  one live at a time, only its hash stored, deleted on use.
+- **Recovery** without email: `node scripts/reset-password.mjs <username>`
+  inside the container sets a temporary password and signs that account out
+  everywhere.
+- **Rate limits** on sign-in (per IP and per username), first account, join,
+  password change and invites, each with a key that is not the IP. The client
+  IP comes from `REAL_IP_HEADER`, then `cf-connecting-ip`, then
+  `x-forwarded-for`. The limiter's memory is bounded.
+- **Return-to paths** go through `safeNext`: same-site paths only.
+- **Full page loads** after sign-in, sign-out and account creation, so the
+  layout and the gate run again.
+- **Who recorded each payment** is kept (`recordedById`).
+
+Earlier reasoning, superseded:
 
 A proxy-authentication scheme was designed and set aside before it shipped:
 `AUTH_MODE`, a username header, and a shared secret verified on every request.
@@ -157,7 +197,8 @@ same data. Reading a username would answer a question nothing asks.
 
 **What would bring authentication back:** a second household member needing
 separate data, a genuine need to attribute a change to a person, or exposing the
-application somewhere the proxy does not front. None of those exist today.
+application somewhere the proxy does not front. The last two arrived with the
+plan to expose the app and build a phone client.
 
 ### Money is integer cents
 
@@ -298,3 +339,6 @@ other platforms' optional packages before it ships.
 | Tailwind | 4.3.5 | |
 | Vitest / Vite | 5.1.0 / 8.3.8 | Dev only |
 | Node | 24 (`node:24-alpine`) | |
+
+If a backup leaks: delete the `auth.sessionSecret` row from `Setting` and
+restart (everyone is signed out), then change both passwords.

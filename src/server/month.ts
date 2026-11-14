@@ -445,6 +445,7 @@ export async function recordActual(
   amountCents: Cents,
   note?: string,
   paidOn?: Date | null,
+  recordedById?: string,
 ): Promise<void> {
   if (!Number.isInteger(amountCents) || amountCents < 0) {
     throw new ValidationError({ amount: ["Enter an amount of zero or more"] });
@@ -462,12 +463,14 @@ export async function recordActual(
       paidOn: paidOn ?? null,
       note: note || null,
       source: "manual",
+      recordedById: recordedById ?? null,
     },
     update: {
       amount: toDecimalString(amountCents),
       note: note || null,
       // Left alone when not supplied, so an edit elsewhere keeps the date.
       ...(paidOn === undefined ? {} : { paidOn }),
+      ...(recordedById ? { recordedById } : {}),
     },
   });
 }

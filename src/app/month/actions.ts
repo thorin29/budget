@@ -1,5 +1,6 @@
 "use server";
 
+import { requireUser, type SessionUser } from "@/server/auth";
 import { revalidatePath } from "next/cache";
 import { adjustMonth, clearActual, recordActual, recordBillsBalance } from "@/server/month";
 import { ValidationError } from "@/server/errors";
@@ -24,10 +25,12 @@ function date(form: FormData, key: string): Date | undefined {
 async function run(
   _year: number,
   _month: number,
-  work: () => Promise<void>,
+  work: (user: SessionUser) => Promise<void>,
 ): Promise<FormState> {
   try {
-    await work();
+    // Every action checks its caller: a path-based gate cannot cover actions.
+    const user = await requireUser();
+    await work(user);
     // A payment moves the month, the projection and the year at once, and a
     // carried row belongs to a month other than the one on screen.
     revalidatePath("/", "layout");
@@ -48,7 +51,7 @@ export async function recordActualAction(
 ): Promise<FormState> {
   const year = int(form, "year");
   const month = int(form, "month");
-  return run(year, month, async () => {
+  return run(year, month, async (user) => {
     await recordActual(
       str(form, "lineItemId"),
       year,
@@ -56,6 +59,7 @@ export async function recordActualAction(
       parseCents(str(form, "amount")),
       undefined,
       date(form, "paidOn"),
+      user.id,
     );
   });
 }

@@ -10,8 +10,9 @@ leave it today.
 Everything runs on your own server against your own PostgreSQL database. The app
 makes no outside requests — fonts are bundled.
 
-> **Status:** v0.12.0. Month view, cash projection, line items, year reports,
-> import and export all work. Built-in sign-in is next. See `CHANGELOG.md`.
+> **Status:** v0.13.0. Month view, cash projection, line items, year reports,
+> import, export and sign-in for up to two people all work. Phone API tokens
+> are next. See `CHANGELOG.md`.
 
 ## What it does
 
@@ -69,9 +70,24 @@ docker run -d \
 
 Migrations apply automatically on start, so upgrading is pulling a newer image.
 
-### 3. Configure
+### 3. Create your account
 
-Open the app and go to **Settings**: add accounts, categories and the pay
+The first visit asks you to create an account. It needs a **setup code**
+written to the container's log when that page opens (look for "first-run setup
+code"). The page closes for good once an account exists.
+
+A second person can be added later from Settings → Sign-in & people with a
+one-time code. Forgot a password? Inside the container run:
+
+```sh
+node scripts/reset-password.mjs <username>
+```
+
+It prints a temporary password and signs that account out everywhere.
+
+### 4. Configure
+
+Go to **Settings**: add accounts, categories and the pay
 calendar, then choose the bills account under Planning. Add line items, or
 import a workbook under Settings → Import & export. Nothing is pre-populated.
 
@@ -87,6 +103,8 @@ import a workbook under Settings → Import & export. Nothing is pre-populated.
 | `DEFAULT_SPLIT_DAY`    | no       | Day the planning split falls on. Defaults to `15`.              |
 | `DEFAULT_HORIZON_DAYS` | no       | Days the projection looks ahead. Defaults to `45`.              |
 | `FRAME_ANCESTORS`      | no       | Origins allowed to embed the app in a frame. Empty = none.      |
+| `REAL_IP_HEADER`       | no       | Header your proxy puts the client IP in, for rate limits.       |
+| `SESSION_SECRET`       | no       | Overrides the cookie-signing secret (32+ characters).           |
 
 See `.env.example` for the full list.
 
@@ -97,11 +115,12 @@ data volume at your appdata share.
 
 ## Security
 
-The application has no login of its own yet; built-in sign-in arrives in 0.13.
-Until then, put it behind something that authenticates — a reverse proxy with an
-auth layer, a VPN, or a trusted network.
+Sign-in is built in and always on: up to two people, scrypt-hashed passwords,
+signed session cookies, rate-limited sign-in, and a check in every server
+action. Keep an authenticating proxy in front as well if the app is reachable
+from outside; the app does not rely on it.
 
-Already in place: a strict Content-Security-Policy with a fresh nonce on every
+Also in place: a strict Content-Security-Policy with a fresh nonce on every
 page, `nosniff` and `same-origin` referrer headers, payment links limited to
 `http`/`https`, request size caps, and no image-optimizer endpoint. The
 container runs as an unprivileged user. `DECISIONS.md` has the reasoning.

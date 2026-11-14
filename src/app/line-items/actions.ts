@@ -1,5 +1,6 @@
 "use server";
 
+import { requireUser } from "@/server/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createLineItem, deleteLineItem, updateLineItem } from "@/server/line-items";
@@ -61,6 +62,7 @@ export async function createLineItemAction(
   form: FormData,
 ): Promise<FormState> {
   try {
+    await requireUser();
     await createLineItem(readForm(form));
   } catch (error) {
     return toState(error);
@@ -75,6 +77,7 @@ export async function updateLineItemAction(
 ): Promise<FormState> {
   const id = str(form, "id");
   try {
+    await requireUser();
     await updateLineItem(id, readForm(form));
   } catch (error) {
     return toState(error);
@@ -88,6 +91,7 @@ export async function deleteLineItemAction(
   form: FormData,
 ): Promise<FormState> {
   try {
+    await requireUser();
     await deleteLineItem(str(form, "id"));
   } catch (error) {
     return toState(error);

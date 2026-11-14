@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { signOutAction } from "@/app/sign-in/actions";
 
 interface NavItem {
   href: string;
@@ -119,7 +120,27 @@ function Mark() {
   );
 }
 
-export function Sidebar({ version }: { version: string }) {
+function SignOut({ compact = false }: { compact?: boolean }) {
+  return (
+    <button
+      type="button"
+      onClick={async () => {
+        const result = await signOutAction();
+        // A full load, so nothing from the signed-in page lingers.
+        window.location.assign(result.ok && result.redirect ? result.redirect : "/sign-in");
+      }}
+      className={
+        compact
+          ? "text-xs font-semibold text-muted hover:text-foreground"
+          : "rounded-lg px-3 py-1.5 text-left text-xs font-semibold text-muted transition hover:bg-neutral-soft hover:text-foreground"
+      }
+    >
+      Sign out
+    </button>
+  );
+}
+
+export function Sidebar({ version, username }: { version: string; username: string }) {
   const pathname = usePathname() ?? "/";
 
   return (
@@ -128,7 +149,10 @@ export function Sidebar({ version }: { version: string }) {
       <header className="sticky top-0 z-30 border-b border-line bg-surface/95 backdrop-blur lg:hidden">
         <div className="flex items-center justify-between px-4 py-3">
           <Mark />
-          <span className="text-xs text-subtle">{version}</span>
+          <span className="flex items-center gap-3 text-xs text-subtle">
+            {version}
+            <SignOut compact />
+          </span>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 pb-2" aria-label="Main">
           {[...MAIN, SETTINGS].map((item) => (
@@ -149,7 +173,13 @@ export function Sidebar({ version }: { version: string }) {
         </nav>
         <div className="mt-auto flex flex-col gap-1">
           <NavLink item={SETTINGS} pathname={pathname} />
-          <p className="px-3 pt-3 text-xs text-subtle">{version}</p>
+          <div className="mt-2 flex items-center justify-between border-t border-line px-3 pt-3">
+            <span className="truncate text-sm font-medium" title="Signed in">
+              {username}
+            </span>
+            <SignOut />
+          </div>
+          <p className="px-3 pt-1 text-xs text-subtle">{version}</p>
         </div>
       </aside>
     </>

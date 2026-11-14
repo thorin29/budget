@@ -6,6 +6,7 @@
  * action; helpers live in plain modules.
  */
 
+import { UnauthorizedError, requireUser } from "@/server/auth";
 import { revalidatePath } from "next/cache";
 import {
   applyImport,
@@ -24,7 +25,7 @@ function failure(error: unknown): { ok: false; message: string } {
     const issues = Object.values(error.issues).flat();
     return { ok: false, message: issues.length ? issues.join(". ") : error.message };
   }
-  if (error instanceof NotFoundError || error instanceof ConflictError) {
+  if (error instanceof NotFoundError || error instanceof ConflictError || error instanceof UnauthorizedError) {
     return { ok: false, message: error.message };
   }
   console.error("Import action failed:", error);
@@ -43,6 +44,7 @@ export async function previewImportAction(
   choices?: Partial<ImportChoices>,
 ): Promise<ImportActionResult<Awaited<ReturnType<typeof buildPlan>>>> {
   try {
+    await requireUser();
     return { ok: true, data: await buildPlan(checked(document), choices) };
   } catch (error) {
     return failure(error);
@@ -54,6 +56,7 @@ export async function applyImportAction(
   choices?: Partial<ImportChoices>,
 ): Promise<ImportActionResult<Awaited<ReturnType<typeof applyImport>>>> {
   try {
+    await requireUser();
     const result = await applyImport(checked(document), choices);
     revalidatePath("/", "layout");
     return { ok: true, data: result };
@@ -66,6 +69,7 @@ export async function revertImportAction(
   batchId: string,
 ): Promise<ImportActionResult<{ removed: number }>> {
   try {
+    await requireUser();
     if (typeof batchId !== "string" || !batchId) throw new ValidationError({ batchId: ["Required"] });
     const result = await revertImport(batchId);
     revalidatePath("/", "layout");

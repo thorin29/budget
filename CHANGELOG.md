@@ -3,6 +3,22 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.13.0] — unreleased
+
+### Added
+
+- Sign-in. The first visit creates your account using a setup code from the container's log.
+- Up to two people. Add the second from Settings → Sign-in & people with a one-time code.
+- Change password, sign out everywhere, and remove the other account.
+- Forgotten password: `node scripts/reset-password.mjs <username>` inside the container.
+- Each payment records who entered it.
+
+### Security
+
+- Every page, action and API call requires sign-in; sign-in attempts are rate limited.
+- The build fails if any server action skips the sign-in check.
+- Migration `0004`.
+
 ## [0.12.0] — unreleased
 
 ### Security

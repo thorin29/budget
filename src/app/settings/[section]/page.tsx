@@ -25,6 +25,9 @@ import { PreferencesForm } from "../../setup/preferences/form";
 import { Importer } from "../../import/importer";
 import { setAppearanceAction } from "../actions";
 import { SECTIONS, type SectionSlug } from "../sections";
+import { currentUser, listUsers } from "@/server/auth";
+import { MAX_USERS } from "@/lib/auth/rules";
+import { ChangePasswordForm, InviteSecondPerson, RemoveUser, SignOutEverywhere } from "../security";
 
 export const dynamic = "force-dynamic";
 
@@ -37,6 +40,8 @@ export default async function SettingsSection({
   if (!SECTIONS.some((s) => s.slug === section)) notFound();
 
   switch (section as SectionSlug) {
+    case "security":
+      return <Security />;
     case "appearance":
       return <Appearance />;
     case "planning":
@@ -52,6 +57,81 @@ export default async function SettingsSection({
     case "about":
       return <About />;
   }
+}
+
+// ---------------------------------------------------------------- security
+
+const dateFormat = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+async function Security() {
+  const [me, users] = await Promise.all([currentUser(), listUsers()]);
+  const others = users.filter((u) => u.id !== me?.id);
+
+  return (
+    <div className="space-y-6">
+      <SectionHeading
+        title="Sign-in & people"
+        description={`Budget allows up to ${MAX_USERS} people. Both see and change everything; neither is in charge of the other.`}
+      />
+
+      <Card className="p-6">
+        <h3 className="font-sans text-base font-bold">Your password</h3>
+        <p className="mt-1 text-sm text-muted">
+          Signed in as <strong className="text-foreground">{me?.username}</strong>. Changing the password signs out
+          every other browser and device.
+        </p>
+        <div className="mt-4">
+          <ChangePasswordForm />
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <h3 className="font-sans text-base font-bold">Sessions</h3>
+        <p className="mt-1 text-sm text-muted">
+          Lost a phone or signed in somewhere you shouldn&rsquo;t have? This ends every session of yours, this one
+          included.
+        </p>
+        <div className="mt-4">
+          <SignOutEverywhere />
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <h3 className="font-sans text-base font-bold">People</h3>
+        <ul className="mt-3 divide-y divide-line rounded-xl border border-line">
+          {users.map((u) => (
+            <li key={u.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+              <span>
+                <span className="font-semibold">{u.username}</span>
+                {u.id === me?.id ? <span className="ml-2 text-xs text-muted">you</span> : null}
+                <span className="block text-xs text-muted">
+                  Added {dateFormat.format(u.createdAt)}
+                  {u.lastSignInAt ? ` · last signed in ${dateFormat.format(u.lastSignInAt)}` : ""}
+                </span>
+              </span>
+              {u.id !== me?.id ? <RemoveUser userId={u.id} username={u.username} /> : null}
+            </li>
+          ))}
+        </ul>
+        {users.length < MAX_USERS ? (
+          <div className="mt-4">
+            <p className="mb-3 text-sm text-muted">
+              Add the second person with a one-time code. It lasts 15 minutes; they choose their own username and
+              password.
+            </p>
+            <InviteSecondPerson />
+          </div>
+        ) : others.length ? (
+          <p className="mt-3 text-xs text-muted">Both places are taken. Remove an account to invite someone else.</p>
+        ) : null}
+        <p className="mt-5 text-xs text-muted">
+          Forgotten password: whoever runs the server can set a temporary one with{" "}
+          <code className="rounded bg-neutral-soft px-1">node scripts/reset-password.mjs &lt;username&gt;</code>{" "}
+          inside the container.
+        </p>
+      </Card>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------- appearance

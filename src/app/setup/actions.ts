@@ -1,5 +1,6 @@
 "use server";
 
+import { requireUser } from "@/server/auth";
 import { revalidatePath } from "next/cache";
 import { createAccount, deleteAccount, updateAccount } from "@/server/accounts";
 import { createCategory, deleteCategory } from "@/server/categories";
@@ -19,6 +20,8 @@ const EMPTY: FormState = { ok: true };
 /** Wraps an action so a validation failure becomes form state, not a crash. */
 async function run(_path: string, work: () => Promise<void>): Promise<FormState> {
   try {
+    // Every action checks its caller: a path-based gate cannot cover actions.
+    await requireUser();
     await work();
     // Settings feed the month view, the projection and the sidebar alike.
     revalidatePath("/", "layout");

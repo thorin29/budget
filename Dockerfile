@@ -41,6 +41,8 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+# Password recovery: docker exec -it budget node scripts/reset-password.mjs <username>
+COPY --from=builder /app/scripts/reset-password.mjs ./scripts/reset-password.mjs
 COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
