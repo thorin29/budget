@@ -26,7 +26,7 @@ RUN apk add --no-cache openssl su-exec tzdata wget
 # with the traced node_modules inside the standalone build, so it lives apart.
 # Install scripts run deliberately: they fetch the engine binaries at build time
 # so the container never reaches the network on start.
-RUN npm install --prefix /opt/prisma-cli --no-save prisma@7.10.0 \
+RUN npm install --prefix /opt/prisma-cli --no-save prisma@7.10.1 \
     && npm cache clean --force
 
 ARG BUILD_SHA=""

@@ -3,6 +3,15 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.11.1] — unreleased
+
+### Security
+
+- Next.js 16.3.6 → 16.4.6, clearing a critical advisory.
+- Prisma 7.10.0 → 7.10.1 (client, adapter and the CLI in the image), clearing high advisories in its
+  bundled dependencies.
+- No feature changes.
+
 ## [0.11.0] — unreleased
 
 ### Changed
