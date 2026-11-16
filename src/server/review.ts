@@ -13,7 +13,7 @@
 import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
 import { merchantKey } from "@/lib/field-crypto";
-import { findRepeats, suggestMatches, tokens, type MatchBill, type MatchTxn } from "@/lib/bill-match";
+import { coveredByRecorded, findRepeats, suggestMatches, tokens, type MatchBill, type MatchTxn } from "@/lib/bill-match";
 import { SPENDING_TYPES, displayAccountName, type AccountType } from "@/lib/account-type";
 import { getMonthView, recordActual, type MonthEntry } from "./month";
 import { createLineItem } from "./line-items";
@@ -129,6 +129,16 @@ export async function getReview(): Promise<Review> {
   const openMonths = new Map<string, Array<{ year: number; month: number }>>();
   for (const b of bills) openMonths.set(b.lineItemId, [...(openMonths.get(b.lineItemId) ?? []), { year: b.year, month: b.month }]);
   const billByKey = new Map(bills.map((b) => [`${b.lineItemId}:${b.year}:${b.month}`, b]));
+
+  // Payments already recorded by hand, not linked to a charge: their charge isn't offered for another month.
+  const recorded = (await prisma.actualEntry.findMany({
+    where: { bankTransactionId: null, lineItemId: { in: [...new Set(bills.map((b) => b.lineItemId))] }, createdAt: { gte: new Date(Date.now() - 150 * DAY) } },
+    select: { lineItemId: true, year: true, month: true, amount: true, paidOn: true, createdAt: true },
+  })) as Array<{ lineItemId: string; year: number; month: number; amount: { toString(): string }; paidOn: Date | null; createdAt: Date }>;
+  for (const key of coveredByRecorded(
+    recorded.map((r) => ({ lineItemId: r.lineItemId, year: r.year, month: r.month, amountCents: Math.abs(toCents(r.amount)), paidOn: r.paidOn ? iso(r.paidOn) : null, createdOn: iso(r.createdAt) })),
+    matchable,
+  )) dismissed.add(key);
 
   const looksPaid: LooksPaid[] = suggestMatches(matchBills, matchable, ruleMap, dismissed).map((s) => {
     const b = billByKey.get(`${s.lineItemId}:${s.year}:${s.month}`) as MonthEntry;

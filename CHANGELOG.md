@@ -3,6 +3,12 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.21.1]
+
+### Fixed
+- A charge already recorded by hand (same bill, same amount, entered after the charge or with a
+  paid date near it) is no longer offered as the next month's payment.
+
 ## [0.21.0]
 
 ### Added

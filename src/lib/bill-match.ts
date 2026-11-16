@@ -139,6 +139,42 @@ export function suggestMatches(
   return out;
 }
 
+// ---------------------------------------------------------------- already recorded by hand
+
+export interface RecordedPayment {
+  lineItemId: string;
+  year: number;
+  month: number;
+  amountCents: number;
+  /** YYYY-MM-DD, when given. */
+  paidOn: string | null;
+  /** YYYY-MM-DD the entry was made. */
+  createdOn: string;
+}
+
+/**
+ * Charges that a payment recorded by hand (before the feed, or without
+ * linking) already accounts for, as `lineItemId:txnId` keys, so the charge
+ * isn't offered again for another month of the same bill. Same amount (within
+ * $1) and either a paid date within 10 days of the charge, or an entry made
+ * after the charge posted for that month or the one before.
+ */
+export function coveredByRecorded(recorded: RecordedPayment[], txns: MatchTxn[]): Set<string> {
+  const out = new Set<string>();
+  for (const r of recorded) {
+    for (const t of txns) {
+      if (Math.abs(Math.abs(t.amountCents) - r.amountCents) > 100) continue;
+      const posted = day(t.postedOn);
+      const byDate = r.paidOn !== null && Math.abs(day(r.paidOn) - posted) <= 10;
+      const tMonth = Number(t.postedOn.slice(0, 4)) * 12 + Number(t.postedOn.slice(5, 7));
+      const entryMonth = r.year * 12 + r.month;
+      const byEntry = day(r.createdOn) >= posted - 2 && (entryMonth === tMonth || entryMonth === tMonth - 1);
+      if (byDate || byEntry) out.add(`${r.lineItemId}:${t.id}`);
+    }
+  }
+  return out;
+}
+
 // ---------------------------------------------------------------- repeating charges
 
 export interface RepeatTxn {

@@ -1,6 +1,6 @@
 // Every bill, merchant and amount here is invented.
 import { describe, expect, it } from "vitest";
-import { findRepeats, suggestMatches, tokens, type MatchBill, type MatchTxn } from "../bill-match";
+import { coveredByRecorded, findRepeats, suggestMatches, tokens, type MatchBill, type MatchTxn } from "../bill-match";
 
 const bill = (over: Partial<MatchBill> = {}): MatchBill => ({
   lineItemId: "electric",
@@ -75,6 +75,21 @@ describe("suggestMatches", () => {
 
   it("tokenizes without noise words or numbers", () => {
     expect([...tokens("ONLINE PAYMENT to Example Water 1234")]).toEqual(["example", "water"]);
+  });
+});
+
+describe("coveredByRecorded", () => {
+  const paid = { lineItemId: "giving", year: 2026, month: 10, amountCents: 20_000, paidOn: null, createdOn: "2026-11-05" };
+  const t = txn({ id: "g", postedOn: "2026-11-02", amountCents: -20_000 });
+
+  it("covers a late charge already recorded by hand for the month before", () => {
+    expect([...coveredByRecorded([paid], [t])]).toEqual(["giving:g"]);
+    expect([...coveredByRecorded([{ ...paid, createdOn: "2026-10-20", paidOn: "2026-10-31" }], [t])]).toEqual(["giving:g"]);
+  });
+
+  it("leaves other amounts and unrelated timing alone", () => {
+    expect(coveredByRecorded([{ ...paid, amountCents: 25_000 }], [t]).size).toBe(0);
+    expect(coveredByRecorded([{ ...paid, createdOn: "2026-10-01" }], [t]).size).toBe(0);
   });
 });
 
