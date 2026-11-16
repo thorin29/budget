@@ -20,6 +20,8 @@ const SMALL_WORDS = new Set(["and", "of", "the", "for", "at", "a", "an", "to", "
 
 export function cleanMerchant(description: string, payee?: string | null): string {
   // A payee from the feed is usually already clean; prefer it when present.
+  // Some feeds send a template placeholder instead of a description.
+  if (/enter transaction description here/i.test(description) && !payee?.trim()) return "No description";
   const source = (payee?.trim() || description || "").toUpperCase();
   // Padded columns: "NAME          CITY ST" → NAME, before the spacing is collapsed.
   let s = source.replace(new RegExp(`\\s{3,}[A-Z0-9 .'-]*\\b(?:${US_STATE})\\s*$`), "");

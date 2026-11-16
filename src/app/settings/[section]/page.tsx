@@ -43,7 +43,7 @@ import { getConnection } from "@/server/bank/sync";
 import { listBankAccounts } from "@/server/bank/accounts";
 import { listCsvImports } from "@/server/bank/csv-import";
 import { syncHour } from "@/lib/bank-schedule";
-import { AccountChoice, ConnectBank, CsvImporter, DeleteBankData, RevertImport, SyncControls } from "../bank";
+import { BillsSource, ConnectBank, CsvImporter, DeleteBankData, RevertImport, SyncControls } from "../bank";
 
 export const dynamic = "force-dynamic";
 
@@ -274,8 +274,10 @@ async function Appearance() {
 // ---------------------------------------------------------------- planning
 
 async function Planning() {
-  const [accounts, settings] = await Promise.all([listAccounts(), getSettings()]);
+  const [accounts, settings, feed] = await Promise.all([listAccounts(), getSettings(), listBankAccounts()]);
   const bankAccounts = accounts.filter((a) => a.kind === "BANK");
+  const sources = feed.filter((a) => !a.hidden && (a.type === "CHECKING" || a.type === "SAVINGS"));
+  const current = feed.find((a) => a.isBillsSource)?.id ?? "";
 
   return (
     <div>
@@ -304,6 +306,19 @@ async function Planning() {
           }}
         />
       )}
+      {settings.billsAccountId && sources.length ? (
+        <Card className="mt-6 p-6">
+          <h3 className="font-sans text-base font-bold">Bills balance from your bank</h3>
+          <p className="mb-4 mt-1 max-w-prose text-sm text-muted">
+            The bills balance every figure starts from. With a bank account chosen, it updates every morning after
+            the sync and you never type it.
+          </p>
+          <BillsSource
+            current={current}
+            options={sources.map((a) => ({ id: a.id, label: a.institution ? `${a.institution} · ${a.displayName}` : a.displayName }))}
+          />
+        </Card>
+      ) : null}
     </div>
   );
 }
@@ -324,8 +339,8 @@ async function Accounts() {
   return (
     <div>
       <SectionHeading
-        title="Accounts"
-        description="Every place money leaves from or lands on. A credit card can name the account that pays it off, for reporting only."
+        title="Paid-from accounts"
+        description="The accounts your bills are paid from, as line items name them. Your bank feed's accounts are on the Accounts page; these will merge into them in a later version."
       />
       <AccountsForm
         kinds={ACCOUNT_KINDS.map((k) => ({ value: k, label: ACCOUNT_LABELS[k] }))}
@@ -463,27 +478,10 @@ async function Data() {
 
 const stamp = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 
-const USE_HELP: Array<[string, string]> = [
-  ["Spending", "Checking and cards. Their charges are your spending."],
-  ["Balance only", "Savings, loans, retirement and investments. Only the balance counts."],
-  ["Hidden", "Received but ignored, such as someone else's account."],
-];
-
 async function Bank() {
   const key = configuredKey();
-  const [connection, accounts, imports, budgetAccounts] = await Promise.all([
-    getConnection(),
-    listBankAccounts(),
-    listCsvImports(),
-    listAccounts(),
-  ]);
-  const bankBudgetAccounts = budgetAccounts.filter((a) => a.kind === "BANK").map((a) => ({ id: a.id, name: a.name }));
-  const undecided = accounts.filter((a) => !a.use).length;
-  const groups = new Map<string, typeof accounts>();
-  for (const a of accounts) {
-    const k = a.institution ?? "Other";
-    groups.set(k, [...(groups.get(k) ?? []), a]);
-  }
+  const [connection, accounts, imports] = await Promise.all([getConnection(), listBankAccounts(), listCsvImports()]);
+  const shown = accounts.filter((a) => !a.hidden && !a.dormant).length;
 
   return (
     <div className="space-y-6">
@@ -547,41 +545,16 @@ async function Bank() {
 
       {accounts.length ? (
         <Card className="p-6">
-          <h3 className="font-sans text-base font-bold">Accounts</h3>
-          <p className="mt-1 max-w-prose text-sm text-muted">
-            Everything the feed sent. Choose how each is used{undecided ? ` — ${undecided} still to choose` : ""}. A bank
-            account can also keep a Budget account&rsquo;s balance current, such as your bills account.
-          </p>
-          <dl className="mt-3 grid gap-x-4 gap-y-1 text-xs text-muted sm:grid-cols-[7rem_1fr]">
-            {USE_HELP.map(([term, text]) => (
-              <div key={term} className="contents">
-                <dt className="font-semibold text-foreground">{term}</dt>
-                <dd>{text}</dd>
-              </div>
-            ))}
-          </dl>
-          <div className="mt-5 space-y-5">
-            {[...groups.entries()].map(([institution, list]) => (
-              <div key={institution}>
-                <h4 className="text-[13px] font-semibold">{institution}</h4>
-                <ul className="mt-2 divide-y divide-line rounded-xl border border-line">
-                  {list.map((a) => (
-                    <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-                      <span className="min-w-0">
-                        <span className="font-semibold">{a.name}</span>
-                        {!a.use ? <span className="ml-2 rounded-full bg-info-soft px-2 py-0.5 text-xs font-semibold text-info">New</span> : null}
-                        <span className="block text-xs text-muted">
-                          {a.balanceCents !== null ? formatCents(a.balanceCents, { currency: /^[A-Z]{3}$/.test(a.currency) ? a.currency : "USD" }) : "No balance"}
-                          {a.balanceDate ? ` as of ${dateFormat.format(a.balanceDate)}` : ""} · {a.transactionCount} transactions
-                          {a.latestOn ? `, latest ${dateFormat.format(a.latestOn)}` : ""}
-                        </span>
-                      </span>
-                      <AccountChoice id={a.id} use={a.use} linkedAccountId={a.linkedAccountId} budgetAccounts={bankBudgetAccounts} />
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <h3 className="font-sans text-base font-bold">Accounts</h3>
+              <p className="mt-1 max-w-prose text-sm text-muted">
+                {accounts.length} received, {shown} in use. They sort themselves by type; nothing to set up here.
+              </p>
+            </div>
+            <Link href="/accounts" className="text-sm font-semibold text-accent-text hover:underline">
+              Open Accounts
+            </Link>
           </div>
         </Card>
       ) : null}
@@ -613,8 +586,8 @@ async function Bank() {
           </p>
           <CsvImporter
             accounts={accounts
-              .filter((a) => a.use !== "HIDDEN")
-              .map((a) => ({ id: a.id, label: a.institution ? `${a.institution} · ${a.name}` : a.name }))}
+              .filter((a) => !a.hidden)
+              .map((a) => ({ id: a.id, label: a.institution ? `${a.institution} · ${a.displayName}` : a.displayName }))}
           />
           {imports.length ? (
             <ul className="mt-5 divide-y divide-line rounded-xl border border-line text-sm">

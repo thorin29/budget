@@ -115,6 +115,9 @@ export async function syncBank(): Promise<SyncResult> {
       : earliest;
     const doc = await fetchAccounts(accessUrl, { startDate: start, pending: true });
     const result = await applyFeed(doc, start, now);
+    const { applyTypeGuesses, autoLinkBills } = await import("./accounts");
+    await applyTypeGuesses();
+    await autoLinkBills();
     await pushLinkedBalances();
     result.transfers = await refreshTransfers(new Date(start.getTime() - 7 * DAY));
     await prisma.bankConnection.update({
@@ -238,7 +241,7 @@ async function applyFeed(doc: FeedDocument, start: Date, now: Date): Promise<Syn
 /** Linked bank accounts write this month's balance into Budget's balance for that account. */
 export async function pushLinkedBalances(): Promise<void> {
   const linked = await prisma.bankAccount.findMany({
-    where: { linkedAccountId: { not: null }, balance: { not: null }, NOT: { use: "HIDDEN" } },
+    where: { linkedAccountId: { not: null }, balance: { not: null }, hidden: false },
     select: { linkedAccountId: true, balance: true },
   });
   const { year, month } = localYearMonth();
@@ -254,11 +257,12 @@ export async function pushLinkedBalances(): Promise<void> {
 
 /**
  * Re-derives transfers and verification noise from `since` on. Pairs touching
- * an account that is no longer included are undone first.
+ * a hidden account are undone first.
  */
 export async function refreshTransfers(since: Date): Promise<number> {
   const sinceDay = dateOnly(iso(since));
-  const included = { use: { in: ["SPENDING", "BALANCE_ONLY"] as Array<"SPENDING" | "BALANCE_ONLY"> } };
+  // Every account that isn't hidden takes part: a card payment pairs with the card, a loan payment with the loan.
+  const included = { hidden: false };
 
   await prisma.bankTransaction.updateMany({
     where: { kind: "TRANSFER", postedOn: { gte: sinceDay }, NOT: { account: included } },

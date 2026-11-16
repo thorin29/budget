@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useRef, useState, useTransition } from "react";
+import { useActionState, useState, useTransition } from "react";
 import { Button, ErrorBanner, Select } from "@/components/ui";
 import { formatCents } from "@/lib/money";
 import {
@@ -10,7 +10,9 @@ import {
   importCsvAction,
   previewCsvAction,
   revertCsvAction,
-  setBankAccountAction,
+  setAccountHiddenAction,
+  setAccountTypeAction,
+  setBillsSourceAction,
   syncBankAction,
   type BankActionState,
 } from "./bank-actions";
@@ -112,67 +114,66 @@ export function DeleteBankData() {
   return <Armed label="Delete all bank data" confirm="Yes, delete every account and transaction" action={deleteBankDataAction} danger />;
 }
 
-const USE_OPTIONS = [
-  { value: "", label: "Choose…" },
-  { value: "SPENDING", label: "Spending" },
-  { value: "BALANCE_ONLY", label: "Balance only" },
-  { value: "HIDDEN", label: "Hidden" },
-];
-
-export function AccountChoice({
-  id,
-  use,
-  linkedAccountId,
-  budgetAccounts,
-}: {
-  id: string;
-  use: string | null;
-  linkedAccountId: string | null;
-  budgetAccounts: Array<{ id: string; name: string }>;
-}) {
-  const form = useRef<HTMLFormElement>(null);
+export function AccountTypeSelect({ id, type, options }: { id: string; type: string; options: Array<{ value: string; label: string }> }) {
   const [pending, start] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const save = () =>
-    start(async () => {
-      if (!form.current) return;
-      const result = await setBankAccountAction(new FormData(form.current));
-      setError(result.ok ? null : result.message);
-    });
-
   return (
-    <form ref={form} className="flex flex-wrap items-center gap-2" onSubmit={(e) => e.preventDefault()}>
-      <input type="hidden" name="id" value={id} />
-      <div className="w-36">
-        <Select name="use" defaultValue={use ?? ""} onChange={save} disabled={pending} aria-label="How this account is used">
-          {USE_OPTIONS.map((o) => (
+    <span className="flex items-center gap-2">
+      <span className="w-36">
+        <Select
+          defaultValue={type}
+          disabled={pending}
+          aria-label="Account type"
+          onChange={(e) =>
+            start(async () => {
+              const result = await setAccountTypeAction(id, e.target.value);
+              setError(result.ok ? null : result.message);
+            })
+          }
+        >
+          {options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}
             </option>
           ))}
         </Select>
-      </div>
-      {budgetAccounts.length ? (
-        <div className="w-56">
-          <Select
-            name="linkedAccountId"
-            defaultValue={linkedAccountId ?? ""}
-            onChange={save}
-            disabled={pending}
-            aria-label="Keep a Budget account's balance current"
-          >
-            <option value="">No balance link</option>
-            {budgetAccounts.map((a) => (
-              <option key={a.id} value={a.id}>
-                Keeps “{a.name}” current
-              </option>
-            ))}
-          </Select>
-        </div>
-      ) : null}
-      {pending ? <span className="text-xs text-muted">Saving…</span> : null}
+      </span>
       {error ? <span className="text-xs text-danger">{error}</span> : null}
-    </form>
+    </span>
+  );
+}
+
+export function HideAccount({ id, hidden }: { id: string; hidden: boolean }) {
+  const [pending, start] = useTransition();
+  return (
+    <Button type="button" variant="ghost" disabled={pending} onClick={() => start(async () => void (await setAccountHiddenAction(id, !hidden)))}>
+      {pending ? "…" : hidden ? "Show" : "Hide"}
+    </Button>
+  );
+}
+
+export function BillsSource({ current, options }: { current: string; options: Array<{ id: string; label: string }> }) {
+  const [pending, start] = useTransition();
+  const [state, setState] = useState<BankActionState | null>(null);
+  return (
+    <div className="space-y-3">
+      <Notice state={state} />
+      <div className="max-w-md">
+        <Select
+          defaultValue={current}
+          disabled={pending}
+          aria-label="Where the bills balance comes from"
+          onChange={(e) => start(async () => setState(await setBillsSourceAction(e.target.value)))}
+        >
+          <option value="">I&rsquo;ll type it by hand</option>
+          {options.map((o) => (
+            <option key={o.id} value={o.id}>
+              {o.label}
+            </option>
+          ))}
+        </Select>
+      </div>
+    </div>
   );
 }
 

@@ -11,7 +11,7 @@ Everything runs on your own server against your own PostgreSQL database. Fonts
 are bundled. The only outside requests are optional bank sync's, once you turn it
 on.
 
-> **Status:** v0.18.0. Month view, cash projection, line items, year reports,
+> **Status:** v0.19.0. Month view, cash projection, line items, year reports,
 > import, export, sign-in for up to two people, and a token-secured API for a
 > phone app all work. See `CHANGELOG.md`.
 
@@ -207,8 +207,9 @@ works; SimpleFIN Bridge is allowed by default.
 2. In your bridge account, connect your institutions, then create a setup token
    for a new app.
 3. In Budget, Settings → Bank sync → paste the token → Connect.
-4. Choose Spending, Balance only or Hidden for each account. Optionally let a
-   bank account keep a Budget account's balance current.
+4. Accounts sort themselves by type on the Accounts page. Correct a wrong type
+   or hide an account that isn't yours. Under Settings → Planning, choose which
+   bank account the bills balance comes from (picked for you when it's clear).
 5. To fill in history older than about 90 days, load a CSV export per account
    on the same page.
 

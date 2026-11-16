@@ -454,3 +454,24 @@ backup travels further than a disk.
   name sorting happen in memory, which is fine at a household's scale.
 - **The key is the data.** Lose `BANK_SYNC_KEY` and those fields read
   "[unreadable]". There is no recovery by design. Rotation is not built yet.
+
+## Accounts set themselves up (0.19)
+
+Asking the person to classify every feed account was the old model pushing
+into the new one. Now an account's type is guessed from its name
+(`src/lib/account-type.ts`), and the type decides how it counts: checking and
+cards are spending, every type counts toward net worth. The rules describe how
+institutions word account names; an unmatched account at an institution where
+most accounts are crypto is crypto, and an unmatched negative balance is a
+card. Guesses are redone as rules improve until the person sets a type.
+
+- **Hidden** is the only switch left: an account that isn't the person's is
+  ignored everywhere, including transfer matching.
+- **Folded, not hidden:** no money and no activity in 60 days. It comes back
+  on its own.
+- **The bills balance** has one source, chosen under Planning. When exactly
+  one active checking account is named for bills, or there is only one, it is
+  linked automatically.
+- **Not yet merged:** line items still name the hand-made "paid-from"
+  accounts. Merging those into the feed's accounts touches every cash figure,
+  so it is its own release.

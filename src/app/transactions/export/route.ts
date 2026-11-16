@@ -5,7 +5,7 @@ import { toCsv } from "@/lib/bank-csv";
 
 export const dynamic = "force-dynamic";
 
-const USE_LABELS: Record<string, string> = { SPENDING: "Spending", BALANCE_ONLY: "Balance only", HIDDEN: "Hidden" };
+import { TYPE_LABELS, type AccountType } from "@/lib/account-type";
 
 /**
  * Bank-feed data as CSV, for your own analysis or backup:
@@ -35,14 +35,15 @@ export async function GET(request: Request) {
       balance: { toString(): string } | null;
       availableBalance: { toString(): string } | null;
       balanceDate: Date | null;
-      use: string | null;
+      type: AccountType;
+      hidden: boolean;
       linkedAccount: { name: string } | null;
       lastSeenAt: Date;
       _count: { transactions: number };
     }>;
     accounts.sort((a, b) => (a.institution ?? "~").localeCompare(b.institution ?? "~") || a.name.localeCompare(b.name));
     body = toCsv(
-      ["Account ID", "Institution", "Account", "Currency", "Balance", "Available", "Balance date", "Use", "Keeps current", "Transactions", "Last seen"],
+      ["Account ID", "Institution", "Account", "Currency", "Balance", "Available", "Balance date", "Type", "Hidden", "Keeps current", "Transactions", "Last seen"],
       accounts.map((a) => [
         a.id,
         a.institution,
@@ -51,7 +52,8 @@ export async function GET(request: Request) {
         a.balance === null ? null : toDecimalString(toCents(a.balance)),
         a.availableBalance === null ? null : toDecimalString(toCents(a.availableBalance)),
         a.balanceDate?.toISOString().slice(0, 10),
-        a.use ? USE_LABELS[a.use] : "Not chosen",
+        TYPE_LABELS[a.type],
+        a.hidden,
         a.linkedAccount?.name,
         a._count.transactions,
         a.lastSeenAt.toISOString(),
@@ -60,7 +62,7 @@ export async function GET(request: Request) {
   } else {
     const rows = (await prisma.bankTransaction.findMany({
       orderBy: [{ postedOn: "asc" }, { createdAt: "asc" }],
-      include: { account: { select: { id: true, name: true, institution: true, use: true } } },
+      include: { account: { select: { id: true, name: true, institution: true, type: true } } },
     })) as Array<{
       id: string;
       postedOn: Date;
@@ -73,16 +75,16 @@ export async function GET(request: Request) {
       kind: string;
       transferOfId: string | null;
       source: string;
-      account: { id: string; name: string; institution: string | null; use: string | null };
+      account: { id: string; name: string; institution: string | null; type: AccountType };
     }>;
     body = toCsv(
-      ["Date", "Institution", "Account", "Account ID", "Use", "Merchant", "Description", "Payee", "Memo", "Amount", "Kind", "Pending", "Source", "Transaction ID", "Transfer of"],
+      ["Date", "Institution", "Account", "Account ID", "Type", "Merchant", "Description", "Payee", "Memo", "Amount", "Kind", "Pending", "Source", "Transaction ID", "Transfer of"],
       rows.map((r) => [
         r.postedOn.toISOString().slice(0, 10),
         r.account.institution,
         r.account.name,
         r.account.id,
-        r.account.use ? USE_LABELS[r.account.use] : "Not chosen",
+        TYPE_LABELS[r.account.type],
         r.merchant,
         r.description,
         r.payee,

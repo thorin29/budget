@@ -38,6 +38,12 @@ const MAIN: NavItem[] = [
     match: ["/year"],
     icon: "chart-bar",
   },
+  {
+    href: "/accounts",
+    label: "Accounts",
+    match: ["/accounts", "/transactions"],
+    icon: "bank",
+  },
 ];
 
 const SETTINGS: NavItem = {

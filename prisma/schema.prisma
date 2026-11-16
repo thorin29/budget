@@ -409,14 +409,19 @@ model IdempotencyRecord {
 // account names arrive from the feed and live only in the database.
 // ---------------------------------------------------------------------------
 
-/// What a feed account is for. Null until the person chooses.
-enum BankAccountUse {
-  /// Checking and cards: its charges are spending.
-  SPENDING
-  /// Savings, loans, investments: only the balance is used.
-  BALANCE_ONLY
-  /// Received but ignored.
-  HIDDEN
+/// What kind of account a feed account is. Guessed from its name; the person
+/// can correct it. Checking and cards count as spending; every kind counts
+/// toward net worth.
+enum BankAccountType {
+  CHECKING
+  SAVINGS
+  CREDIT_CARD
+  LOAN
+  MORTGAGE
+  INVESTMENT
+  RETIREMENT
+  CRYPTO
+  OTHER
 }
 
 enum BankTransactionKind {
@@ -454,7 +459,11 @@ model BankAccount {
   balance          Decimal?        @db.Decimal(14, 2)
   availableBalance Decimal?        @db.Decimal(14, 2)
   balanceDate      DateTime?
-  use              BankAccountUse?
+  type             BankAccountType @default(OTHER)
+  /// "guess" until the person picks a type; guesses are redone as the rules improve.
+  typeSource       String          @default("guess")
+  /// Received but ignored everywhere: not someone's spending, not net worth, no transfers.
+  hidden           Boolean         @default(false)
 
   /// Optional: the Budget account whose balance this one keeps current.
   linkedAccountId String?  @unique

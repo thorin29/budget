@@ -3,6 +3,23 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.19.0]
+
+### Changed
+- Accounts set themselves up. Each bank-feed account gets a type from its name (checking, savings,
+  credit card, loan, mortgage, investment, retirement, crypto), and the type decides how it counts:
+  checking and cards are spending, everything counts toward net worth. The Spending / Balance only /
+  Hidden choice and the per-account balance link are gone. Migration `0008`.
+- The bills balance comes from a bank account chosen once under Settings → Planning. When one
+  checking account is clearly the bills account, it is picked automatically.
+- Transfers now pair across every account that isn't hidden: card payments with the card, loan and
+  mortgage payments with the loan.
+
+### Added
+- An Accounts page in the sidebar: net worth, accounts grouped by type, a type to correct if the
+  guess is wrong, and Hide for accounts that aren't yours. Empty, inactive accounts fold away.
+- Feed names are tidied for display: repeated last digits and internal ids are dropped.
+
 ## [0.18.0]
 
 ### Added

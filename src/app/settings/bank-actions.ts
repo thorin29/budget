@@ -9,7 +9,7 @@ import { BankFeedError } from "@/lib/simplefin";
 import { MissingKeyError } from "@/lib/secret-box";
 import { createLimiter } from "@/lib/auth/rate-limit";
 import { connectBank, deleteAllBankData, disconnectBank, syncBank } from "@/server/bank/sync";
-import { setBankAccountChoice, BANK_USES, type BankUse } from "@/server/bank/accounts";
+import { setBankAccountHidden, setBankAccountType, setBillsSource } from "@/server/bank/accounts";
 import { importCsv, previewCsv, revertCsvImport, type CsvPreview } from "@/server/bank/csv-import";
 
 export type BankActionState = { ok: true; message?: string } | { ok: false; message: string };
@@ -86,20 +86,34 @@ export async function deleteBankDataAction(): Promise<BankActionState> {
   }
 }
 
-export async function setBankAccountAction(form: FormData): Promise<BankActionState> {
+export async function setAccountTypeAction(id: string, type: string): Promise<BankActionState> {
   try {
     await requireUser();
-    const id = form.get("id");
-    const use = form.get("use");
-    const linked = form.get("linkedAccountId");
-    await setBankAccountChoice({
-      id: typeof id === "string" ? id : "",
-      use: typeof use === "string" && (BANK_USES as readonly string[]).includes(use) ? (use as BankUse) : null,
-      linkedAccountId: typeof linked === "string" && linked ? linked : null,
-    });
-    done();
-    revalidatePath("/", "layout");
+    await setBankAccountType(String(id), String(type));
+    revalidatePath("/accounts");
     return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function setAccountHiddenAction(id: string, hidden: boolean): Promise<BankActionState> {
+  try {
+    await requireUser();
+    await setBankAccountHidden(String(id), Boolean(hidden));
+    revalidatePath("/accounts");
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function setBillsSourceAction(bankAccountId: string): Promise<BankActionState> {
+  try {
+    await requireUser();
+    await setBillsSource(bankAccountId ? String(bankAccountId) : null);
+    revalidatePath("/", "layout");
+    return { ok: true, message: bankAccountId ? "The bills balance now comes from the bank every morning." : "You'll type the bills balance by hand." };
   } catch (error) {
     return failure(error);
   }
