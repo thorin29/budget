@@ -120,6 +120,8 @@ export async function syncBank(): Promise<SyncResult> {
     await autoLinkBills();
     await pushLinkedBalances();
     result.transfers = await refreshTransfers(new Date(start.getTime() - 7 * DAY));
+    const { applyCategories } = await import("../categorize");
+    await applyCategories();
     await prisma.bankConnection.update({
       where: { id: "default" },
       data: { lastSyncAt: now, lastSuccessAt: now, lastError: null, messages: doc.messages, syncStartedAt: null },

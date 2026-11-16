@@ -45,6 +45,12 @@ const MAIN: NavItem[] = [
     icon: "chart-bar",
   },
   {
+    href: "/insights",
+    label: "Insights",
+    match: ["/insights"],
+    icon: "chart-pie-slice",
+  },
+  {
     href: "/accounts",
     label: "Accounts",
     match: ["/accounts", "/transactions"],

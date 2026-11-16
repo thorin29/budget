@@ -16,6 +16,8 @@ export async function register(): Promise<void> {
       .then(async ({ applyTypeGuesses, autoLinkBills }) => {
         await applyTypeGuesses();
         await autoLinkBills();
+        const { applyCategories } = await import("./server/categorize");
+        await applyCategories();
       })
       .catch((error) => console.error("Accounts:", error instanceof Error ? error.message : error));
   }, 15_000).unref?.();

@@ -12,6 +12,8 @@ import { ACCOUNT_TYPES, displayAccountName, guessWithSiblings, isDormant, type A
 import { getSettings } from "../settings";
 import { NotFoundError, ValidationError } from "../errors";
 import { pushLinkedBalances, refreshTransfers } from "./sync";
+import { applyCategories } from "../categorize";
+import { isPeerPayment } from "@/lib/category-guess";
 
 export interface BankAccountView {
   id: string;
@@ -126,6 +128,7 @@ export async function setBankAccountHidden(id: string, hidden: boolean): Promise
   if (!current) throw new NotFoundError("Bank account");
   await prisma.bankAccount.update({ where: { id }, data: { hidden, ...(hidden ? { linkedAccountId: null } : {}) } });
   await refreshTransfers(LONG_AGO());
+  await applyCategories();
 }
 
 /** Which bank account keeps the bills balance current; null to type it by hand. */
@@ -152,22 +155,32 @@ export interface BankTransactionView {
   pending: boolean;
   kind: "NORMAL" | "TRANSFER" | "IGNORED";
   source: string;
+  categoryId: string | null;
+  categorySource: string;
+  /** A payment app: categories are set one transaction at a time. */
+  peer: boolean;
 }
 
 export async function listBankTransactions({
   accountId,
   query,
+  category,
   take = 200,
 }: {
   accountId?: string;
   query?: string;
+  /** A category id, or "none" for uncategorized money out. */
+  category?: string;
   take?: number;
 }): Promise<BankTransactionView[]> {
   const text = query?.trim().slice(0, 100).toLowerCase();
   const limit = Math.min(Math.max(take, 1), 1000);
   // Merchant and description are encrypted, so a search reads recent rows and matches them here.
   const rows = await prisma.bankTransaction.findMany({
-    where: accountId ? { accountId } : {},
+    where: {
+      ...(accountId ? { accountId } : {}),
+      ...(category === "none" ? { categoryId: null, kind: "NORMAL" as const, amount: { lt: 0 } } : category ? { categoryId: category } : {}),
+    },
     orderBy: [{ postedOn: "desc" }, { createdAt: "desc" }],
     take: text ? 20_000 : limit,
     include: { account: { select: { name: true, institution: true } } },
@@ -181,6 +194,8 @@ export async function listBankTransactions({
     pending: boolean;
     kind: "NORMAL" | "TRANSFER" | "IGNORED";
     source: string;
+    categoryId: string | null;
+    categorySource: string;
     account: { name: string; institution: string | null };
   }>)
     .filter((r) => !text || r.merchant.toLowerCase().includes(text) || r.description.toLowerCase().includes(text))
@@ -196,5 +211,8 @@ export async function listBankTransactions({
     pending: r.pending,
     kind: r.kind,
     source: r.source,
+    categoryId: r.categoryId,
+    categorySource: r.categorySource,
+    peer: isPeerPayment(r.merchant),
   }));
 }

@@ -26,10 +26,12 @@ export async function confirmMatchAction(_prev: ReviewState, form: FormData): Pr
     const user = await requireUser();
     const raw = String(form.get("paidOn") ?? "");
     if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return { ok: false, message: "Enter the date it was paid" };
+    const period = /^(\d{4})-(\d{1,2})$/.exec(String(form.get("period") ?? ""));
+    if (!period) return { ok: false, message: "Choose the month it was for" };
     await confirmMatch({
       lineItemId: String(form.get("lineItemId") ?? ""),
-      year: Number(form.get("year")),
-      month: Number(form.get("month")),
+      year: Number(period[1]),
+      month: Number(period[2]),
       txnId: String(form.get("txnId") ?? ""),
       amountCents: parseCents(String(form.get("amount") ?? "")),
       paidOn: new Date(`${raw}T00:00:00Z`),

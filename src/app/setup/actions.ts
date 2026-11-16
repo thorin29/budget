@@ -3,7 +3,7 @@
 import { requireUser } from "@/server/auth";
 import { revalidatePath } from "next/cache";
 import { createAccount, deleteAccount, updateAccount } from "@/server/accounts";
-import { createCategory, deleteCategory } from "@/server/categories";
+import { createCategory, deleteCategory, setManagedForOthers } from "@/server/categories";
 import { createPaySchedule, deletePaySchedule } from "@/server/pay-schedule";
 import { updateSettings } from "@/server/settings";
 import { ValidationError } from "@/server/errors";
@@ -91,6 +91,15 @@ export async function removeCategoryAction(
 ): Promise<FormState> {
   return run("/setup/categories", async () => {
     await deleteCategory(str(form, "id"));
+  });
+}
+
+export async function setManagedAction(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  return run("/settings/categories", async () => {
+    await setManagedForOthers(str(form, "id"), str(form, "managed") === "1");
   });
 }
 

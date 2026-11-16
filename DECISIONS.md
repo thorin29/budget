@@ -494,3 +494,23 @@ be 60–140% of the plan (or within $5). Each charge goes to one bill.
   rows and merchants already tied to a bill are skipped.
 - **Dismissals** ("Not this", "Not a bill") are kept so the same suggestion
   doesn't return.
+
+## Categories and insights (0.21)
+
+One category list serves bills and transactions. A transaction's category
+comes from, strongest first: the person, the bill it was confirmed for, a
+merchant rule the person taught, then a guess from the merchant's name
+(`src/lib/category-guess.ts`, national chains and plain words only). Only a
+person-set category is never recomputed.
+
+- **Learning asks first.** Picking a category offers "This one" or "All from
+  this merchant". Payment apps carry unrelated payments under one name, so
+  they never get a merchant rule.
+- **Managed for others** is a flag on a category, not a separate ledger. Its
+  transactions skip spending and income everywhere; Insights shows collected,
+  paid out, and what's held.
+- **Everyday spending** is money out of checking and cards that wasn't
+  confirmed as a bill, less card refunds. Bills are counted on their own so the
+  budget and the insights don't double count.
+- **Late payments** pay the oldest unpaid month of a bill first; an overdue
+  bill can match up to 45 days after its due day.

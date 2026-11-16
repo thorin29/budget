@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { Button, ErrorBanner, TextInput } from "@/components/ui";
+import { Button, ErrorBanner, Select, TextInput } from "@/components/ui";
 import { formatCents, toDecimalString } from "@/lib/money";
 import { addRepeatAction, confirmMatchAction, dismissMatchAction, dismissRepeatAction, type ReviewState } from "./actions";
 import type { LooksPaid, RepeatCharge } from "@/server/review";
@@ -9,6 +9,9 @@ import type { LooksPaid, RepeatCharge } from "@/server/review";
 const INITIAL: ReviewState = { ok: true };
 const short = (iso: string) =>
   new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
+const monthName = (year: number, month: number) =>
+  new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 
 /**
  * A suggestion never records on one tap: "Review and record" opens the amount
@@ -31,7 +34,7 @@ export function LooksPaidCard({ item }: { item: LooksPaid }) {
           </p>
           <p className="mt-1 text-base font-semibold">{item.billName}</p>
           <p className="text-sm text-muted">
-            {income ? "Expected" : "Planned"} {formatCents(item.budgetedCents)}
+            {monthName(item.year, item.month)} · {income ? "expected" : "planned"} {formatCents(item.budgetedCents)}
             {item.dueDay ? ` · due the ${item.dueDay}` : ""}
           </p>
         </div>
@@ -64,10 +67,23 @@ export function LooksPaidCard({ item }: { item: LooksPaid }) {
         <form action={submit} className="mt-3 rounded-xl border border-line p-3">
           {!state.ok ? <ErrorBanner message={state.message} /> : null}
           <input type="hidden" name="lineItemId" value={item.lineItemId} />
-          <input type="hidden" name="year" value={item.year} />
-          <input type="hidden" name="month" value={item.month} />
+          {item.openMonths.length > 1 ? null : (
+            <input type="hidden" name="period" value={`${item.year}-${item.month}`} />
+          )}
           <input type="hidden" name="txnId" value={item.txnId} />
           <div className="flex flex-wrap items-end gap-3">
+            {item.openMonths.length > 1 ? (
+              <label className="w-40 text-[13px] font-semibold">
+                For
+                <Select name="period" defaultValue={`${item.year}-${item.month}`} className="mt-1">
+                  {item.openMonths.map((m) => (
+                    <option key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
+                      {monthName(m.year, m.month)}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            ) : null}
             <label className="w-36 text-[13px] font-semibold">
               {income ? "Amount received" : "Amount paid"}
               <TextInput name="amount" inputMode="decimal" defaultValue={toDecimalString(item.amountCents)} className="mt-1" />

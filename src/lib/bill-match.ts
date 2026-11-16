@@ -7,7 +7,9 @@
  * reason to believe it: a merchant the person already confirmed for this bill,
  * a word shared between the bill's name and the merchant, or an amount to the
  * cent. Each bill takes at most one transaction and each transaction pays at
- * most one bill; the strongest pairs are chosen first.
+ * most one bill; the strongest pairs are chosen first. When a bill has an
+ * unpaid earlier month, a charge pays the oldest month first: a bill paid
+ * late usually is the late month's payment.
  */
 
 export interface MatchBill {
@@ -18,6 +20,8 @@ export interface MatchBill {
   kind: "BILL" | "SETTLEMENT" | "INCOME";
   dueDay: number | null;
   budgetedCents: number;
+  /** An unpaid month carried from before; it can be paid any time after. */
+  overdue?: boolean;
 }
 
 export interface MatchTxn {
@@ -62,6 +66,8 @@ function dueIso(bill: MatchBill): string {
 
 export const WINDOW_BEFORE = 12;
 export const WINDOW_AFTER = 12;
+/** How long after its due day an overdue bill can still be matched. */
+export const WINDOW_OVERDUE = 45;
 
 export function suggestMatches(
   bills: MatchBill[],
@@ -76,7 +82,7 @@ export function suggestMatches(
     const income = bill.kind === "INCOME";
     // Without a due day, the whole month is fair game.
     const before = bill.dueDay ? WINDOW_BEFORE : 20;
-    const after = bill.dueDay ? WINDOW_AFTER : 20;
+    const after = bill.overdue ? WINDOW_OVERDUE : bill.dueDay ? WINDOW_AFTER : 20;
     const billWords = tokens(bill.name);
     for (const t of txns) {
       if (income ? t.amountCents <= 0 : t.amountCents >= 0) continue;
@@ -112,11 +118,18 @@ export function suggestMatches(
       });
     }
   }
-  options.sort((a, b) => b.score - a.score || a.gap - b.gap || a.txnId.localeCompare(b.txnId));
+  // The same charge and bill in two months: keep the oldest month only.
+  const oldest = new Map<string, number>();
+  for (const o of options) {
+    const k = `${o.txnId}:${o.lineItemId}`;
+    oldest.set(k, Math.min(oldest.get(k) ?? Infinity, o.year * 12 + o.month));
+  }
+  const kept = options.filter((o) => o.year * 12 + o.month === oldest.get(`${o.txnId}:${o.lineItemId}`));
+  kept.sort((a, b) => b.score - a.score || a.gap - b.gap || a.txnId.localeCompare(b.txnId));
   const usedBills = new Set<string>();
   const usedTxns = new Set<string>();
   const out: Suggestion[] = [];
-  for (const o of options) {
+  for (const o of kept) {
     const billKey = `${o.lineItemId}:${o.year}:${o.month}`;
     if (usedBills.has(billKey) || usedTxns.has(o.txnId)) continue;
     usedBills.add(billKey);

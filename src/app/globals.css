@@ -34,6 +34,7 @@
   --danger-soft: #fee4e2;
   --warn: #8a5205;
   --warn-soft: #fbefd9;
+  --chart-negative: #c2581c;
   --neutral: #475467;
   --neutral-soft: #eef1f4;
   --over: #e8590c;
@@ -127,6 +128,7 @@
   --danger-soft: #3d1714;
   --warn: #f2b04b;
   --warn-soft: #3a2a10;
+  --chart-negative: #f0915a;
   --neutral: #cecfd2;
   --neutral-soft: #232932;
   --over: #fd853a;
@@ -201,6 +203,7 @@
     --danger-soft: #3d1714;
     --warn: #f2b04b;
     --warn-soft: #3a2a10;
+    --chart-negative: #f0915a;
     --neutral: #cecfd2;
     --neutral-soft: #232932;
     --over: #fd853a;

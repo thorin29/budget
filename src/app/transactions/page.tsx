@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { listBankAccounts, listBankTransactions } from "@/server/bank/accounts";
 import { formatCents } from "@/lib/money";
+import { listCategories } from "@/server/categories";
+import { CategoryCell } from "./category-cell";
 import { Card, EmptyState, PageHeading, Pill, Select, TextInput, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -10,18 +12,20 @@ const day = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", y
 export default async function TransactionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ account?: string; q?: string }>;
+  searchParams: Promise<{ account?: string; q?: string; category?: string }>;
 }) {
-  const { account, q } = await searchParams;
-  const accounts = await listBankAccounts();
+  const { account, q, category } = await searchParams;
+  const [accounts, categories] = await Promise.all([listBankAccounts(), listCategories()]);
   const accountId = accounts.some((a) => a.id === account) ? account : undefined;
-  const rows = accounts.length ? await listBankTransactions({ accountId, query: q, take: 300 }) : [];
+  const categoryFilter = category === "none" || categories.some((c) => c.id === category) ? category : undefined;
+  const rows = accounts.length ? await listBankTransactions({ accountId, query: q, category: categoryFilter, take: 300 }) : [];
+  const options = categories.map((c) => ({ id: c.id, name: c.name, managedForOthers: c.managedForOthers }));
 
   return (
     <div>
       <PageHeading
         title="Transactions"
-        description="What the bank feed and imported files have delivered, newest first. Read-only for now."
+        description="What the bank feed and imported files have delivered, newest first. Set a category once for a merchant and it's remembered."
         action={
           <Link href="/settings/bank" className={buttonClass("quiet")}>
             Bank sync settings
@@ -47,6 +51,15 @@ export default async function TransactionsPage({
                 </option>
               ))}
             </Select>
+            <Select name="category" defaultValue={categoryFilter ?? ""} className="max-w-56" aria-label="Category">
+              <option value="">All categories</option>
+              <option value="none">Uncategorized spending</option>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
             <TextInput name="q" defaultValue={q ?? ""} placeholder="Search" className="max-w-48" aria-label="Search" />
             <button type="submit" className={buttonClass("quiet")}>
               Filter
@@ -68,8 +81,16 @@ export default async function TransactionsPage({
                       {r.source === "csv" ? " · from file" : ""}
                     </span>
                   </span>
-                  <span className={`tnum shrink-0 font-semibold ${r.amountCents > 0 ? "text-ok" : ""} ${r.kind !== "NORMAL" ? "text-muted" : ""}`}>
-                    {formatCents(r.amountCents)}
+                  <span className="flex shrink-0 items-start gap-4">
+                    {r.kind === "NORMAL" || r.categorySource === "person" ? (
+                      <CategoryCell
+                        txn={{ id: r.id, merchant: r.merchant, categoryId: r.categoryId, categorySource: r.categorySource, peer: r.peer }}
+                        categories={options}
+                      />
+                    ) : null}
+                    <span className={`tnum w-24 text-right font-semibold ${r.amountCents > 0 ? "text-ok" : ""} ${r.kind !== "NORMAL" ? "text-muted" : ""}`}>
+                      {formatCents(r.amountCents)}
+                    </span>
                   </span>
                 </li>
               ))}

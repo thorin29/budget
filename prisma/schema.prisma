@@ -99,8 +99,13 @@ model Category {
   name      String  @unique
   active    Boolean @default(true)
   sortOrder Int     @default(0)
+  /// Money held or passed through for other people (a league, a group trip).
+  /// Kept out of spending and income; shown as its own running balance.
+  managedForOthers Boolean @default(false)
 
-  lineItems LineItem[]
+  lineItems    LineItem[]
+  transactions BankTransaction[]
+  rules        CategoryRule[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -503,6 +508,10 @@ model BankTransaction {
   /// The description with processor prefixes, store numbers and order ids removed.
   merchant String
   kind     BankTransactionKind @default(NORMAL)
+  categoryId     String?
+  category       Category? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  /// guess | rule | bill | person. Only "person" is never changed automatically.
+  categorySource String    @default("guess")
   /// The other side of a transfer.
   transferOfId String?
 
@@ -520,6 +529,7 @@ model BankTransaction {
   @@index([accountId, postedOn])
   @@index([postedOn])
   @@index([importId])
+  @@index([categoryId])
 }
 
 /// One CSV file loaded into a feed account, so it can be undone.
@@ -558,4 +568,15 @@ model ReviewDismissal {
   createdAt DateTime @default(now())
 
   @@unique([kind, key])
+}
+
+/// "Charges from this merchant belong in this category", learned when the
+/// person sets a category for a merchant. The merchant is a keyed hash.
+model CategoryRule {
+  id          String   @id @default(cuid())
+  merchantKey String   @unique
+  categoryId  String
+  category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

@@ -18,6 +18,7 @@ import { SPENDING_TYPES, displayAccountName, type AccountType } from "@/lib/acco
 import { getMonthView, recordActual, type MonthEntry } from "./month";
 import { createLineItem } from "./line-items";
 import { getSettings } from "./settings";
+import { applyCategories } from "./categorize";
 import { NotFoundError, ValidationError } from "./errors";
 
 const DAY = 86_400_000;
@@ -38,6 +39,8 @@ export interface LooksPaid {
   account: string;
   confidence: "high" | "medium";
   reason: string;
+  /** Unpaid months of this bill, oldest first; the payment can be recorded to any of them. */
+  openMonths: Array<{ year: number; month: number }>;
 }
 
 export interface RepeatCharge {
@@ -120,7 +123,11 @@ export async function getReview(): Promise<Review> {
 
   const matchBills: MatchBill[] = bills.map((b) => ({
     lineItemId: b.lineItemId, year: b.year, month: b.month, name: b.name, kind: b.kind, dueDay: b.dueDay, budgetedCents: b.budgetedCents,
+    overdue: b.carriedFrom !== null,
   }));
+  // Every open month per bill, so a confirmed payment can go to another one.
+  const openMonths = new Map<string, Array<{ year: number; month: number }>>();
+  for (const b of bills) openMonths.set(b.lineItemId, [...(openMonths.get(b.lineItemId) ?? []), { year: b.year, month: b.month }]);
   const billByKey = new Map(bills.map((b) => [`${b.lineItemId}:${b.year}:${b.month}`, b]));
 
   const looksPaid: LooksPaid[] = suggestMatches(matchBills, matchable, ruleMap, dismissed).map((s) => {
@@ -131,6 +138,7 @@ export async function getReview(): Promise<Review> {
       txnId: s.txnId, amountCents: Math.abs(t.cents), postedOn: iso(t.row.postedOn), merchant: t.row.merchant, description: t.row.description,
       account: displayAccountName(t.row.account.name), confidence: s.confidence,
       reason: s.reason === "confirmed before" ? "Same place as before" : s.reason === "name" ? "Name matches" : "Exact amount",
+      openMonths: (openMonths.get(s.lineItemId) ?? []).sort((x, y) => x.year * 12 + x.month - (y.year * 12 + y.month)),
     };
   });
 
@@ -184,6 +192,7 @@ export async function linkActual(lineItemId: string, year: number, month: number
   await prisma.actualEntry.update({ where: { lineItemId_year_month: { lineItemId, year, month } }, data: { bankTransactionId: txnId } });
   const key = merchantKey(name);
   await prisma.billRule.upsert({ where: { lineItemId_merchantKey: { lineItemId, merchantKey: key } }, create: { lineItemId, merchantKey: key }, update: {} });
+  await applyCategories([txnId]);
 }
 
 export async function dismissMatch(lineItemId: string, txnId: string): Promise<void> {

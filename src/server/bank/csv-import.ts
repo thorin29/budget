@@ -12,6 +12,7 @@ import { matchDuplicates } from "@/lib/bank-match";
 import { parseBankCsv, CsvError, type CsvTransaction } from "@/lib/bank-csv";
 import { NotFoundError, ValidationError } from "../errors";
 import { refreshTransfers } from "./sync";
+import { applyCategories } from "../categorize";
 
 export const MAX_CSV_BYTES = 5 * 1024 * 1024;
 const DAY = 86_400_000;
@@ -103,6 +104,7 @@ export async function importCsv(
     });
   }
   await refreshTransfers(new Date(Date.parse(`${from}T00:00:00Z`) - 7 * DAY));
+  await applyCategories();
   return { importId: batch.id, added: keep.length, skipped: rows.length - keep.length };
 }
 

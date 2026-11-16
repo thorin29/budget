@@ -9,6 +9,7 @@ export interface Category {
   name: string;
   active: boolean;
   sortOrder: number;
+  managedForOthers: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -34,6 +35,7 @@ type Row = {
   name: string;
   active: boolean;
   sortOrder: number;
+  managedForOthers: boolean;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -43,6 +45,7 @@ const toCategory = (row: Row): Category => ({
   name: row.name,
   active: row.active,
   sortOrder: row.sortOrder,
+  managedForOthers: row.managedForOthers,
   createdAt: row.createdAt.toISOString(),
   updatedAt: row.updatedAt.toISOString(),
 });
@@ -117,4 +120,10 @@ export async function deleteCategory(id: string): Promise<{ deleted: boolean }> 
 
   await prisma.category.delete({ where: { id } });
   return { deleted: true };
+}
+
+/** Marks a category as money handled for other people, kept out of spending and income. */
+export async function setManagedForOthers(id: string, managed: boolean): Promise<void> {
+  await getCategory(id);
+  await prisma.category.update({ where: { id }, data: { managedForOthers: managed } });
 }

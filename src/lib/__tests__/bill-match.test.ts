@@ -58,6 +58,21 @@ describe("suggestMatches", () => {
     expect(suggestMatches(bills, txns, new Map(), new Set())).toHaveLength(1);
   });
 
+  it("pays the oldest unpaid month of a bill first", () => {
+    const oct = bill({ lineItemId: "giving", name: "Giving", month: 10, dueDay: 25, budgetedCents: 20_000, overdue: true });
+    const nov = bill({ lineItemId: "giving", name: "Giving", month: 11, dueDay: 25, budgetedCents: 20_000 });
+    const t = txn({ id: "g", postedOn: "2026-11-02", amountCents: -20_000, merchant: "Giving", description: "GIVING" });
+    expect(suggestMatches([nov, oct], [t], new Map(), new Set())).toEqual([
+      expect.objectContaining({ lineItemId: "giving", month: 10, txnId: "g" }),
+    ]);
+  });
+
+  it("matches an overdue bill well after its due day", () => {
+    const late = bill({ month: 9, dueDay: 14, overdue: true });
+    expect(suggestMatches([late], [txn({ postedOn: "2026-10-20" })], new Map(), new Set())).toHaveLength(1);
+    expect(suggestMatches([{ ...late, overdue: false }], [txn({ postedOn: "2026-10-20" })], new Map(), new Set())).toEqual([]);
+  });
+
   it("tokenizes without noise words or numbers", () => {
     expect([...tokens("ONLINE PAYMENT to Example Water 1234")]).toEqual(["example", "water"]);
   });

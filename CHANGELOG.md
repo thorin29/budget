@@ -3,7 +3,26 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
-## [0.20.0]
+## [0.21.0]
+
+### Added
+- Categories for bank transactions. Each is guessed from the merchant, taken from the bill it was
+  confirmed for, or set by you. Setting one asks "This one" or "All from this merchant"; the
+  merchant is remembered (as a keyed fingerprint) and its past and future charges follow. Payment
+  apps like Venmo and Zelle are set one at a time. Guessed categories reuse yours when the name
+  matches (Housing for Home, Restaurants for Dining) and are added only when first needed.
+  Migration `0010`.
+- Managed for others: mark a category (Settings → Categories) as money you collect and pass on,
+  like league fees. It stays out of spending and income and shows its own running balance.
+- An Insights page: everyday spending by category against your 3-month average, bills paid, money
+  in, what changed, top merchants, money in less money out by month, and the managed balances.
+- Transactions can be filtered by category, including uncategorized spending.
+
+### Fixed
+- A late bill payment matches the unpaid earlier month first, and the Review form lets you pick
+  which month a payment is for.
+
+
 
 ### Added
 - Bills match bank charges. When a charge looks like it paid a bill this month (right direction,
