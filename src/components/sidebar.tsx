@@ -21,6 +21,12 @@ const MAIN: NavItem[] = [
     icon: "calendar-blank",
   },
   {
+    href: "/review",
+    label: "Review",
+    match: ["/review"],
+    icon: "check",
+  },
+  {
     href: "/projection",
     label: "What can I pay?",
     match: ["/projection"],

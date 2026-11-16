@@ -15,6 +15,7 @@
  * does it in memory after reading.
  */
 
+import { createHmac, hkdfSync } from "node:crypto";
 import { configuredKey, open, seal } from "./secret-box";
 
 const PREFIX = "enc:";
@@ -115,4 +116,16 @@ export function filtersEncrypted(model: string, where: unknown): string | null {
     }
   }
   return null;
+}
+
+/**
+ * A stable, keyed fingerprint of a merchant name, so "charges from this
+ * merchant pay this bill" can be stored and looked up without storing the
+ * name. Without a key it falls back to a plain hash (equality still leaks,
+ * names don't).
+ */
+export function merchantKey(merchant: string, key: string | null = fieldKey()): string {
+  const normalized = merchant.toLowerCase().replace(/\s+/g, " ").trim();
+  const secret = key ? Buffer.from(hkdfSync("sha256", Buffer.from(key, "utf8"), Buffer.alloc(0), "budget:merchant-key", 32)) : Buffer.alloc(0);
+  return createHmac("sha256", secret).update(normalized).digest("hex").slice(0, 32);
 }

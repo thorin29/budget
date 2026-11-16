@@ -37,6 +37,14 @@ export interface RowEntry {
   status: RowStatus;
   /** Whole days until due; negative when past. Null without a due day. */
   daysUntilDue: number | null;
+  /** A bank transaction that probably paid this, waiting for the person to confirm. */
+  suggestion?: {
+    txnId: string;
+    amountCents: number;
+    postedOn: string;
+    merchant: string;
+    account: string;
+  } | null;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");

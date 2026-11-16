@@ -3,7 +3,19 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
-## [0.19.0]
+## [0.20.0]
+
+### Added
+- Bills match bank charges. When a charge looks like it paid a bill this month (right direction,
+  near the due day, close to the planned amount, and a shared name, an exact amount, or a merchant
+  confirmed before), the month row shows "Looks paid". Opening it fills in the bank's amount and
+  date; nothing is recorded until you confirm. Confirmed payments stay linked to the charge, and
+  the merchant is remembered for next month. Migration `0009`.
+- A Review page in the sidebar: bills that look paid, and charges that repeat every month but
+  aren't a bill yet, with Add as a monthly bill or Not a bill. Dismissals are remembered.
+- The bills balance card says when the amount comes from the bank and when it was updated.
+
+
 
 ### Changed
 - Accounts set themselves up. Each bank-feed account gets a type from its name (checking, savings,

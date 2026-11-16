@@ -7,6 +7,7 @@ import { formatCents } from "@/lib/money";
 import { EmptyState, StatCard, buttonClass } from "@/components/ui";
 import { BalanceChart, toChartPoints } from "@/components/balance-chart";
 import { BalanceCard, MonthList, type MonthSection } from "../../rows";
+import { getReview } from "@/server/review";
 import { QuickEntry } from "../../quick-entry";
 import { shortDate, shortMonth, todayIso, toRow, type RowEntry } from "../../row-model";
 
@@ -47,10 +48,27 @@ export default async function MonthPage({
   const accountCount = await prisma.account.count();
   if (accountCount === 0) return <Welcome />;
 
-  const [view, projection] = await Promise.all([
+  const [view, projection, review] = await Promise.all([
     getMonthView(year, month),
     getProjection().catch(() => null),
+    getReview().catch((error) => {
+      console.error("Review:", error instanceof Error ? error.message : error);
+      return null;
+    }),
   ]);
+  const billsSource = view.billsAccountId
+    ? ((await prisma.bankAccount.findFirst({ where: { linkedAccountId: view.billsAccountId, hidden: false }, select: { balanceDate: true } })) as { balanceDate: Date | null } | null)
+    : null;
+  const billsFromBank = billsSource
+    ? billsSource.balanceDate
+      ? billsSource.balanceDate.toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: process.env.TZ || "UTC" })
+      : "waiting for the first sync"
+    : null;
+  const suggestions = new Map((review?.looksPaid ?? []).map((l) => [`${l.lineItemId}:${l.year}:${l.month}`, l]));
+  const withSuggestion = (row: RowEntry): RowEntry => {
+    const s = suggestions.get(`${row.lineItemId}:${row.year}:${row.month}`);
+    return s ? { ...row, suggestion: { txnId: s.txnId, amountCents: s.amountCents, postedOn: s.postedOn, merchant: s.merchant, account: s.account } } : row;
+  };
 
   const today = todayIso();
   const previous = shift(year, month, -1);
@@ -58,10 +76,10 @@ export default async function MonthPage({
   const now = new Date();
   const isCurrent = year === now.getFullYear() && month === now.getMonth() + 1;
 
-  const income = view.income.map((e) => toRow(e, today));
-  const carried = view.carried.map((e) => toRow(e, today));
-  const halves = view.halves.map((h) => h.entries.map((e) => toRow(e, today)));
-  const surplus = view.surplusItems.map((e) => toRow(e, today));
+  const income = view.income.map((e) => withSuggestion(toRow(e, today)));
+  const carried = view.carried.map((e) => withSuggestion(toRow(e, today)));
+  const halves = view.halves.map((h) => h.entries.map((e) => withSuggestion(toRow(e, today))));
+  const surplus = view.surplusItems.map((e) => withSuggestion(toRow(e, today)));
 
   const allRows = [...carried, ...halves[0], ...halves[1], ...surplus, ...income];
   const billRows = [...carried, ...halves[0], ...halves[1]];
@@ -144,6 +162,15 @@ export default async function MonthPage({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          {review && review.count ? (
+            <Link
+              href="/review"
+              className="flex items-center gap-2 rounded-xl border border-line bg-surface px-3 py-2 text-sm font-semibold shadow-card transition hover:border-accent"
+            >
+              <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs text-on-accent">{review.count}</span>
+              to review
+            </Link>
+          ) : null}
           <nav className="flex items-center rounded-xl border border-line bg-surface p-1 text-sm shadow-card" aria-label="Month">
             <Link
               href={`/month/${previous.year}/${previous.month}`}
@@ -192,6 +219,7 @@ export default async function MonthPage({
             month={month}
             accountName={view.billsAccountName}
             balanceCents={view.billsBalanceCents}
+            fromBank={billsFromBank}
             carriedFrom={
               view.billsBalanceFrom &&
               (view.billsBalanceFrom.year !== year || view.billsBalanceFrom.month !== month)

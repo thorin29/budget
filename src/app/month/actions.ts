@@ -3,6 +3,7 @@
 import { requireUser, type SessionUser } from "@/server/auth";
 import { revalidatePath } from "next/cache";
 import { adjustMonth, clearActual, recordActual, recordBillsBalance } from "@/server/month";
+import { linkActual } from "@/server/review";
 import { ValidationError } from "@/server/errors";
 import { parseCents } from "@/lib/money";
 
@@ -61,6 +62,9 @@ export async function recordActualAction(
       date(form, "paidOn"),
       user.id,
     );
+    // Confirmed from a bank suggestion: link the two and remember the merchant for this bill.
+    const txnId = str(form, "bankTransactionId");
+    if (txnId) await linkActual(str(form, "lineItemId"), year, month, txnId);
   });
 }
 

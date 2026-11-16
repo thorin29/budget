@@ -475,3 +475,22 @@ card. Guesses are redone as rules improve until the person sets a type.
 - **Not yet merged:** line items still name the hand-made "paid-from"
   accounts. Merging those into the feed's accounts touches every cash figure,
   so it is its own release.
+
+## Bills match bank charges (0.20)
+
+The feed suggests; the person records. A match is shown only with a reason:
+the merchant was confirmed for this bill before, the bill and charge share a
+name word, or the amount is exact on a bill of $15 or more. The charge also has
+to go the right way, land within 12 days of the due day (20 without one) and
+be 60–140% of the plan (or within $5). Each charge goes to one bill.
+
+- **Confirm, never one tap.** A suggestion opens the usual entry form with the
+  bank's amount and date filled in, so a partial payment or a different date
+  is corrected before it is recorded.
+- **Remembered merchants** are stored as keyed fingerprints
+  (`merchantKey`), not names, so a bill rule reveals nothing on its own.
+- **Repeats:** a merchant charged in at least 3 months at a steady amount
+  (within 20%) and day (within 7) that isn't a bill yet. Transfers, ignored
+  rows and merchants already tied to a bill are skipped.
+- **Dismissals** ("Not this", "Not a bill") are kept so the same suggestion
+  doesn't return.

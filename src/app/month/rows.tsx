@@ -194,6 +194,16 @@ export function EntryRow({ row }: { row: RowEntry }) {
         <div className="min-w-0 flex-1">
           <p className="truncate text-sm font-semibold">{row.name}</p>
           {meta ? <p className="mt-0.5 truncate text-xs text-muted">{meta}</p> : null}
+          {!paid && row.suggestion ? (
+            <button
+              type="button"
+              onClick={() => setOpen(true)}
+              className="mt-1 inline-flex max-w-full items-center gap-1.5 truncate rounded-full bg-ok-soft px-2.5 py-0.5 text-xs font-semibold text-ok hover:brightness-95"
+            >
+              {row.kind === "INCOME" ? "Looks received" : "Looks paid"} · {formatCents(row.suggestion.amountCents)} on{" "}
+              {shortDate(row.suggestion.postedOn)} · Confirm
+            </button>
+          ) : null}
         </div>
 
         <span className="hidden sm:inline-flex">
@@ -233,8 +243,9 @@ function EntryPanel({ row, onClose }: { row: RowEntry; onClose: () => void }) {
   const [payState, pay, paying] = useActionState(recordActualAction, INITIAL);
   const [clearState, clear, clearing] = useActionState(clearActualAction, INITIAL);
   const [adjustState, adjust, adjusting] = useActionState(adjustMonthAction, INITIAL);
+  const suggested = row.actualCents === null ? row.suggestion ?? null : null;
   const [amount, setAmount] = useState(
-    toDecimalString(row.actualCents ?? row.budgetedCents),
+    toDecimalString(row.actualCents ?? suggested?.amountCents ?? row.budgetedCents),
   );
   const [more, setMore] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -270,6 +281,7 @@ function EntryPanel({ row, onClose }: { row: RowEntry; onClose: () => void }) {
       <input type="hidden" name="month" value={row.month} />
     </>
   );
+  const fromBank = suggested ? <input type="hidden" name="bankTransactionId" value={suggested.txnId} /> : null;
 
   return (
     <div
@@ -286,6 +298,13 @@ function EntryPanel({ row, onClose }: { row: RowEntry; onClose: () => void }) {
         className="rounded-xl border border-line bg-surface p-4 shadow-card"
       >
         {hidden}
+        {fromBank}
+        {suggested ? (
+          <p className="mb-3 text-xs text-muted">
+            From the bank: {suggested.merchant} · {suggested.account} · {shortDate(suggested.postedOn)}. Change anything before
+            confirming.
+          </p>
+        ) : null}
         {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
 
         <div className="flex flex-wrap items-end gap-3">
@@ -311,7 +330,7 @@ function EntryPanel({ row, onClose }: { row: RowEntry; onClose: () => void }) {
             <span className="mb-1.5 block text-[13px] font-semibold">
               {income ? "Received on" : "Paid on"}
             </span>
-            <TextInput type="date" name="paidOn" defaultValue={row.defaultPaidOn} />
+            <TextInput type="date" name="paidOn" defaultValue={suggested?.postedOn ?? row.defaultPaidOn} />
           </label>
 
           <p className="tnum min-w-0 flex-1 pb-2 text-sm text-muted">
@@ -416,11 +435,14 @@ export function BalanceCard({
   accountName,
   balanceCents,
   carriedFrom,
+  fromBank = null,
 }: {
   year: number;
   month: number;
   accountName: string | null;
   balanceCents: number | null;
+  /** Set when the balance comes from the bank feed: when it was last updated. */
+  fromBank?: string | null;
   /** Set when the figure shown was entered in an earlier month. */
   carriedFrom: { year: number; month: number } | null;
 }) {
@@ -470,14 +492,20 @@ export function BalanceCard({
             {formatCents(balanceCents ?? 0)}
           </p>
           <p className="mt-1 text-xs text-muted">
-            {carriedFrom ? `Last entered in ${shortMonth(carriedFrom.month)} ${carriedFrom.year} · ` : ""}
-            <button
-              type="button"
-              onClick={() => setEditing(true)}
-              className="font-semibold text-accent-text hover:underline"
-            >
-              Update
-            </button>
+            {fromBank ? (
+              `From the bank · ${fromBank}`
+            ) : (
+              <>
+                {carriedFrom ? `Last entered in ${shortMonth(carriedFrom.month)} ${carriedFrom.year} · ` : ""}
+                <button
+                  type="button"
+                  onClick={() => setEditing(true)}
+                  className="font-semibold text-accent-text hover:underline"
+                >
+                  Update
+                </button>
+              </>
+            )}
           </p>
         </>
       )}

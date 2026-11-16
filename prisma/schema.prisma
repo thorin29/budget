@@ -175,6 +175,7 @@ model LineItem {
 
   monthlyPlans MonthlyPlan[]
   actuals      ActualEntry[]
+  billRules    BillRule[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -220,6 +221,10 @@ model ActualEntry {
 
   source      String  @default("manual") // manual | import
   importBatch String?
+
+  /// The bank transaction the person confirmed as this payment.
+  bankTransactionId String?          @unique
+  bankTransaction   BankTransaction? @relation(fields: [bankTransactionId], references: [id], onDelete: SetNull)
 
   // Who entered it. Null for imports and for entries made before sign-in.
   recordedById String?
@@ -505,6 +510,9 @@ model BankTransaction {
   importId String?
   import   BankImport? @relation(fields: [importId], references: [id], onDelete: SetNull)
 
+  /// The payment this transaction was confirmed as.
+  actual ActualEntry?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -526,4 +534,28 @@ model BankImport {
   revertedAt DateTime?
 
   transactions BankTransaction[]
+}
+
+/// "Charges from this merchant pay this bill", learned when a match is
+/// confirmed. The merchant is kept as a keyed hash, never as text.
+model BillRule {
+  id          String   @id @default(cuid())
+  lineItemId  String
+  lineItem    LineItem @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
+  merchantKey String
+  createdAt   DateTime @default(now())
+
+  @@unique([lineItemId, merchantKey])
+  @@index([merchantKey])
+}
+
+/// A suggestion the person turned down, so it isn't offered again.
+/// kind "match": key is lineItemId:transactionId. kind "repeat": key is a merchant key.
+model ReviewDismissal {
+  id        String   @id @default(cuid())
+  kind      String
+  key       String
+  createdAt DateTime @default(now())
+
+  @@unique([kind, key])
 }
