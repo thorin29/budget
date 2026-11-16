@@ -136,3 +136,92 @@ export async function listCsvImports() {
     include: { account: { select: { name: true, institution: true } } },
   });
 }
+
+// ---------------------------------------------------------------- one file for several accounts
+
+/**
+ * A combined history file: one row per transaction with the account it
+ * belongs to, so a person (or a script that gathered every bank's export)
+ * uploads once. Columns: Date, Account ID and/or Institution + Account,
+ * Description, Amount (negative is money out). Each account's rows go through
+ * the ordinary one-account import, so duplicates are skipped and each
+ * account's part can be undone on its own.
+ */
+export interface CombinedPart {
+  key: string;
+  accountId: string | null;
+  label: string;
+  total: number;
+  duplicates: number;
+  from: string;
+  to: string;
+}
+
+const norm = (s: string) => s.toLowerCase().replace(/\s*\([^)]*\)\s*$/, "").replace(/[^a-z0-9]+/g, " ").trim();
+
+async function splitCombined(text: string) {
+  if (typeof text !== "string" || !text.trim()) throw new ValidationError({ file: ["Choose a CSV file"] });
+  if (Buffer.byteLength(text, "utf8") > MAX_CSV_BYTES) throw new ValidationError({ file: ["The file is larger than 5 MB"] });
+  const { splitCsv, toCsv } = await import("@/lib/bank-csv");
+  const table = splitCsv(text);
+  const header = (table[0] ?? []).map((h) => h.trim().toLowerCase());
+  const col = (name: string) => header.indexOf(name);
+  const [date, id, inst, acct, desc, amount] = ["date", "account id", "institution", "account", "description", "amount"].map(col);
+  if (date === -1 || desc === -1 || amount === -1 || (id === -1 && acct === -1)) {
+    throw new ValidationError({ file: ["A combined file needs Date, Account ID or Account, Description and Amount columns"] });
+  }
+  const accounts = (await prisma.bankAccount.findMany({ select: { id: true, institution: true, name: true } })) as Array<{ id: string; institution: string | null; name: string }>;
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const resolve = (rowId: string, rowInst: string, rowAcct: string) => {
+    if (rowId && byId.has(rowId)) return byId.get(rowId)!;
+    const hits = accounts.filter((a) => norm(a.name) === norm(rowAcct) && (!rowInst || norm(a.institution ?? "") === norm(rowInst)));
+    return hits.length === 1 ? hits[0] : null;
+  };
+  const groups = new Map<string, { account: { id: string; institution: string | null; name: string } | null; label: string; rows: string[][] }>();
+  for (const r of table.slice(1)) {
+    if (r.length < 3 || !r[date]?.trim()) continue;
+    const rowId = id === -1 ? "" : (r[id] ?? "").trim();
+    const rowInst = inst === -1 ? "" : (r[inst] ?? "").trim();
+    const rowAcct = acct === -1 ? "" : (r[acct] ?? "").trim();
+    const key = rowId || `${rowInst}|${rowAcct}`;
+    if (!groups.has(key)) {
+      const account = resolve(rowId, rowInst, rowAcct);
+      groups.set(key, { account, label: [rowInst, rowAcct].filter(Boolean).join(" · ") || rowId, rows: [] });
+    }
+    groups.get(key)!.rows.push([r[date], r[desc], r[amount]]);
+  }
+  return [...groups].map(([key, g]) => ({ key, account: g.account, label: g.label, csv: toCsv(["Date", "Description", "Amount"], g.rows) }));
+}
+
+export async function previewCombinedCsv(text: string): Promise<CombinedPart[]> {
+  const parts = await splitCombined(text);
+  const out: CombinedPart[] = [];
+  for (const p of parts) {
+    if (!p.account) {
+      out.push({ key: p.key, accountId: null, label: p.label, total: 0, duplicates: 0, from: "", to: "" });
+      continue;
+    }
+    const preview = await previewCsv(p.account.id, p.csv);
+    out.push({ key: p.key, accountId: p.account.id, label: p.label, total: preview.total, duplicates: preview.duplicates, from: preview.from, to: preview.to });
+  }
+  return out;
+}
+
+export async function importCombinedCsv(text: string, fileName?: string): Promise<{ added: number; skipped: number; accounts: number; unmatched: string[] }> {
+  const parts = await splitCombined(text);
+  let added = 0;
+  let skipped = 0;
+  let accounts = 0;
+  const unmatched: string[] = [];
+  for (const p of parts) {
+    if (!p.account) {
+      unmatched.push(p.label);
+      continue;
+    }
+    const r = await importCsv(p.account.id, p.csv, false, fileName);
+    added += r.added;
+    skipped += r.skipped;
+    accounts += 1;
+  }
+  return { added, skipped, accounts, unmatched };
+}

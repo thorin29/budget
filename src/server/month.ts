@@ -59,6 +59,8 @@ export interface MonthEntry {
   carriedFrom: { year: number; month: number } | null;
   /** Recorded on its own from an exact bank match. */
   autoPaid?: boolean;
+  /** The payment is tied to a bank charge. */
+  bankLinked?: boolean;
 }
 
 export interface HalfSummary {
@@ -158,6 +160,8 @@ interface ActualRow {
   month: number;
   amount: { toString(): string };
   paidOn: Date | null;
+  source?: string;
+  bankTransactionId?: string | null;
 }
 
 export async function getMonthView(year: number, month: number): Promise<MonthView> {
@@ -209,7 +213,8 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   const actualMap = new Map(
     actuals.map((a) => [key(a.lineItemId, a.year, a.month), toCents(a.amount)]),
   );
-  const autoPaid = new Set(actuals.filter((a) => (a as { source?: string }).source === "auto").map((a) => key(a.lineItemId, a.year, a.month)));
+  const autoPaid = new Set(actuals.filter((a) => a.source === "auto").map((a) => key(a.lineItemId, a.year, a.month)));
+  const bankLinked = new Set(actuals.filter((a) => a.bankTransactionId).map((a) => key(a.lineItemId, a.year, a.month)));
   const paidOnMap = new Map(
     actuals.map((a) => [
       key(a.lineItemId, a.year, a.month),
@@ -310,6 +315,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       actualCents: actual,
       paidOn: paidOnMap.get(k) ?? null,
       autoPaid: autoPaid.has(k),
+      bankLinked: bankLinked.has(k),
       skipped: plan?.skipped ?? false,
       adjusted: budgeted !== (planned.get(item.id) ?? 0),
       half: halfFor(item.dueDay, item.periodAssignment as never, splitDay),
@@ -373,6 +379,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
         actualCents: actualMap.get(k) ?? null,
         paidOn: paidOnMap.get(k) ?? null,
         autoPaid: autoPaid.has(k),
+        bankLinked: bankLinked.has(k),
         skipped: plan?.skipped ?? false,
         adjusted: budgeted !== toCents(item.plannedAmount),
         half: halfFor(item.dueDay, item.periodAssignment as never, splitDay),

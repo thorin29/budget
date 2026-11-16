@@ -10,7 +10,7 @@ import { MissingKeyError } from "@/lib/secret-box";
 import { createLimiter } from "@/lib/auth/rate-limit";
 import { connectBank, deleteAllBankData, disconnectBank, syncBank } from "@/server/bank/sync";
 import { setBankAccountHidden, setBankAccountType, setBillsSource } from "@/server/bank/accounts";
-import { importCsv, previewCsv, revertCsvImport, type CsvPreview } from "@/server/bank/csv-import";
+import { importCombinedCsv, importCsv, previewCombinedCsv, previewCsv, revertCsvImport, type CombinedPart, type CsvPreview } from "@/server/bank/csv-import";
 
 export type BankActionState = { ok: true; message?: string } | { ok: false; message: string };
 export type BankResult<T> = { ok: true; data: T } | { ok: false; message: string };
@@ -163,6 +163,26 @@ export async function connectAccountAction(accountId: string, bankAccountId: str
     await connectAccount(String(accountId), bankAccountId ? String(bankAccountId) : null);
     revalidatePath("/", "layout");
     return { ok: true, message: bankAccountId ? "Connected. Its balance now comes from the bank." : "Disconnected." };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function previewCombinedAction(text: string): Promise<BankResult<CombinedPart[]>> {
+  try {
+    await requireUser();
+    return { ok: true, data: await previewCombinedCsv(String(text)) };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function importCombinedAction(text: string, fileName: string): Promise<BankResult<{ added: number; skipped: number; accounts: number; unmatched: string[] }>> {
+  try {
+    await requireUser();
+    const result = await importCombinedCsv(String(text), String(fileName ?? ""));
+    done();
+    return { ok: true, data: result };
   } catch (error) {
     return failure(error);
   }

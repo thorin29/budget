@@ -3,6 +3,21 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.24.0]
+
+### Added
+- One file for several accounts: Settings → Bank sync → Load past history → "One file for several
+  accounts" takes a combined CSV with an Account ID (or Institution and Account) column. Each
+  account's rows are imported, duplicates skipped, and each part can be undone on its own.
+- A paid item can be moved to the month it was really for ("Was for…" → Move). If that month
+  already has a payment, the bank charge is tied to it and the extra one removed.
+
+### Changed
+- Marking a payment unpaid when it's tied to a bank charge keeps that charge from being used for
+  the item again, so it isn't recorded right back.
+- "Free after the first half" and "Free after the month" are now "First half remaining" and
+  "Second half remaining".
+
 ## [0.23.1]
 
 ### Changed

@@ -75,7 +75,33 @@ export async function clearActualAction(
   const year = int(form, "year");
   const month = int(form, "month");
   return run(year, month, async () => {
-    await clearActual(str(form, "lineItemId"), year, month);
+    const lineItemId = str(form, "lineItemId");
+    const { prisma } = await import("@/lib/prisma");
+    const entry = (await prisma.actualEntry.findUnique({
+      where: { lineItemId_year_month: { lineItemId, year, month } },
+      select: { bankTransactionId: true },
+    })) as { bankTransactionId: string | null } | null;
+    await clearActual(lineItemId, year, month);
+    // A payment tied to a bank charge that the person marks unpaid: that charge is never used for this bill again.
+    if (entry?.bankTransactionId) {
+      const { dismissMatch } = await import("@/server/review");
+      await dismissMatch(lineItemId, entry.bankTransactionId);
+    }
+  });
+}
+
+/** Moves a payment to the month it was really for (a late or early payment). */
+export async function moveActualAction(
+  _prev: FormState,
+  form: FormData,
+): Promise<FormState> {
+  const year = int(form, "year");
+  const month = int(form, "month");
+  return run(year, month, async () => {
+    const target = /^(\d{4})-(\d{1,2})$/.exec(str(form, "toPeriod"));
+    if (!target) throw new ValidationError({ toPeriod: ["Choose the month it was for"] });
+    const { moveActual } = await import("@/server/bills-auto");
+    await moveActual(str(form, "lineItemId"), { year, month }, { year: Number(target[1]), month: Number(target[2]) });
   });
 }
 

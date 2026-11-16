@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import {
   adjustMonthAction,
   clearActualAction,
+  moveActualAction,
   recordActualAction,
   recordBalanceAction,
   type FormState,
@@ -243,6 +244,7 @@ function EntryPanel({ row, onClose }: { row: RowEntry; onClose: () => void }) {
   const [payState, pay, paying] = useActionState(recordActualAction, INITIAL);
   const [clearState, clear, clearing] = useActionState(clearActualAction, INITIAL);
   const [adjustState, adjust, adjusting] = useActionState(adjustMonthAction, INITIAL);
+  const [moveState, move, moving] = useActionState(moveActualAction, INITIAL);
   const suggested = row.actualCents === null ? row.suggestion ?? null : null;
   const [amount, setAmount] = useState(
     toDecimalString(row.actualCents ?? suggested?.amountCents ?? row.budgetedCents),
@@ -258,21 +260,28 @@ function EntryPanel({ row, onClose }: { row: RowEntry; onClose: () => void }) {
   const lastPay = useRef(payState);
   const lastClear = useRef(clearState);
   const lastAdjust = useRef(adjustState);
+  const lastMove = useRef(moveState);
   useEffect(() => {
     const changed =
-      payState !== lastPay.current || clearState !== lastClear.current || adjustState !== lastAdjust.current;
+      payState !== lastPay.current || clearState !== lastClear.current || adjustState !== lastAdjust.current || moveState !== lastMove.current;
     lastPay.current = payState;
     lastClear.current = clearState;
     lastAdjust.current = adjustState;
-    if (changed && payState.ok && clearState.ok && adjustState.ok) onClose();
-  }, [payState, clearState, adjustState, onClose]);
+    lastMove.current = moveState;
+    if (changed && payState.ok && clearState.ok && adjustState.ok && moveState.ok) onClose();
+  }, [payState, clearState, adjustState, moveState, onClose]);
 
   useEffect(() => {
     inputRef.current?.focus();
     inputRef.current?.select();
   }, []);
 
-  const error = [payState, clearState, adjustState].find((s) => !s.ok)?.message;
+  const error = [payState, clearState, adjustState, moveState].find((s) => !s.ok)?.message;
+  // Nearby months a late or early payment could really belong to.
+  const otherMonths = [-3, -2, -1, 1].map((by) => {
+    const n = row.year * 12 + (row.month - 1) + by;
+    return { year: Math.floor(n / 12), month: (n % 12) + 1 };
+  });
 
   const hidden = (
     <>
@@ -306,6 +315,12 @@ function EntryPanel({ row, onClose }: { row: RowEntry; onClose: () => void }) {
           </p>
         ) : null}
         {error ? <p className="mb-3 text-sm text-danger">{error}</p> : null}
+        {paid && row.bankLinked ? (
+          <p className="mb-3 text-xs text-muted">
+            Tied to a bank charge. Marking it unpaid keeps that charge from being used for this item again; if it was
+            for another month, choose the month and Move.
+          </p>
+        ) : null}
 
         <div className="flex flex-wrap items-end gap-3">
           <label className="w-40">
@@ -366,6 +381,28 @@ function EntryPanel({ row, onClose }: { row: RowEntry; onClose: () => void }) {
 
           <span className="flex-1" />
 
+          {paid ? (
+            <span className="flex items-center gap-1.5">
+              <select
+                name="toPeriod"
+                aria-label="Month this payment was for"
+                defaultValue=""
+                className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm"
+              >
+                <option value="" disabled>
+                  Was for…
+                </option>
+                {otherMonths.map((m) => (
+                  <option key={`${m.year}-${m.month}`} value={`${m.year}-${m.month}`}>
+                    {shortMonth(m.month)} {m.year}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" formAction={move} formNoValidate disabled={moving} className={buttonClass("quiet")}>
+                Move
+              </button>
+            </span>
+          ) : null}
           {paid ? (
             <button
               type="submit"

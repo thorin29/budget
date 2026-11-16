@@ -230,14 +230,14 @@ export default async function MonthPage({
         )}
 
         <StatCard
-          label="Free after the first half"
+          label="First half remaining"
           value={view.transferAfterFirstCents === null ? "—" : formatCents(view.transferAfterFirstCents)}
           tone={view.transferAfterFirstCents !== null && view.transferAfterFirstCents < 0 ? "danger" : "default"}
           detail={`${formatCents(view.halves[0].remainingCents + view.carriedCents)} still owed before the ${ordinal(view.splitDay)}`}
         />
 
         <StatCard
-          label="Free after the month"
+          label="Second half remaining"
           value={free === null ? "—" : formatCents(free)}
           tone={free !== null && free < 0 ? "danger" : "default"}
           detail={`${formatCents(view.totalRemainingCents)} still owed this month`}

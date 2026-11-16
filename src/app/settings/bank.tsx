@@ -8,6 +8,8 @@ import {
   deleteBankDataAction,
   disconnectBankAction,
   importCsvAction,
+  importCombinedAction,
+  previewCombinedAction,
   previewCsvAction,
   revertCsvAction,
   setAccountHiddenAction,
@@ -17,7 +19,7 @@ import {
   syncBankAction,
   type BankActionState,
 } from "./bank-actions";
-import type { CsvPreview } from "@/server/bank/csv-import";
+import type { CombinedPart, CsvPreview } from "@/server/bank/csv-import";
 
 const INITIAL: BankActionState = { ok: true };
 
@@ -346,5 +348,82 @@ export function LinkAccountToBank({ accountId, current, options }: { accountId: 
       </Select>
       {state ? <span className={`text-xs ${state.ok ? "text-muted" : "text-danger"}`}>{state.message}</span> : null}
     </span>
+  );
+}
+
+/** One history file carrying several accounts' rows, each tagged with its account. */
+export function CombinedImporter() {
+  const [file, setFile] = useState<{ name: string; text: string } | null>(null);
+  const [parts, setParts] = useState<CombinedPart[] | null>(null);
+  const [message, setMessage] = useState<BankActionState | null>(null);
+  const [pending, start] = useTransition();
+  const ready = parts?.filter((p) => p.accountId && p.total > p.duplicates) ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Notice state={message} />
+      <label className="block text-[13px] font-semibold">
+        Combined CSV file
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          className="mt-1 block w-full text-sm text-muted file:mr-3 file:rounded-[10px] file:border file:border-line-strong file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground"
+          onChange={async (e) => {
+            setParts(null);
+            setMessage(null);
+            const chosen = e.target.files?.[0];
+            if (!chosen) return setFile(null);
+            if (chosen.size > 5 * 1024 * 1024) return setMessage({ ok: false, message: "The file is larger than 5 MB" });
+            const text = await chosen.text();
+            setFile({ name: chosen.name, text });
+            start(async () => {
+              const r = await previewCombinedAction(text);
+              if (r.ok) setParts(r.data);
+              else setMessage(r);
+            });
+          }}
+        />
+      </label>
+      {pending && !parts ? <p className="text-sm text-muted">Reading…</p> : null}
+      {parts ? (
+        <div className="rounded-xl border border-line p-4 text-sm">
+          <ul className="divide-y divide-line">
+            {parts.map((p) => (
+              <li key={p.key} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="font-medium">{p.label}</span>
+                <span className="text-xs text-muted">
+                  {!p.accountId
+                    ? "No matching account; these rows will be left out"
+                    : `${p.total} rows, ${p.from} to ${p.to}${p.duplicates ? ` · ${p.duplicates} already here` : ""}`}
+                </span>
+              </li>
+            ))}
+          </ul>
+          <div className="mt-4">
+            <Button
+              type="button"
+              disabled={pending || !ready.length}
+              onClick={() =>
+                start(async () => {
+                  if (!file) return;
+                  const r = await importCombinedAction(file.text, file.name);
+                  setParts(null);
+                  setMessage(
+                    r.ok
+                      ? {
+                          ok: true,
+                          message: `Imported ${r.data.added} transactions into ${r.data.accounts} accounts; skipped ${r.data.skipped} already here.${r.data.unmatched.length ? ` Left out: ${r.data.unmatched.join(", ")}.` : ""}`,
+                        }
+                      : r,
+                  );
+                })
+              }
+            >
+              {pending ? "Importing…" : `Import into ${ready.length} account${ready.length === 1 ? "" : "s"}`}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

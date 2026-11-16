@@ -178,3 +178,33 @@ export async function undoDueDay(lineItemId: string): Promise<void> {
 export async function keepDueDay(lineItemId: string): Promise<void> {
   await prisma.lineItem.update({ where: { id: lineItemId }, data: { dueDayPrevious: null, dueDayChangedAt: null } });
 }
+
+/**
+ * Moves a payment to the month it was really for. When that month already has
+ * a payment, the bank charge (if any) is tied to it and this one is removed,
+ * so the charge can never count for the wrong month again.
+ */
+export async function moveActual(lineItemId: string, from: { year: number; month: number }, to: { year: number; month: number }): Promise<void> {
+  if (from.year === to.year && from.month === to.month) return;
+  if (to.month < 1 || to.month > 12) throw new NotFoundError("Month");
+  const source = (await prisma.actualEntry.findUnique({
+    where: { lineItemId_year_month: { lineItemId, year: from.year, month: from.month } },
+    select: { id: true, bankTransactionId: true },
+  })) as { id: string; bankTransactionId: string | null } | null;
+  if (!source) throw new NotFoundError("Payment");
+  const target = (await prisma.actualEntry.findUnique({
+    where: { lineItemId_year_month: { lineItemId, year: to.year, month: to.month } },
+    select: { id: true, bankTransactionId: true },
+  })) as { id: string; bankTransactionId: string | null } | null;
+  if (target) {
+    await prisma.actualEntry.delete({ where: { id: source.id } });
+    if (source.bankTransactionId && !target.bankTransactionId) {
+      await prisma.actualEntry.update({ where: { id: target.id }, data: { bankTransactionId: source.bankTransactionId } });
+    } else if (source.bankTransactionId) {
+      // The other month already has its charge; this one must not come back for the bill.
+      await dismissMatch(lineItemId, source.bankTransactionId);
+    }
+  } else {
+    await prisma.actualEntry.update({ where: { id: source.id }, data: { year: to.year, month: to.month, source: "manual" } });
+  }
+}

@@ -43,7 +43,7 @@ import { getConnection } from "@/server/bank/sync";
 import { listBankAccounts } from "@/server/bank/accounts";
 import { listCsvImports } from "@/server/bank/csv-import";
 import { syncHour } from "@/lib/bank-schedule";
-import { BillsSource, ConnectBank, CsvImporter, LinkAccountToBank, DeleteBankData, RevertImport, SyncControls } from "../bank";
+import { BillsSource, CombinedImporter, ConnectBank, CsvImporter, LinkAccountToBank, DeleteBankData, RevertImport, SyncControls } from "../bank";
 
 export const dynamic = "force-dynamic";
 
@@ -640,6 +640,14 @@ async function Bank() {
               .filter((a) => !a.hidden)
               .map((a) => ({ id: a.id, label: a.institution ? `${a.institution} · ${a.displayName}` : a.displayName }))}
           />
+          <details className="mt-5 rounded-xl border border-line p-4">
+            <summary className="cursor-pointer text-sm font-semibold">One file for several accounts</summary>
+            <p className="mb-3 mt-2 max-w-prose text-xs text-muted">
+              A combined file with an Account ID (or Institution and Account) column on every row, like the
+              Transactions export above. Each account&rsquo;s rows are imported and can be undone on their own.
+            </p>
+            <CombinedImporter />
+          </details>
           {imports.length ? (
             <ul className="mt-5 divide-y divide-line rounded-xl border border-line text-sm">
               {imports.map((b: { id: string; createdAt: Date; fileName: string | null; added: number; skipped: number; revertedAt: Date | null; account: { name: string } }) => (
