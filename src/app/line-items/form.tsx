@@ -384,7 +384,7 @@ export function LineItemForm({
           name="autoRecord"
           defaultChecked={defaults.autoRecord}
           label={isIncome ? "Record it when it arrives" : "Record it when the bank shows it paid"}
-          detail="Once a charge has been tied to this item, an exact match (the expected amount, around the due day) is recorded on its own, with an Undo. Anything else still waits for you."
+          detail="Once a merchant has been tied to this item, its charge around the due day is recorded on its own, even when the amount changes, with an Undo on the Review page. A charge from a merchant it doesn't know yet still waits for you."
         />
 
         <details className="group rounded-xl border border-line">

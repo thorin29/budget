@@ -6,17 +6,17 @@
  *     remembers the merchant for the bill. Nothing new is recorded.
  *  2. Moves each bill's due day to when it actually posts, unless the person
  *     set the day themselves.
- *  3. Records a payment on its own when a charge matches a bill exactly: a
- *     merchant already tied to the bill, the planned or last amount within $1,
- *     around the due day. Undo is on the Review page; anything less exact
- *     still waits there for a Confirm.
+ *  3. Records a payment on its own when the charge comes from a merchant
+ *     already tied to the bill, around the due day, in the usual amount range
+ *     (bills like utilities vary). Undo is on the Review page; a charge from a
+ *     merchant it doesn't know yet still waits there for a Confirm.
  */
 
 import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
 import { merchantKey } from "@/lib/field-crypto";
 import { SPENDING_TYPES, type AccountType } from "@/lib/account-type";
-import { exactMatch, learnedDueDay, pairRecorded, shouldMoveDueDay } from "@/lib/bill-history";
+import { knownMatch, learnedDueDay, pairRecorded, shouldMoveDueDay } from "@/lib/bill-history";
 import type { MatchTxn } from "@/lib/bill-match";
 import { recordActual, clearActual } from "./month";
 import { dismissMatch, getReview, linkActual } from "./review";
@@ -37,24 +37,24 @@ export async function linkRecordedPayments(): Promise<number> {
   const since = new Date(Date.now() - 800 * DAY);
   const entries = (await prisma.actualEntry.findMany({
     where: { bankTransactionId: null, year: { gte: since.getUTCFullYear() } },
-    select: { id: true, lineItemId: true, year: true, month: true, amount: true, paidOn: true, lineItem: { select: { kind: true, dueDay: true } } },
-  })) as Array<{ id: string; lineItemId: string; year: number; month: number; amount: { toString(): string }; paidOn: Date | null; lineItem: { kind: string; dueDay: number | null } }>;
+    select: { id: true, lineItemId: true, year: true, month: true, amount: true, paidOn: true, lineItem: { select: { kind: true, dueDay: true, name: true } } },
+  })) as Array<{ id: string; lineItemId: string; year: number; month: number; amount: { toString(): string }; paidOn: Date | null; lineItem: { kind: string; dueDay: number | null; name: string } }>;
   if (!entries.length) return 0;
 
   const txns = (await prisma.bankTransaction.findMany({
     where: { postedOn: { gte: since }, pending: false, kind: { not: "IGNORED" }, actual: { is: null }, account: { hidden: false } },
-    select: { id: true, postedOn: true, amount: true, merchant: true, account: { select: { type: true } } },
-  })) as Array<{ id: string; postedOn: Date; amount: { toString(): string }; merchant: string; account: { type: AccountType } }>;
+    select: { id: true, postedOn: true, amount: true, merchant: true, description: true, account: { select: { type: true } } },
+  })) as Array<{ id: string; postedOn: Date; amount: { toString(): string }; merchant: string; description: string; account: { type: AccountType } }>;
   const merchantOf = new Map(txns.map((t) => [t.id, t.merchant]));
   const usable: MatchTxn[] = txns
     .map((t) => ({ t, cents: toCents(t.amount) }))
     .filter(({ t, cents }) => SPENDING_TYPES.includes(t.account.type) || (cents > 0 && t.account.type === "SAVINGS"))
-    .map(({ t, cents }) => ({ id: t.id, postedOn: iso(t.postedOn), amountCents: cents, merchant: t.merchant, description: "", merchantKey: "" }));
+    .map(({ t, cents }) => ({ id: t.id, postedOn: iso(t.postedOn), amountCents: cents, merchant: t.merchant, description: t.description, merchantKey: "" }));
 
   const pairs = pairRecorded(
     entries.map((e) => ({
       actualId: e.id, lineItemId: e.lineItemId, year: e.year, month: e.month, income: e.lineItem.kind === "INCOME",
-      amountCents: toCents(e.amount), paidOn: e.paidOn ? iso(e.paidOn) : null, dueDay: e.lineItem.dueDay,
+      amountCents: toCents(e.amount), paidOn: e.paidOn ? iso(e.paidOn) : null, dueDay: e.lineItem.dueDay, name: e.lineItem.name,
     })),
     usable,
   );
@@ -101,8 +101,7 @@ export async function recordExactMatches(): Promise<number> {
   let recorded = 0;
   for (const s of known) {
     if (!items.get(s.lineItemId)?.autoRecord) continue;
-    const last = (await prisma.actualEntry.findFirst({ where: { lineItemId: s.lineItemId }, orderBy: [{ year: "desc" }, { month: "desc" }], select: { amount: true } })) as { amount: { toString(): string } } | null;
-    if (!exactMatch({ knownMerchant: true, amountCents: s.amountCents, budgetedCents: s.budgetedCents, lastPaidCents: last ? toCents(last.amount) : null })) continue;
+    if (!knownMatch({ knownMerchant: s.known })) continue;
     await recordActual(s.lineItemId, s.year, s.month, s.amountCents, undefined, new Date(`${s.postedOn}T00:00:00Z`));
     await prisma.actualEntry.update({ where: { lineItemId_year_month: { lineItemId: s.lineItemId, year: s.year, month: s.month } }, data: { source: "auto" } });
     await linkActual(s.lineItemId, s.year, s.month, s.txnId, s.merchant);

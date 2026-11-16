@@ -536,16 +536,17 @@ no bank name is stored in plain text.
 
 The person asked for exact matches to be recorded without a Confirm, so the
 rule changed from "suggest only" to "record when exact, suggest otherwise".
-Exact means all of: the merchant was tied to the bill before (by a Confirm or
-by history), the amount is the planned or last one within $1, and the charge
-is in the bill's date window. Each line item can opt out, and every automatic
+Since 0.23.1 "exact" means the merchant: it was tied to the bill before (by a
+Confirm or by history) and the charge is in the bill's date window and usual
+amount range. Amounts alone don't decide, because bills like utilities vary. Each line item can opt out, and every automatic
 entry has an Undo that also blocks that charge for the bill.
 
 - **History first.** Hand-recorded payments are paired with their charge only
   when the pairing is unique on both sides. Linking records nothing; it is how
   an existing budget learns its merchants without a month of Confirms.
-- **Due days** move after three linked payments within four days of each
-  other, when the learned day differs by three or more. A due day changed by
+- **Due days** move after three linked payments: the middle of the last six
+  when they sit within a week, otherwise the latest three when they agree,
+  and only when the learned day differs by three or more. A due day changed by
   hand locks the item.
 - **Order:** link history, then learn due days, then record exact matches, so
   the date window already reflects the learned day.

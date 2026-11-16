@@ -3,6 +3,16 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.23.1]
+
+### Changed
+- Automatic recording goes by the merchant, not the amount: once a merchant is tied to a bill, its
+  charge around the due day is recorded even when the amount changes (utilities), as long as it's
+  within the usual range.
+- Payments recorded by hand also pair with a charge that names the bill at a different amount.
+- Due days that drift are learned too: the middle of the last six posting days when they sit
+  within a week, or the latest three when the bill has moved.
+
 ## [0.23.0]
 
 ### Added

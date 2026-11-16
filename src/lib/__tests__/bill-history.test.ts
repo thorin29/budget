@@ -1,6 +1,6 @@
 // Every bill and amount here is invented.
 import { describe, expect, it } from "vitest";
-import { exactMatch, learnedDueDay, pairRecorded, shouldMoveDueDay, type RecordedEntry } from "../bill-history";
+import { knownMatch, learnedDueDay, pairRecorded, shouldMoveDueDay, type RecordedEntry } from "../bill-history";
 import type { MatchTxn } from "../bill-match";
 
 const entry = (over: Partial<RecordedEntry> = {}): RecordedEntry => ({
@@ -14,6 +14,12 @@ describe("pairRecorded", () => {
   it("pairs a recorded payment with its charge by amount and date", () => {
     expect(pairRecorded([entry()], [txn()])).toEqual([{ actualId: "a1", lineItemId: "car", txnId: "t1" }]);
     expect(pairRecorded([entry({ paidOn: "2026-10-17" })], [txn()])).toHaveLength(1);
+  });
+
+  it("pairs a varying bill by name at a different amount", () => {
+    const utility = entry({ lineItemId: "power", name: "Electric", amountCents: 18_000 });
+    expect(pairRecorded([utility], [txn({ amountCents: -14_250, merchant: "Example Electric Co-op" })])).toHaveLength(1);
+    expect(pairRecorded([utility], [txn({ amountCents: -14_250, merchant: "Somewhere Else" })])).toEqual([]);
   });
 
   it("skips anything ambiguous, far off, or the wrong way", () => {
@@ -30,6 +36,10 @@ describe("due days", () => {
     expect(learnedDueDay(["2026-08-18", "2026-09-17", "2026-10-19"])).toBe(18);
     expect(learnedDueDay(["2026-09-17", "2026-10-19"])).toBeNull();
     expect(learnedDueDay(["2026-08-02", "2026-09-17", "2026-10-28"])).toBeNull();
+    // Drifting within a week: the middle day.
+    expect(learnedDueDay(["2026-05-12", "2026-06-15", "2026-07-18", "2026-08-14", "2026-09-17", "2026-10-13"])).toBe(15);
+    // Moved recently: the latest three decide.
+    expect(learnedDueDay(["2026-05-03", "2026-06-04", "2026-07-02", "2026-08-22", "2026-09-21", "2026-10-23"])).toBe(22);
   });
 
   it("moves only when the difference matters", () => {
@@ -40,11 +50,9 @@ describe("due days", () => {
   });
 });
 
-describe("exactMatch", () => {
-  it("needs a known merchant and the planned or last amount", () => {
-    expect(exactMatch({ knownMerchant: true, amountCents: 150_000, budgetedCents: 150_000, lastPaidCents: null })).toBe(true);
-    expect(exactMatch({ knownMerchant: true, amountCents: 152_310, budgetedCents: 150_000, lastPaidCents: 152_310 })).toBe(true);
-    expect(exactMatch({ knownMerchant: true, amountCents: 160_000, budgetedCents: 150_000, lastPaidCents: 152_310 })).toBe(false);
-    expect(exactMatch({ knownMerchant: false, amountCents: 150_000, budgetedCents: 150_000, lastPaidCents: null })).toBe(false);
+describe("knownMatch", () => {
+  it("goes by the merchant, not the amount", () => {
+    expect(knownMatch({ knownMerchant: true })).toBe(true);
+    expect(knownMatch({ knownMerchant: false })).toBe(false);
   });
 });

@@ -7,7 +7,7 @@
  *  - whether a charge matches a bill exactly enough to record on its own.
  */
 
-import type { MatchTxn } from "./bill-match";
+import { tokens, type MatchTxn } from "./bill-match";
 
 export interface RecordedEntry {
   actualId: string;
@@ -19,6 +19,8 @@ export interface RecordedEntry {
   /** YYYY-MM-DD, when the person gave one. */
   paidOn: string | null;
   dueDay: number | null;
+  /** The bill's name, so a charge that names it can match a different amount. */
+  name?: string;
 }
 
 const day = (iso: string) => Math.round(Date.parse(`${iso}T00:00:00Z`) / 86_400_000);
@@ -29,10 +31,12 @@ function dueIso(year: number, month: number, dueDay: number | null): string {
 }
 
 /**
- * Pairs hand-recorded payments with the bank charge that was them: the same
- * amount (within $1), the right direction, and a date that fits (within 5 days
- * of the paid date given, or near that month's due day). Only pairs where
- * neither side has another candidate are returned.
+ * Pairs hand-recorded payments with the bank charge that was them: the right
+ * direction, a date that fits (within 5 days of the paid date given, or near
+ * that month's due day), and either the same amount (within $1) or a charge
+ * that shares a word with the bill's name at a similar amount (60–140%), since
+ * bills like utilities vary. Only pairs where neither side has another
+ * candidate are returned.
  */
 export function pairRecorded(entries: RecordedEntry[], txns: MatchTxn[]): Array<{ actualId: string; lineItemId: string; txnId: string }> {
   const candidates = new Map<string, Set<string>>();
@@ -41,7 +45,12 @@ export function pairRecorded(entries: RecordedEntry[], txns: MatchTxn[]): Array<
     if (e.amountCents <= 0) continue;
     for (const t of txns) {
       if (e.income ? t.amountCents <= 0 : t.amountCents >= 0) continue;
-      if (Math.abs(Math.abs(t.amountCents) - e.amountCents) > 100) continue;
+      const amount = Math.abs(t.amountCents);
+      const exact = Math.abs(amount - e.amountCents) <= 100;
+      const named =
+        !exact && e.name !== undefined && amount >= e.amountCents * 0.6 && amount <= e.amountCents * 1.4 &&
+        [...tokens(e.name)].some((w) => tokens(`${t.merchant} ${t.description}`).has(w));
+      if (!exact && !named) continue;
       const posted = day(t.postedOn);
       const fits = e.paidOn
         ? Math.abs(posted - day(e.paidOn)) <= 5
@@ -62,18 +71,24 @@ export function pairRecorded(entries: RecordedEntry[], txns: MatchTxn[]): Array<
   return out;
 }
 
+const middle = (days: number[]) => [...days].sort((a, b) => a - b)[Math.floor(days.length / 2)];
+
 /**
- * The day of the month a bill actually posts, from the posting dates of its
- * recent linked payments: at least three, all within four days of the middle
- * one. Null when there isn't enough to go on or they scatter.
+ * The day of the month a bill actually posts, from its recent linked
+ * payments. Bills drift (weekends, billing cycles), so it takes the middle of
+ * the last six when they sit within a week of each other, or the middle of the
+ * last three when the older ones have moved. Null with fewer than three, or
+ * when even the latest three scatter.
  */
 export function learnedDueDay(postedOn: string[]): number | null {
   const recent = [...postedOn].sort().slice(-6);
   if (recent.length < 3) return null;
-  const days = recent.map((d) => Number(d.slice(8, 10))).sort((a, b) => a - b);
-  const median = days[Math.floor(days.length / 2)];
-  if (days.some((d) => Math.abs(d - median) > 4)) return null;
-  return median;
+  const days = recent.map((d) => Number(d.slice(8, 10)));
+  const all = middle(days);
+  if (days.every((d) => Math.abs(d - all) <= 7)) return all;
+  const latest = days.slice(-3);
+  const last = middle(latest);
+  return latest.every((d) => Math.abs(d - last) <= 4) ? last : null;
 }
 
 /** Whether the due day should move: a learned day at least three days from the current one. */
@@ -83,11 +98,11 @@ export function shouldMoveDueDay(current: number | null, learned: number | null)
 }
 
 /**
- * Exact enough to record without asking: the merchant is already tied to the
- * bill, and the amount is the planned one or last time's, within $1.
+ * Sure enough to record without asking: the charge comes from a merchant
+ * already tied to the bill. The amount only has to be in the usual range
+ * (60–140% of the plan, checked by the matcher), because bills like
+ * utilities change every month.
  */
-export function exactMatch(input: { knownMerchant: boolean; amountCents: number; budgetedCents: number; lastPaidCents: number | null }): boolean {
-  if (!input.knownMerchant) return false;
-  const near = (x: number) => Math.abs(input.amountCents - x) <= 100;
-  return near(input.budgetedCents) || (input.lastPaidCents !== null && near(input.lastPaidCents));
+export function knownMatch(input: { knownMerchant: boolean }): boolean {
+  return input.knownMerchant;
 }

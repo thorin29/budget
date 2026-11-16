@@ -13,7 +13,7 @@ export default async function ReviewPage() {
     <div className="mx-auto max-w-3xl space-y-8">
       <PageHeading
         title="Review"
-        description="What the bank feed noticed. Exact matches to a bill it already knows are recorded on their own and listed here with an Undo; everything else waits for you."
+        description="What the bank feed noticed. Charges from a merchant already tied to a bill are recorded on their own and listed here with an Undo; everything else waits for you."
         action={
           <Link href="/transactions" className={buttonClass("quiet")}>
             Transactions
