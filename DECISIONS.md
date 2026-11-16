@@ -43,11 +43,6 @@ decision to be recorded here, not something to do in passing.
 
 ## Open
 
-### Bank sync
-
-Still only an idea. If it comes, every outside fetch goes through one guarded
-helper (https only, no private addresses, no redirects) before anything else.
-
 ### A one-tap paid tick
 
 Parked. A check mark beside each bill would be quicker, but it is easy to hit by
@@ -400,3 +395,37 @@ and its six accents, each with a light and a dark tone. The accent is the
 `data-theme` attribute; the hero card is the accent itself, with
 `--on-accent` for text on it (white in light mode, a dark tint in dark mode,
 since dark-mode accents are light). Old Cool/Warm cookies fall back to Cobalt.
+
+## Bank sync (0.17)
+
+Through the SimpleFIN protocol, so any compatible bridge works and none is
+built in. Read-only by design: the protocol has no way to move money.
+
+- **Off until asked for.** Nothing runs, and no outside request is made, until
+  `BANK_SYNC_KEY` is set and a setup token is pasted in.
+- **One guarded door.** `src/server/bank/simplefin-client.ts` is the only code
+  that reaches outside: https on 443 only, hosts on an allow-list
+  (`SIMPLEFIN_EXTRA_HOSTS` adds more), no private or loopback addresses, no
+  redirects, a 60-second timeout and a 25 MB cap. Credentials go in the
+  Authorization header, never in a URL or a log.
+- **The access link is encrypted** with AES-256-GCM under a key derived from
+  `BANK_SYNC_KEY`, so a database backup alone can't read anyone's accounts.
+  The setup token is used once and never stored.
+- **Generic in the repo, personal in the database.** Merchant cleanup rules
+  describe description formats (processor prefixes, store numbers, order ids),
+  never particular merchants. Institution names, account names and anything
+  else from the feed live only in the database. Tests use invented names.
+- **Every account is the person's call.** Spending, Balance only or Hidden;
+  nothing is used until chosen. Transfers pair only between included accounts,
+  so a hidden account's moves stay visible on the included side.
+- **Transfers:** opposite amounts to the cent, different accounts, within five
+  days, closest first, each row once. No keyword guessing; wording varies too
+  much to trust. Verification cents (under a dollar, labeled as such) are
+  ignored.
+- **Duplicates** between a CSV and the feed match on amount within three days,
+  one to one, because the two copies are dated and worded differently.
+- **Quota.** Bridges allow a couple of dozen requests a day: one daily sync,
+  retries three hours apart, and at most six manual syncs a day. Each sync
+  re-reads two weeks so pending charges that post at a new amount are fixed.
+- **Suggestions only, later.** Nothing from the feed records a payment. A
+  "looks paid" hint will come, and the person still confirms it.

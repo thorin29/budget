@@ -36,6 +36,14 @@ import {
   SignOutEverywhere,
 } from "../security";
 import { listDevices } from "@/server/device-auth";
+import { configuredKey } from "@/lib/secret-box";
+import { allowedHosts } from "@/lib/simplefin";
+import { formatCents } from "@/lib/money";
+import { getConnection } from "@/server/bank/sync";
+import { listBankAccounts } from "@/server/bank/accounts";
+import { listCsvImports } from "@/server/bank/csv-import";
+import { syncHour } from "@/lib/bank-schedule";
+import { AccountChoice, ConnectBank, CsvImporter, DeleteBankData, RevertImport, SyncControls } from "../bank";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +68,8 @@ export default async function SettingsSection({
       return <Categories />;
     case "pay":
       return <Pay />;
+    case "bank":
+      return <Bank />;
     case "data":
       return <Data />;
     case "about":
@@ -449,6 +459,178 @@ async function Data() {
   );
 }
 
+// ---------------------------------------------------------------- bank sync
+
+const stamp = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+
+const USE_HELP: Array<[string, string]> = [
+  ["Spending", "Checking and cards. Their charges are your spending."],
+  ["Balance only", "Savings, loans, retirement and investments. Only the balance counts."],
+  ["Hidden", "Received but ignored, such as someone else's account."],
+];
+
+async function Bank() {
+  const key = configuredKey();
+  const [connection, accounts, imports, budgetAccounts] = await Promise.all([
+    getConnection(),
+    listBankAccounts(),
+    listCsvImports(),
+    listAccounts(),
+  ]);
+  const bankBudgetAccounts = budgetAccounts.filter((a) => a.kind === "BANK").map((a) => ({ id: a.id, name: a.name }));
+  const undecided = accounts.filter((a) => !a.use).length;
+  const groups = new Map<string, typeof accounts>();
+  for (const a of accounts) {
+    const k = a.institution ?? "Other";
+    groups.set(k, [...(groups.get(k) ?? []), a]);
+  }
+
+  return (
+    <div className="space-y-6">
+      <SectionHeading
+        title="Bank sync"
+        description="Optional. Reads balances and transactions once a day through a SimpleFIN bridge. Read-only: nothing here can move money."
+      />
+
+      {!key ? (
+        <Card className="p-6">
+          <h3 className="font-sans text-base font-bold">Turn it on</h3>
+          <p className="mt-1 max-w-prose text-sm text-muted">
+            Bank sync needs an encryption key in the container settings, so the access link is never stored in the
+            clear. Set <code className="rounded bg-neutral-soft px-1">BANK_SYNC_KEY</code> to a random string of at least 32
+            characters (for example the output of <code className="rounded bg-neutral-soft px-1">openssl rand -base64 48</code>),
+            restart, and come back here. Keep a copy: changing it later means connecting again.
+          </p>
+        </Card>
+      ) : !connection ? (
+        <Card className="p-6">
+          <h3 className="font-sans text-base font-bold">Connect</h3>
+          <p className="mb-4 mt-1 max-w-prose text-sm text-muted">
+            In your bridge account, create a setup token for a new app and paste it here. Allowed bridges:{" "}
+            {allowedHosts().join(", ")}.
+          </p>
+          <ConnectBank />
+        </Card>
+      ) : (
+        <Card className="p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h3 className="font-sans text-base font-bold">Connected</h3>
+              <p className="mt-1 text-sm text-muted">
+                Through {connection.host}. Last good sync:{" "}
+                {connection.lastSuccessAt ? stamp.format(connection.lastSuccessAt) : "not yet"}. Syncs daily after{" "}
+                {syncHour()}:00.
+              </p>
+            </div>
+            <Link href="/transactions" className="text-sm font-semibold text-accent-text hover:underline">
+              View transactions
+            </Link>
+          </div>
+          {connection.lastError ? (
+            <p className="mt-3 rounded-xl bg-danger-soft px-3.5 py-2.5 text-sm text-danger">{connection.lastError}</p>
+          ) : null}
+          {connection.messages.length ? (
+            <div className="mt-3 rounded-xl bg-warn-soft px-3.5 py-2.5 text-sm text-warn">
+              <p className="font-semibold">The bridge reported:</p>
+              <ul className="mt-1 list-disc pl-5">
+                {connection.messages.map((m: string, i: number) => (
+                  <li key={i}>{m}</li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+          <div className="mt-4">
+            <SyncControls />
+          </div>
+        </Card>
+      )}
+
+      {accounts.length ? (
+        <Card className="p-6">
+          <h3 className="font-sans text-base font-bold">Accounts</h3>
+          <p className="mt-1 max-w-prose text-sm text-muted">
+            Everything the feed sent. Choose how each is used{undecided ? ` — ${undecided} still to choose` : ""}. A bank
+            account can also keep a Budget account&rsquo;s balance current, such as your bills account.
+          </p>
+          <dl className="mt-3 grid gap-x-4 gap-y-1 text-xs text-muted sm:grid-cols-[7rem_1fr]">
+            {USE_HELP.map(([term, text]) => (
+              <div key={term} className="contents">
+                <dt className="font-semibold text-foreground">{term}</dt>
+                <dd>{text}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="mt-5 space-y-5">
+            {[...groups.entries()].map(([institution, list]) => (
+              <div key={institution}>
+                <h4 className="text-[13px] font-semibold">{institution}</h4>
+                <ul className="mt-2 divide-y divide-line rounded-xl border border-line">
+                  {list.map((a) => (
+                    <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                      <span className="min-w-0">
+                        <span className="font-semibold">{a.name}</span>
+                        {!a.use ? <span className="ml-2 rounded-full bg-info-soft px-2 py-0.5 text-xs font-semibold text-info">New</span> : null}
+                        <span className="block text-xs text-muted">
+                          {a.balanceCents !== null ? formatCents(a.balanceCents, { currency: /^[A-Z]{3}$/.test(a.currency) ? a.currency : "USD" }) : "No balance"}
+                          {a.balanceDate ? ` as of ${dateFormat.format(a.balanceDate)}` : ""} · {a.transactionCount} transactions
+                          {a.latestOn ? `, latest ${dateFormat.format(a.latestOn)}` : ""}
+                        </span>
+                      </span>
+                      <AccountChoice id={a.id} use={a.use} linkedAccountId={a.linkedAccountId} budgetAccounts={bankBudgetAccounts} />
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
+
+      {accounts.length ? (
+        <Card className="p-6">
+          <h3 className="font-sans text-base font-bold">Load past history from CSV</h3>
+          <p className="mb-4 mt-1 max-w-prose text-sm text-muted">
+            The feed only reaches back about 90 days. A transaction export from your bank&rsquo;s website fills in
+            earlier months. Rows already here are skipped, and a file can be undone.
+          </p>
+          <CsvImporter
+            accounts={accounts
+              .filter((a) => a.use !== "HIDDEN")
+              .map((a) => ({ id: a.id, label: a.institution ? `${a.institution} · ${a.name}` : a.name }))}
+          />
+          {imports.length ? (
+            <ul className="mt-5 divide-y divide-line rounded-xl border border-line text-sm">
+              {imports.map((b: { id: string; createdAt: Date; fileName: string | null; added: number; skipped: number; revertedAt: Date | null; account: { name: string } }) => (
+                <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
+                  <span>
+                    <span className="font-medium">{b.fileName ?? "CSV file"}</span>
+                    <span className="block text-xs text-muted">
+                      {dateFormat.format(b.createdAt)} · {b.account.name} · {b.added} added, {b.skipped} skipped
+                      {b.revertedAt ? " · undone" : ""}
+                    </span>
+                  </span>
+                  {!b.revertedAt ? <RevertImport importId={b.id} /> : null}
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Card>
+      ) : null}
+
+      {accounts.length || connection ? (
+        <Card className="p-6">
+          <h3 className="font-sans text-base font-bold">Remove</h3>
+          <p className="mb-4 mt-1 max-w-prose text-sm text-muted">
+            Deletes every feed account, transaction and import, and the connection. Budget&rsquo;s own accounts and
+            payments are not touched.
+          </p>
+          <DeleteBankData />
+        </Card>
+      ) : null}
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------- about
 
 function About() {
@@ -468,8 +650,8 @@ function About() {
         </dd>
       </dl>
       <p className="mt-5 max-w-prose text-sm text-muted">
-        Self-hosted. Everything you enter stays in your own database; the app makes no outside
-        requests, and fonts are bundled.
+        Self-hosted. Everything you enter stays in your own database, and fonts are bundled. The only
+        outside requests are bank sync&rsquo;s, and only once you connect it.
       </p>
     </Card>
   );

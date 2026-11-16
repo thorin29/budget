@@ -3,6 +3,24 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.17.0]
+
+### Added
+- Bank sync, optional and read-only, through a SimpleFIN bridge. Settings → Bank sync: paste a setup
+  token, and every account the bridge sends is listed with its balance and transaction count. Mark
+  each one Spending, Balance only or Hidden, and let a bank account keep a Budget account's balance
+  current, such as the bills account.
+- A daily sync (after 6 AM by default) plus Sync now. The bridge's own warnings, such as a login
+  that needs attention, are shown.
+- Merchant names cleaned of card-processor prefixes, store numbers and order ids, so one store is
+  one name.
+- Transfers between your own accounts are matched and set aside, and account-verification cents
+  are ignored.
+- Load past history from a bank's CSV export, any common layout. Rows already present are skipped,
+  and a file can be undone.
+- Transactions page (from Settings → Bank sync), read-only for now.
+- `BANK_SYNC_KEY` turns it on and encrypts the access link. Migration `0007`.
+
 ## [0.16.0]
 
 ### Changed

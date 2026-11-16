@@ -7,6 +7,7 @@ export const SECTIONS = [
   { slug: "accounts", label: "Accounts", detail: "Where money leaves from" },
   { slug: "categories", label: "Categories", detail: "Groupings for reports" },
   { slug: "pay", label: "Pay calendar", detail: "When money arrives" },
+  { slug: "bank", label: "Bank sync", detail: "Accounts from your bank feed" },
   { slug: "data", label: "Import & export", detail: "Workbooks and CSV" },
   { slug: "about", label: "About", detail: "Version and links" },
 ] as const;

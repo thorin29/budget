@@ -38,6 +38,14 @@
           Description="Group ID owning files in the data volume."
           Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
 
+  <Config Name="BANK_SYNC_KEY" Target="BANK_SYNC_KEY" Default=""
+          Description="Optional. Turns on bank sync and encrypts its access link. A random string of at least 32 characters (openssl rand -base64 48). Keep a copy."
+          Type="Variable" Display="always" Required="false" Mask="true"/>
+
+  <Config Name="BANK_SYNC_HOUR" Target="BANK_SYNC_HOUR" Default="6"
+          Description="Local hour (0-23) after which the daily bank sync runs."
+          Type="Variable" Display="advanced" Required="false" Mask="false">6</Config>
+
   <Config Name="Data" Target="/app/data" Default="/mnt/user/appdata/budget"
           Description="Uploads and backups." Type="Path" Display="always"
           Required="true" Mask="false">/mnt/user/appdata/budget</Config>

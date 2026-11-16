@@ -85,6 +85,8 @@ model Account {
   paidFromItems  LineItem[]        @relation("PaidFrom")
   chargedToItems LineItem[]        @relation("ChargedTo")
   balances       BalanceSnapshot[]
+  /// A linked bank feed account keeps this account's balance current.
+  bankAccount    BankAccount?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -399,4 +401,120 @@ model IdempotencyRecord {
 
   @@unique([deviceId, key])
   @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// Bank sync (SimpleFIN protocol). Optional and off until a setup token is
+// pasted in. Read-only: the protocol has no way to move money. Institution and
+// account names arrive from the feed and live only in the database.
+// ---------------------------------------------------------------------------
+
+/// What a feed account is for. Null until the person chooses.
+enum BankAccountUse {
+  /// Checking and cards: its charges are spending.
+  SPENDING
+  /// Savings, loans, investments: only the balance is used.
+  BALANCE_ONLY
+  /// Received but ignored.
+  HIDDEN
+}
+
+enum BankTransactionKind {
+  NORMAL
+  /// Money moving between two of the household's own accounts.
+  TRANSFER
+  /// Noise, such as the cents an institution sends to verify an account link.
+  IGNORED
+}
+
+/// The single connection. Only the access URL, encrypted with BANK_SYNC_KEY,
+/// is kept; the setup token is used once and dropped.
+model BankConnection {
+  id            String    @id @default("default")
+  accessUrlEnc  String
+  /// Host of the bridge, for display.
+  host          String
+  connectedAt   DateTime  @default(now())
+  lastSyncAt    DateTime?
+  lastSuccessAt DateTime?
+  lastError     String?
+  /// Problems the bridge reported on the last sync, e.g. a login that needs attention.
+  messages      String[]  @default([])
+  /// Set while a sync runs, so two cannot overlap.
+  syncStartedAt DateTime?
+}
+
+model BankAccount {
+  id               String          @id @default(cuid())
+  /// The feed's id for the account.
+  externalId       String          @unique
+  institution      String?
+  name             String
+  currency         String          @default("USD")
+  balance          Decimal?        @db.Decimal(14, 2)
+  availableBalance Decimal?        @db.Decimal(14, 2)
+  balanceDate      DateTime?
+  use              BankAccountUse?
+
+  /// Optional: the Budget account whose balance this one keeps current.
+  linkedAccountId String?  @unique
+  linkedAccount   Account? @relation(fields: [linkedAccountId], references: [id], onDelete: SetNull)
+
+  /// Last time the feed listed this account.
+  lastSeenAt   DateTime
+  transactions BankTransaction[]
+  imports      BankImport[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BankTransaction {
+  id         String      @id @default(cuid())
+  accountId  String
+  account    BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  /// The feed's id. Null for a row imported from CSV until the feed delivers
+  /// the same transaction, when the two are merged.
+  externalId String?
+
+  postedOn    DateTime @db.Date
+  /// Negative is money out.
+  amount      Decimal  @db.Decimal(14, 2)
+  description String
+  payee       String?
+  memo        String?
+  pending     Boolean  @default(false)
+
+  /// The description with processor prefixes, store numbers and order ids removed.
+  merchant String
+  kind     BankTransactionKind @default(NORMAL)
+  /// The other side of a transfer.
+  transferOfId String?
+
+  source   String      @default("sync") // sync | csv
+  importId String?
+  import   BankImport? @relation(fields: [importId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([accountId, externalId])
+  @@index([accountId, postedOn])
+  @@index([postedOn])
+  @@index([importId])
+}
+
+/// One CSV file loaded into a feed account, so it can be undone.
+model BankImport {
+  id         String      @id @default(cuid())
+  accountId  String
+  account    BankAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  fileName   String?
+  added      Int         @default(0)
+  skipped    Int         @default(0)
+  createdAt  DateTime    @default(now())
+  revertedAt DateTime?
+
+  transactions BankTransaction[]
 }
