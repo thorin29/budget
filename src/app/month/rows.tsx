@@ -131,9 +131,9 @@ export function MonthList({
 function statusPill(row: RowEntry): { tone: PillTone; label: string } {
   switch (row.status) {
     case "paid":
-      return { tone: "ok", label: row.paidOn ? `Paid ${shortDate(row.paidOn)}` : "Paid" };
+      return { tone: "ok", label: `${row.paidOn ? `Paid ${shortDate(row.paidOn)}` : "Paid"}${row.autoPaid ? " · auto" : ""}` };
     case "received":
-      return { tone: "ok", label: row.paidOn ? `Received ${shortDate(row.paidOn)}` : "Received" };
+      return { tone: "ok", label: `${row.paidOn ? `Received ${shortDate(row.paidOn)}` : "Received"}${row.autoPaid ? " · auto" : ""}` };
     case "expected":
       return { tone: "info", label: "Expected" };
     case "carried":

@@ -105,6 +105,8 @@ export async function importCsv(
   }
   await refreshTransfers(new Date(Date.parse(`${from}T00:00:00Z`) - 7 * DAY));
   await applyCategories();
+  const { runBillAutomation } = await import("../bills-auto");
+  await runBillAutomation().catch((error) => console.error("Bill automation:", error instanceof Error ? error.message : error));
   return { importId: batch.id, added: keep.length, skipped: rows.length - keep.length };
 }
 

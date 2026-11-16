@@ -34,6 +34,7 @@ export interface RowEntry {
   /** YYYY-MM-DD the confirm panel starts on. */
   defaultPaidOn: string;
   paidOn: string | null;
+  autoPaid?: boolean;
   status: RowStatus;
   /** Whole days until due; negative when past. Null without a due day. */
   daysUntilDue: number | null;
@@ -108,6 +109,7 @@ export function toRow(entry: MonthEntry, today: string): RowEntry {
     dueDate,
     defaultPaidOn,
     paidOn: entry.paidOn,
+    autoPaid: entry.autoPaid ?? false,
     status,
     daysUntilDue,
   };

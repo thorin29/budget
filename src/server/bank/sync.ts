@@ -124,6 +124,9 @@ export async function syncBank(): Promise<SyncResult> {
     result.transfers = await refreshTransfers(new Date(start.getTime() - 7 * DAY));
     const { applyCategories } = await import("../categorize");
     await applyCategories();
+    // Bills catching up on their own is a bonus; it never fails the sync.
+    const { runBillAutomation } = await import("../bills-auto");
+    await runBillAutomation().catch((error) => console.error("Bill automation:", error instanceof Error ? error.message : error));
     await prisma.bankConnection.update({
       where: { id: "default" },
       data: { lastSyncAt: now, lastSuccessAt: now, lastError: null, messages: doc.messages, syncStartedAt: null },

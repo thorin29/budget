@@ -35,6 +35,7 @@ function readForm(form: FormData) {
     dueDay: num(form, "dueDay"),
     periodAssignment: (str(form, "periodAssignment") || "AUTO") as never,
     paidFromSurplus: str(form, "paidFromSurplus") === "true",
+    autoRecord: str(form, "autoRecord") === "true",
     scheduleKind: (str(form, "scheduleKind") || "MONTHLY") as never,
     anchorMonth: num(form, "anchorMonth") ?? 1,
     months: form.getAll("months").map((m) => Number(m)).filter(Number.isFinite),

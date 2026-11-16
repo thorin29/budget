@@ -25,6 +25,7 @@ export interface LineItemDefaults {
   dueDay: number | null;
   periodAssignment: string;
   paidFromSurplus: boolean;
+  autoRecord: boolean;
   scheduleKind: string;
   anchorMonth: number;
   months: number[];
@@ -378,6 +379,13 @@ export function LineItemForm({
             detail="For a card you pay with whatever remains once the bills are covered. It stops counting against the free money, and What can I pay? shows what you can send it."
           />
         ) : null}
+
+        <Switch
+          name="autoRecord"
+          defaultChecked={defaults.autoRecord}
+          label={isIncome ? "Record it when it arrives" : "Record it when the bank shows it paid"}
+          detail="Once a charge has been tied to this item, an exact match (the expected amount, around the due day) is recorded on its own, with an Undo. Anything else still waits for you."
+        />
 
         <details className="group rounded-xl border border-line">
           <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold">

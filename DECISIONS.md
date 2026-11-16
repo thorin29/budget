@@ -531,3 +531,21 @@ no bank name is stored in plain text.
   account moves that account's bills and settings over and removes it.
 - **Hiding** a feed account drops its "bank" account from the lists but keeps
   the link, so it comes back as it was.
+
+## Bills on their own (0.23)
+
+The person asked for exact matches to be recorded without a Confirm, so the
+rule changed from "suggest only" to "record when exact, suggest otherwise".
+Exact means all of: the merchant was tied to the bill before (by a Confirm or
+by history), the amount is the planned or last one within $1, and the charge
+is in the bill's date window. Each line item can opt out, and every automatic
+entry has an Undo that also blocks that charge for the bill.
+
+- **History first.** Hand-recorded payments are paired with their charge only
+  when the pairing is unique on both sides. Linking records nothing; it is how
+  an existing budget learns its merchants without a month of Confirms.
+- **Due days** move after three linked payments within four days of each
+  other, when the learned day differs by three or more. A due day changed by
+  hand locks the item.
+- **Order:** link history, then learn due days, then record exact matches, so
+  the date window already reflects the learned day.

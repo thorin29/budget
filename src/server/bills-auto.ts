@@ -1,0 +1,181 @@
+/**
+ * Bills that take care of themselves. Runs after each bank sync, after a
+ * history file is imported, and at start:
+ *
+ *  1. Ties hand-recorded payments to the bank charge that was them, and
+ *     remembers the merchant for the bill. Nothing new is recorded.
+ *  2. Moves each bill's due day to when it actually posts, unless the person
+ *     set the day themselves.
+ *  3. Records a payment on its own when a charge matches a bill exactly: a
+ *     merchant already tied to the bill, the planned or last amount within $1,
+ *     around the due day. Undo is on the Review page; anything less exact
+ *     still waits there for a Confirm.
+ */
+
+import { prisma } from "@/lib/prisma";
+import { toCents } from "@/lib/money";
+import { merchantKey } from "@/lib/field-crypto";
+import { SPENDING_TYPES, type AccountType } from "@/lib/account-type";
+import { exactMatch, learnedDueDay, pairRecorded, shouldMoveDueDay } from "@/lib/bill-history";
+import type { MatchTxn } from "@/lib/bill-match";
+import { recordActual, clearActual } from "./month";
+import { dismissMatch, getReview, linkActual } from "./review";
+import { applyCategories } from "./categorize";
+import { NotFoundError } from "./errors";
+
+const DAY = 86_400_000;
+const iso = (d: Date) => d.toISOString().slice(0, 10);
+
+export interface AutomationResult {
+  linked: number;
+  dueDaysMoved: number;
+  recorded: number;
+}
+
+/** 1. Hand-recorded payments meet their bank charges. */
+export async function linkRecordedPayments(): Promise<number> {
+  const since = new Date(Date.now() - 800 * DAY);
+  const entries = (await prisma.actualEntry.findMany({
+    where: { bankTransactionId: null, year: { gte: since.getUTCFullYear() } },
+    select: { id: true, lineItemId: true, year: true, month: true, amount: true, paidOn: true, lineItem: { select: { kind: true, dueDay: true } } },
+  })) as Array<{ id: string; lineItemId: string; year: number; month: number; amount: { toString(): string }; paidOn: Date | null; lineItem: { kind: string; dueDay: number | null } }>;
+  if (!entries.length) return 0;
+
+  const txns = (await prisma.bankTransaction.findMany({
+    where: { postedOn: { gte: since }, pending: false, kind: { not: "IGNORED" }, actual: { is: null }, account: { hidden: false } },
+    select: { id: true, postedOn: true, amount: true, merchant: true, account: { select: { type: true } } },
+  })) as Array<{ id: string; postedOn: Date; amount: { toString(): string }; merchant: string; account: { type: AccountType } }>;
+  const merchantOf = new Map(txns.map((t) => [t.id, t.merchant]));
+  const usable: MatchTxn[] = txns
+    .map((t) => ({ t, cents: toCents(t.amount) }))
+    .filter(({ t, cents }) => SPENDING_TYPES.includes(t.account.type) || (cents > 0 && t.account.type === "SAVINGS"))
+    .map(({ t, cents }) => ({ id: t.id, postedOn: iso(t.postedOn), amountCents: cents, merchant: t.merchant, description: "", merchantKey: "" }));
+
+  const pairs = pairRecorded(
+    entries.map((e) => ({
+      actualId: e.id, lineItemId: e.lineItemId, year: e.year, month: e.month, income: e.lineItem.kind === "INCOME",
+      amountCents: toCents(e.amount), paidOn: e.paidOn ? iso(e.paidOn) : null, dueDay: e.lineItem.dueDay,
+    })),
+    usable,
+  );
+  for (const p of pairs) {
+    await prisma.actualEntry.update({ where: { id: p.actualId }, data: { bankTransactionId: p.txnId } });
+    const key = merchantKey(merchantOf.get(p.txnId) ?? "");
+    await prisma.billRule.upsert({ where: { lineItemId_merchantKey: { lineItemId: p.lineItemId, merchantKey: key } }, create: { lineItemId: p.lineItemId, merchantKey: key }, update: {} });
+  }
+  if (pairs.length) await applyCategories(pairs.map((p) => p.txnId));
+  return pairs.length;
+}
+
+/** 2. Due days follow when bills actually post. */
+export async function learnDueDays(): Promise<number> {
+  const items = (await prisma.lineItem.findMany({
+    where: { active: true, dueDayLocked: false, kind: { not: "INCOME" } },
+    select: { id: true, dueDay: true },
+  })) as Array<{ id: string; dueDay: number | null }>;
+  if (!items.length) return 0;
+  const linked = (await prisma.actualEntry.findMany({
+    where: { lineItemId: { in: items.map((i) => i.id) }, bankTransactionId: { not: null }, bankTransaction: { postedOn: { gte: new Date(Date.now() - 200 * DAY) } } },
+    select: { lineItemId: true, bankTransaction: { select: { postedOn: true } } },
+  })) as Array<{ lineItemId: string; bankTransaction: { postedOn: Date } | null }>;
+  const posted = new Map<string, string[]>();
+  for (const l of linked) if (l.bankTransaction) posted.set(l.lineItemId, [...(posted.get(l.lineItemId) ?? []), iso(l.bankTransaction.postedOn)]);
+  let moved = 0;
+  for (const item of items) {
+    const learned = learnedDueDay(posted.get(item.id) ?? []);
+    if (!shouldMoveDueDay(item.dueDay, learned)) continue;
+    await prisma.lineItem.update({ where: { id: item.id }, data: { dueDay: learned, dueDayPrevious: item.dueDay, dueDayChangedAt: new Date() } });
+    moved += 1;
+  }
+  return moved;
+}
+
+/** 3. Exact matches are recorded on their own. */
+export async function recordExactMatches(): Promise<number> {
+  const { looksPaid } = await getReview();
+  const known = looksPaid.filter((s) => s.known);
+  if (!known.length) return 0;
+  const items = new Map(
+    ((await prisma.lineItem.findMany({ where: { id: { in: known.map((k) => k.lineItemId) } }, select: { id: true, autoRecord: true } })) as Array<{ id: string; autoRecord: boolean }>).map((i) => [i.id, i]),
+  );
+  let recorded = 0;
+  for (const s of known) {
+    if (!items.get(s.lineItemId)?.autoRecord) continue;
+    const last = (await prisma.actualEntry.findFirst({ where: { lineItemId: s.lineItemId }, orderBy: [{ year: "desc" }, { month: "desc" }], select: { amount: true } })) as { amount: { toString(): string } } | null;
+    if (!exactMatch({ knownMerchant: true, amountCents: s.amountCents, budgetedCents: s.budgetedCents, lastPaidCents: last ? toCents(last.amount) : null })) continue;
+    await recordActual(s.lineItemId, s.year, s.month, s.amountCents, undefined, new Date(`${s.postedOn}T00:00:00Z`));
+    await prisma.actualEntry.update({ where: { lineItemId_year_month: { lineItemId: s.lineItemId, year: s.year, month: s.month } }, data: { source: "auto" } });
+    await linkActual(s.lineItemId, s.year, s.month, s.txnId, s.merchant);
+    recorded += 1;
+  }
+  return recorded;
+}
+
+export async function runBillAutomation(): Promise<AutomationResult> {
+  const linked = await linkRecordedPayments();
+  const dueDaysMoved = await learnDueDays();
+  const recorded = await recordExactMatches();
+  return { linked, dueDaysMoved, recorded };
+}
+
+// ---------------------------------------------------------------- what it did, and undoing it
+
+export interface AutoRecorded {
+  lineItemId: string;
+  year: number;
+  month: number;
+  name: string;
+  amountCents: number;
+  paidOn: string | null;
+  merchant: string | null;
+}
+
+export interface DueDayMoved {
+  lineItemId: string;
+  name: string;
+  from: number | null;
+  to: number | null;
+}
+
+export async function recentAutomation(): Promise<{ recorded: AutoRecorded[]; moved: DueDayMoved[] }> {
+  const recorded = (await prisma.actualEntry.findMany({
+    where: { source: "auto", createdAt: { gte: new Date(Date.now() - 10 * DAY) } },
+    orderBy: { createdAt: "desc" },
+    select: { lineItemId: true, year: true, month: true, amount: true, paidOn: true, lineItem: { select: { name: true } }, bankTransaction: { select: { merchant: true } } },
+  })) as Array<{ lineItemId: string; year: number; month: number; amount: { toString(): string }; paidOn: Date | null; lineItem: { name: string }; bankTransaction: { merchant: string } | null }>;
+  const moved = (await prisma.lineItem.findMany({
+    where: { dueDayChangedAt: { gte: new Date(Date.now() - 30 * DAY) } },
+    orderBy: { dueDayChangedAt: "desc" },
+    select: { id: true, name: true, dueDay: true, dueDayPrevious: true },
+  })) as Array<{ id: string; name: string; dueDay: number | null; dueDayPrevious: number | null }>;
+  return {
+    recorded: recorded.map((r) => ({
+      lineItemId: r.lineItemId, year: r.year, month: r.month, name: r.lineItem.name, amountCents: toCents(r.amount),
+      paidOn: r.paidOn ? iso(r.paidOn) : null, merchant: r.bankTransaction?.merchant ?? null,
+    })),
+    moved: moved.map((m) => ({ lineItemId: m.id, name: m.name, from: m.dueDayPrevious, to: m.dueDay })),
+  };
+}
+
+/** Removes a payment recorded on its own, and doesn't offer that charge for the bill again. */
+export async function undoAutoRecord(lineItemId: string, year: number, month: number): Promise<void> {
+  const entry = (await prisma.actualEntry.findUnique({
+    where: { lineItemId_year_month: { lineItemId, year, month } },
+    select: { source: true, bankTransactionId: true },
+  })) as { source: string; bankTransactionId: string | null } | null;
+  if (!entry || entry.source !== "auto") throw new NotFoundError("Automatic payment");
+  await clearActual(lineItemId, year, month);
+  if (entry.bankTransactionId) await dismissMatch(lineItemId, entry.bankTransactionId);
+}
+
+/** Puts a due day back and stops the bank from moving it again. */
+export async function undoDueDay(lineItemId: string): Promise<void> {
+  const item = (await prisma.lineItem.findUnique({ where: { id: lineItemId }, select: { dueDayPrevious: true, dueDayChangedAt: true } })) as { dueDayPrevious: number | null; dueDayChangedAt: Date | null } | null;
+  if (!item || !item.dueDayChangedAt) throw new NotFoundError("Due day change");
+  await prisma.lineItem.update({ where: { id: lineItemId }, data: { dueDay: item.dueDayPrevious, dueDayLocked: true, dueDayPrevious: null, dueDayChangedAt: null } });
+}
+
+/** Keeps a moved due day and clears the note. */
+export async function keepDueDay(lineItemId: string): Promise<void> {
+  await prisma.lineItem.update({ where: { id: lineItemId }, data: { dueDayPrevious: null, dueDayChangedAt: null } });
+}

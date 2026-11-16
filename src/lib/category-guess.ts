@@ -72,3 +72,14 @@ export const INCOME_NAMES = new Set(["paycheck", "income", "salary", "pay", "int
 export function isIncomeCategory(name: string | null | undefined): boolean {
   return !!name && INCOME_NAMES.has(name.trim().toLowerCase());
 }
+
+/** Day-to-day spending that repeats without being a bill (groceries, fuel…), by category name or alias. */
+const EVERYDAY = new Set(
+  RULES.filter((r) => ["Groceries", "Dining", "Fuel", "Shopping", "Personal care", "Entertainment", "Travel", "Cash", "Fees", "Auto"].includes(r.category.name))
+    .flatMap((r) => [r.category.name, ...r.category.aliases])
+    .map((n) => n.toLowerCase()),
+);
+
+export function isEverydayCategory(name: string | null | undefined): boolean {
+  return !!name && EVERYDAY.has(name.trim().toLowerCase());
+}

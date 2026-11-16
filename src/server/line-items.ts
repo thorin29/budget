@@ -38,6 +38,7 @@ export interface LineItem {
   periodAssignment: PeriodAssignment;
   /** Paid from what is left after the bills; kept out of the cash figures. */
   paidFromSurplus: boolean;
+  autoRecord: boolean;
   scheduleKind: ScheduleKind;
   months: number[];
   onlyYear: number | null;
@@ -65,6 +66,7 @@ const lineItemInput = z
     dueDay: z.number().int().min(1).max(31).nullish(),
     periodAssignment: z.enum(PERIOD_ASSIGNMENTS).default("AUTO"),
     paidFromSurplus: z.boolean().optional(),
+    autoRecord: z.boolean().optional(),
     scheduleKind: z.enum(SCHEDULE_KINDS).default("MONTHLY"),
     /** The month a non-monthly schedule is anchored to. */
     anchorMonth: z.number().int().min(1).max(12).default(1),
@@ -131,6 +133,7 @@ type Row = {
   dueDay: number | null;
   periodAssignment: string;
   paidFromSurplus: boolean;
+  autoRecord?: boolean;
   scheduleKind: string;
   months: number[];
   onlyYear: number | null;
@@ -159,6 +162,7 @@ function toLineItem(row: Row): LineItem {
     dueDay: row.dueDay,
     periodAssignment: row.periodAssignment as PeriodAssignment,
     paidFromSurplus: row.paidFromSurplus,
+    autoRecord: row.autoRecord ?? true,
     scheduleKind: row.scheduleKind as ScheduleKind,
     months: row.months,
     onlyYear: row.onlyYear,
@@ -205,6 +209,7 @@ async function toRowData(data: ReturnType<typeof parse>) {
     dueDay: data.dueDay ?? null,
     periodAssignment: data.periodAssignment,
     paidFromSurplus: data.kind === "INCOME" ? false : (data.paidFromSurplus ?? false),
+    ...(data.autoRecord === undefined ? {} : { autoRecord: data.autoRecord }),
     scheduleKind: data.scheduleKind,
     months: monthsForSchedule(data.scheduleKind, data.anchorMonth, data.months ?? []),
     onlyYear: data.scheduleKind === "ONE_OFF" ? (data.onlyYear ?? null) : null,
@@ -225,10 +230,13 @@ export async function createLineItem(input: LineItemInput): Promise<LineItem> {
 }
 
 export async function updateLineItem(id: string, input: LineItemInput): Promise<LineItem> {
-  await getLineItem(id);
+  const before = await getLineItem(id);
+  const data = await toRowData(parse(input));
+  // A due day the person changes is theirs; the bank stops moving it.
+  const lock = data.dueDay !== before.dueDay ? { dueDayLocked: true, dueDayPrevious: null, dueDayChangedAt: null } : {};
   const row = await prisma.lineItem.update({
     where: { id },
-    data: await toRowData(parse(input)),
+    data: { ...data, ...lock },
   });
   return toLineItem(row);
 }

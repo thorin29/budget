@@ -57,6 +57,8 @@ export interface MonthEntry {
   paidFromSurplus: boolean;
   /** Set when the entry originates in an earlier, unpaid month. */
   carriedFrom: { year: number; month: number } | null;
+  /** Recorded on its own from an exact bank match. */
+  autoPaid?: boolean;
 }
 
 export interface HalfSummary {
@@ -207,6 +209,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   const actualMap = new Map(
     actuals.map((a) => [key(a.lineItemId, a.year, a.month), toCents(a.amount)]),
   );
+  const autoPaid = new Set(actuals.filter((a) => (a as { source?: string }).source === "auto").map((a) => key(a.lineItemId, a.year, a.month)));
   const paidOnMap = new Map(
     actuals.map((a) => [
       key(a.lineItemId, a.year, a.month),
@@ -306,6 +309,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       plannedCents: planned.get(item.id) ?? 0,
       actualCents: actual,
       paidOn: paidOnMap.get(k) ?? null,
+      autoPaid: autoPaid.has(k),
       skipped: plan?.skipped ?? false,
       adjusted: budgeted !== (planned.get(item.id) ?? 0),
       half: halfFor(item.dueDay, item.periodAssignment as never, splitDay),
@@ -368,6 +372,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
         plannedCents: toCents(item.plannedAmount),
         actualCents: actualMap.get(k) ?? null,
         paidOn: paidOnMap.get(k) ?? null,
+        autoPaid: autoPaid.has(k),
         skipped: plan?.skipped ?? false,
         adjusted: budgeted !== toCents(item.plannedAmount),
         half: halfFor(item.dueDay, item.periodAssignment as never, splitDay),

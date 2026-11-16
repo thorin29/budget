@@ -3,7 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { Button, ErrorBanner, Select, TextInput } from "@/components/ui";
 import { formatCents, toDecimalString } from "@/lib/money";
-import { addRepeatAction, confirmMatchAction, dismissMatchAction, dismissRepeatAction, type ReviewState } from "./actions";
+import { addRepeatAction, confirmMatchAction, dismissMatchAction, dismissRepeatAction, dueDayAction, undoAutoAction, type ReviewState } from "./actions";
 import type { LooksPaid, RepeatCharge } from "@/server/review";
 
 const INITIAL: ReviewState = { ok: true };
@@ -135,6 +135,55 @@ export function RepeatCard({ item }: { item: RepeatCharge }) {
           Not a bill
         </Button>
       </div>
+    </li>
+  );
+}
+
+const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
+
+/** A payment the bank feed recorded on its own, with Undo. */
+export function AutoRecordedRow({ item }: { item: { lineItemId: string; year: number; month: number; name: string; amountCents: number; paidOn: string | null; merchant: string | null } }) {
+  const [busy, start] = useTransition();
+  const [result, setResult] = useState<ReviewState | null>(null);
+  if (result?.ok) return <li className="px-4 py-3 text-sm text-muted">{result.message}</li>;
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+      <span className="min-w-0">
+        <span className="font-semibold">{item.name}</span> <span className="text-muted">for {monthName(item.year, item.month)}</span>
+        <span className="block truncate text-xs text-muted">
+          {formatCents(item.amountCents)}
+          {item.paidOn ? ` on ${short(item.paidOn)}` : ""}
+          {item.merchant ? ` · ${item.merchant}` : ""}
+        </span>
+        {result && !result.ok ? <span className="text-xs text-danger">{result.message}</span> : null}
+      </span>
+      <Button type="button" variant="quiet" disabled={busy} onClick={() => start(async () => setResult(await undoAutoAction(item.lineItemId, item.year, item.month)))}>
+        Undo
+      </Button>
+    </li>
+  );
+}
+
+/** A due day the bank moved, with Keep and Put back. */
+export function DueDayRow({ item }: { item: { lineItemId: string; name: string; from: number | null; to: number | null } }) {
+  const [busy, start] = useTransition();
+  const [result, setResult] = useState<ReviewState | null>(null);
+  if (result?.ok) return <li className="px-4 py-3 text-sm text-muted">{result.message}</li>;
+  return (
+    <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+      <span>
+        <span className="font-semibold">{item.name}</span> now due the {item.to ? ordinal(item.to) : "—"}
+        <span className="block text-xs text-muted">Was the {item.from ? ordinal(item.from) : "unset"} · it has been posting around the {item.to ? ordinal(item.to) : "—"}</span>
+        {result && !result.ok ? <span className="text-xs text-danger">{result.message}</span> : null}
+      </span>
+      <span className="flex gap-2">
+        <Button type="button" variant="quiet" disabled={busy} onClick={() => start(async () => setResult(await dueDayAction(item.lineItemId, true)))}>
+          Keep
+        </Button>
+        <Button type="button" variant="quiet" disabled={busy} onClick={() => start(async () => setResult(await dueDayAction(item.lineItemId, false)))}>
+          Put back
+        </Button>
+      </span>
     </li>
   );
 }

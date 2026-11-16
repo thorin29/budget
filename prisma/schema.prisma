@@ -145,6 +145,15 @@ model LineItem {
   /// Approximate day of month. Used to place the item in a pay period;
   /// exactness is neither required nor expected.
   dueDay Int?
+  /// Set when the person changes the due day; learning from the bank stops.
+  dueDayLocked    Boolean   @default(false)
+  /// The due day before the bank last moved it, for the Review note and Undo.
+  dueDayPrevious  Int?
+  dueDayChangedAt DateTime?
+
+  /// Record a payment on its own when the bank shows this bill paid exactly
+  /// (a merchant already tied to it, the expected amount, in the window).
+  autoRecord Boolean @default(true)
 
   /// Overrides the derived pay period when the computed answer isn't how you
   /// actually pay it.

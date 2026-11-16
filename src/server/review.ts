@@ -15,6 +15,7 @@ import { toCents } from "@/lib/money";
 import { merchantKey } from "@/lib/field-crypto";
 import { coveredByRecorded, findRepeats, suggestMatches, tokens, type MatchBill, type MatchTxn } from "@/lib/bill-match";
 import { SPENDING_TYPES, displayAccountName, type AccountType } from "@/lib/account-type";
+import { isEverydayCategory } from "@/lib/category-guess";
 import { getMonthView, recordActual, type MonthEntry } from "./month";
 import { createLineItem } from "./line-items";
 import { getSettings } from "./settings";
@@ -39,6 +40,8 @@ export interface LooksPaid {
   account: string;
   confidence: "high" | "medium";
   reason: string;
+  /** The merchant was tied to this bill before. */
+  known: boolean;
   /** Unpaid months of this bill, oldest first; the payment can be recorded to any of them. */
   openMonths: Array<{ year: number; month: number }>;
 }
@@ -69,6 +72,7 @@ type TxnRow = {
   merchant: string;
   description: string;
   account: { name: string; type: AccountType; hidden: boolean; linkedAccountId: string | null };
+  category: { name: string; managedForOthers: boolean } | null;
 };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -87,7 +91,7 @@ async function recentTransactions(days: number): Promise<TxnRow[]> {
       actual: { is: null },
       account: { hidden: false },
     },
-    select: { id: true, postedOn: true, amount: true, merchant: true, description: true, account: { select: { name: true, type: true, hidden: true, linkedAccountId: true } } },
+    select: { id: true, postedOn: true, amount: true, merchant: true, description: true, account: { select: { name: true, type: true, hidden: true, linkedAccountId: true } }, category: { select: { name: true, managedForOthers: true } } },
   })) as TxnRow[];
 }
 
@@ -148,7 +152,7 @@ export async function getReview(): Promise<Review> {
     return {
       lineItemId: s.lineItemId, year: s.year, month: s.month, billName: b.name, kind: b.kind, budgetedCents: b.budgetedCents, dueDay: b.dueDay,
       txnId: s.txnId, amountCents: Math.abs(t.cents), postedOn: iso(t.row.postedOn), merchant: t.row.merchant, description: t.row.description,
-      account: displayAccountName(t.row.account.name), confidence: s.confidence,
+      account: displayAccountName(t.row.account.name), confidence: s.confidence, known: s.reason === "confirmed before",
       reason: s.reason === "confirmed before" ? "Same place as before" : s.reason === "name" ? "Name matches" : "Exact amount",
       openMonths: (openMonths.get(s.lineItemId) ?? []).sort((x, y) => x.year * 12 + x.month - (y.year * 12 + y.month)),
     };
@@ -156,7 +160,12 @@ export async function getReview(): Promise<Review> {
 
   // Repeats: spending accounts, ordinary charges, not already a bill's merchant, not turned down, not named like an existing bill.
   const billWords = new Set(lineItems.flatMap((l: { name: string }) => [...tokens(l.name)]));
-  const repeatRows = keyed.filter((k) => SPENDING_TYPES.includes(k.row.account.type) && !ruleMap.has(k.key) && !dismissedRepeats.has(k.key));
+  // Groceries, fuel and the like repeat without being bills; money managed for others isn't a bill either.
+  const repeatRows = keyed.filter(
+    (k) =>
+      SPENDING_TYPES.includes(k.row.account.type) && !ruleMap.has(k.key) && !dismissedRepeats.has(k.key) &&
+      !k.row.category?.managedForOthers && !isEverydayCategory(k.row.category?.name),
+  );
   const plain = await prisma.bankTransaction.findMany({
     where: { id: { in: repeatRows.map((k) => k.row.id) }, kind: "NORMAL" },
     select: { id: true },

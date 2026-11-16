@@ -20,6 +20,8 @@ export async function register(): Promise<void> {
         await syncLedgerAccounts();
         const { applyCategories } = await import("./server/categorize");
         await applyCategories();
+        const { runBillAutomation } = await import("./server/bills-auto");
+        await runBillAutomation();
       })
       .catch((error) => console.error("Accounts:", error instanceof Error ? error.message : error));
   }, 15_000).unref?.();

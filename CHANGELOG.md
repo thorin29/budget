@@ -3,7 +3,26 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
-## [0.22.0]
+## [0.23.0]
+
+### Added
+- Payments you recorded by hand are tied to the bank charge that was them (same amount within $1,
+  a fitting date, and no other candidate), and the merchant is remembered for the bill. Nothing new
+  is recorded. This teaches it bills whose charge doesn't share their name, like a loan paid by
+  transfer or insurance billed under the insurer's name.
+- Exact matches are recorded on their own: a merchant already tied to the bill, the planned or
+  last amount within $1, around the due day. Review lists them under "Done for you" with Undo, the
+  month row says "auto", and each line item has a switch to turn it off. Anything less exact still
+  waits for your Confirm.
+- Due days follow the bank: after three steady months a bill's due day moves to when it actually
+  posts. Review shows the change with Keep or Put back; a due day you set yourself stays put.
+  Migration `0012`.
+
+### Changed
+- Repeating charges in everyday categories (groceries, fuel, dining…) or managed for others are no
+  longer suggested as bills.
+
+
 
 ### Changed
 - One set of accounts. Your bank feed's checking, savings and card accounts are now the accounts

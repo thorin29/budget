@@ -76,3 +76,28 @@ export async function dismissRepeatAction(key: string): Promise<ReviewState> {
     return failure(error);
   }
 }
+
+export async function undoAutoAction(lineItemId: string, year: number, month: number): Promise<ReviewState> {
+  try {
+    await requireUser();
+    const { undoAutoRecord } = await import("@/server/bills-auto");
+    await undoAutoRecord(String(lineItemId), Number(year), Number(month));
+    done();
+    return { ok: true, message: "Removed. That charge won't be used for this bill again." };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function dueDayAction(lineItemId: string, keep: boolean): Promise<ReviewState> {
+  try {
+    await requireUser();
+    const { keepDueDay, undoDueDay } = await import("@/server/bills-auto");
+    if (keep) await keepDueDay(String(lineItemId));
+    else await undoDueDay(String(lineItemId));
+    done();
+    return { ok: true, message: keep ? "Kept." : "Put back. It won't move on its own again." };
+  } catch (error) {
+    return failure(error);
+  }
+}
