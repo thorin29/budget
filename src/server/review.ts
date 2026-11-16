@@ -52,6 +52,8 @@ export interface RepeatCharge {
   lastOn: string;
   account: string;
   fromChecking: boolean;
+  /** The bill account behind the feed account it was charged to. */
+  paidFromId: string | null;
 }
 
 export interface Review {
@@ -66,7 +68,7 @@ type TxnRow = {
   amount: { toString(): string };
   merchant: string;
   description: string;
-  account: { name: string; type: AccountType; hidden: boolean };
+  account: { name: string; type: AccountType; hidden: boolean; linkedAccountId: string | null };
 };
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -85,7 +87,7 @@ async function recentTransactions(days: number): Promise<TxnRow[]> {
       actual: { is: null },
       account: { hidden: false },
     },
-    select: { id: true, postedOn: true, amount: true, merchant: true, description: true, account: { select: { name: true, type: true, hidden: true } } },
+    select: { id: true, postedOn: true, amount: true, merchant: true, description: true, account: { select: { name: true, type: true, hidden: true, linkedAccountId: true } } },
   })) as TxnRow[];
 }
 
@@ -167,7 +169,7 @@ export async function getReview(): Promise<Review> {
     .filter((r) => ![...tokens(r.merchant)].some((w) => billWords.has(w)))
     .map((r) => {
       const account = accountOf.get(r.merchantKey)!;
-      return { ...r, account: displayAccountName(account.name), fromChecking: account.type === "CHECKING" };
+      return { ...r, account: displayAccountName(account.name), fromChecking: account.type === "CHECKING", paidFromId: account.linkedAccountId };
     });
 
   return { looksPaid, repeats, count: looksPaid.length + repeats.length };
@@ -226,7 +228,7 @@ export async function addRepeatAsBill(key: string): Promise<{ lineItemId: string
     kind: "BILL",
     plannedAmountCents: repeat.typicalCents,
     dueDay: Math.min(repeat.typicalDay, 28),
-    paidFromId: repeat.fromChecking ? billsAccountId : null,
+    paidFromId: repeat.paidFromId ?? (repeat.fromChecking ? billsAccountId : null),
     scheduleKind: "MONTHLY",
   });
   await prisma.billRule.upsert({

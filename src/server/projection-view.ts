@@ -6,6 +6,7 @@
  * how much can leave the account today without causing a shortfall later.
  */
 
+import { accountLabels } from "./bank/ledger";
 import { prisma } from "@/lib/prisma";
 import { toCents, type Cents } from "@/lib/money";
 import {
@@ -219,7 +220,7 @@ export async function getProjection(options: {
       : undefined,
   });
 
-  const accountName = new Map(accounts.map((a) => [a.id, a.name]));
+  const accountName = await accountLabels();
 
   return {
     ...result,

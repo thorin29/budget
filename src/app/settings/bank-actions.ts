@@ -154,3 +154,16 @@ export async function revertCsvAction(importId: string): Promise<BankActionState
     return failure(error);
   }
 }
+
+/** Connects a bills account to a bank feed account, or disconnects it. */
+export async function connectAccountAction(accountId: string, bankAccountId: string): Promise<BankActionState> {
+  try {
+    await requireUser();
+    const { connectAccount } = await import("@/server/bank/ledger");
+    await connectAccount(String(accountId), bankAccountId ? String(bankAccountId) : null);
+    revalidatePath("/", "layout");
+    return { ok: true, message: bankAccountId ? "Connected. Its balance now comes from the bank." : "Disconnected." };
+  } catch (error) {
+    return failure(error);
+  }
+}

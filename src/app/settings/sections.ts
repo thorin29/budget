@@ -4,7 +4,7 @@ export const SECTIONS = [
   { slug: "security", label: "Sign-in & people", detail: "Password, phones, second person" },
   { slug: "appearance", label: "Appearance", detail: "Accent and light or dark" },
   { slug: "planning", label: "Planning", detail: "Bills account, split day, look-ahead" },
-  { slug: "accounts", label: "Paid-from accounts", detail: "Where bills are paid from" },
+  { slug: "accounts", label: "Accounts for bills", detail: "Where bills are paid from" },
   { slug: "categories", label: "Categories", detail: "Groupings for reports" },
   { slug: "pay", label: "Pay calendar", detail: "When money arrives" },
   { slug: "bank", label: "Bank sync", detail: "Connection, history files, export" },

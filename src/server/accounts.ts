@@ -8,6 +8,7 @@
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { ConflictError, NotFoundError, ValidationError, isUniqueViolation } from "./errors";
+import { accountLabels } from "./bank/ledger";
 
 export const ACCOUNT_KINDS = ["BANK", "CREDIT_CARD", "CASH", "OTHER"] as const;
 export type AccountKind = (typeof ACCOUNT_KINDS)[number];
@@ -20,6 +21,10 @@ export interface Account {
   sortOrder: number;
   /** For a card: the account that pays it off. Reporting only. */
   settledById: string | null;
+  /** "bank" when the account was made for a bank feed account. */
+  origin: string;
+  /** The bank feed account that keeps its balance, if any. */
+  bankAccountId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,6 +54,8 @@ type Row = {
   active: boolean;
   sortOrder: number;
   settledById: string | null;
+  origin?: string;
+  bankAccount?: { id: string } | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -61,6 +68,8 @@ function toAccount(row: Row): Account {
     active: row.active,
     sortOrder: row.sortOrder,
     settledById: row.settledById,
+    origin: row.origin ?? "manual",
+    bankAccountId: row.bankAccount?.id ?? null,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -69,11 +78,18 @@ function toAccount(row: Row): Account {
 export async function listAccounts(
   options: { includeInactive?: boolean } = {},
 ): Promise<Account[]> {
-  const rows = await prisma.account.findMany({
-    where: options.includeInactive ? undefined : { active: true },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-  });
-  return rows.map(toAccount);
+  const [rows, labels] = await Promise.all([
+    prisma.account.findMany({
+      where: options.includeInactive ? undefined : { active: true },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      include: { bankAccount: { select: { id: true } } },
+    }),
+    accountLabels(),
+  ]);
+  // Accounts made for the bank feed show the feed's name; they sort by it here.
+  return (rows as Row[])
+    .map((row) => ({ ...toAccount(row), name: labels.get(row.id) ?? row.name }))
+    .sort((a, b) => a.sortOrder - b.sortOrder || a.name.localeCompare(b.name));
 }
 
 export async function getAccount(id: string): Promise<Account> {
@@ -107,7 +123,10 @@ export async function createAccount(input: AccountInput): Promise<Account> {
 
 export async function updateAccount(id: string, input: AccountInput): Promise<Account> {
   const data = parse(input);
-  await getAccount(id);
+  const current = await getAccount(id);
+  if (current.origin === "bank") {
+    throw new ValidationError({ name: ["This account's name comes from the bank feed"] });
+  }
   await assertSettledByIsValid(data.kind, data.settledById ?? null, id);
 
   try {
@@ -135,7 +154,10 @@ export async function updateAccount(id: string, input: AccountInput): Promise<Ac
  * deactivated instead, so history keeps its meaning.
  */
 export async function deleteAccount(id: string): Promise<{ deleted: boolean }> {
-  await getAccount(id);
+  const current = await getAccount(id);
+  if (current.origin === "bank") {
+    throw new ValidationError({ id: ["This account comes from the bank feed. Hide it on the Accounts page instead."] });
+  }
 
   const [paidFrom, chargedTo, balances] = await Promise.all([
     prisma.lineItem.count({ where: { paidFromId: id } }),

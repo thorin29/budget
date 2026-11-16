@@ -13,6 +13,7 @@ import {
   setAccountHiddenAction,
   setAccountTypeAction,
   setBillsSourceAction,
+  connectAccountAction,
   syncBankAction,
   type BankActionState,
 } from "./bank-actions";
@@ -319,6 +320,31 @@ export function RevertImport({ importId }: { importId: string }) {
       <Button type="button" variant="ghost" disabled={pending} onClick={() => start(async () => setState(await revertCsvAction(importId)))}>
         {pending ? "Undoing…" : "Undo"}
       </Button>
+    </span>
+  );
+}
+
+/** Which bank feed account an account typed by hand is. */
+export function LinkAccountToBank({ accountId, current, options }: { accountId: string; current: string; options: Array<{ id: string; label: string }> }) {
+  const [pending, start] = useTransition();
+  const [state, setState] = useState<BankActionState | null>(null);
+  return (
+    <span className="flex flex-col items-end gap-1">
+      <Select
+        defaultValue={current}
+        disabled={pending}
+        aria-label="Bank account"
+        className="max-w-64 text-sm"
+        onChange={(e) => start(async () => setState(await connectAccountAction(accountId, e.target.value)))}
+      >
+        <option value="">Not connected</option>
+        {options.map((o) => (
+          <option key={o.id} value={o.id}>
+            {o.label}
+          </option>
+        ))}
+      </Select>
+      {state ? <span className={`text-xs ${state.ok ? "text-muted" : "text-danger"}`}>{state.message}</span> : null}
     </span>
   );
 }

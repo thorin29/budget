@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.22.0]
+
+### Changed
+- One set of accounts. Your bank feed's checking, savings and card accounts are now the accounts
+  bills are paid from; each appears under Settings → Accounts for bills on its own, with its
+  balance updated after every sync. An account you typed by hand is connected to its bank account
+  when the match is clear (shared words, the institution's initials, or the same last digits), and
+  you can connect or change it there. Connecting one merges the two, moving its bills over.
+  Migration `0011`.
+- The balance card reads "<account> balance".
+- A bill added from a repeating charge is paid from the account it was charged to.
+
 ## [0.21.1]
 
 ### Fixed

@@ -118,6 +118,8 @@ export async function syncBank(): Promise<SyncResult> {
     const { applyTypeGuesses, autoLinkBills } = await import("./accounts");
     await applyTypeGuesses();
     await autoLinkBills();
+    const { syncLedgerAccounts } = await import("./ledger");
+    await syncLedgerAccounts();
     await pushLinkedBalances();
     result.transfers = await refreshTransfers(new Date(start.getTime() - 7 * DAY));
     const { applyCategories } = await import("../categorize");

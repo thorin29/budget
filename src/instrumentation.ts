@@ -16,6 +16,8 @@ export async function register(): Promise<void> {
       .then(async ({ applyTypeGuesses, autoLinkBills }) => {
         await applyTypeGuesses();
         await autoLinkBills();
+        const { syncLedgerAccounts } = await import("./server/bank/ledger");
+        await syncLedgerAccounts();
         const { applyCategories } = await import("./server/categorize");
         await applyCategories();
       })

@@ -458,7 +458,7 @@ export function BalanceCard({
 
   return (
     <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
-      <p className="text-[13px] font-medium text-muted">In {accountName ?? "bills"} now</p>
+      <p className="text-[13px] font-medium text-muted">{accountName ?? "Bills account"} balance</p>
 
       {editing ? (
         <form action={action} className="mt-1.5">

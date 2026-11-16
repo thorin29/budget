@@ -111,3 +111,12 @@ export async function markSetupComplete(): Promise<void> {
     update: { value: true },
   });
 }
+
+/** Points the bills account somewhere else without touching the other settings. */
+export async function setBillsAccountId(accountId: string): Promise<void> {
+  await prisma.setting.upsert({
+    where: { key: SETTING_KEYS.billsAccountId },
+    create: { key: SETTING_KEYS.billsAccountId, value: accountId as never },
+    update: { value: accountId as never },
+  });
+}

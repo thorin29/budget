@@ -121,27 +121,30 @@ export async function setBankAccountType(id: string, type: string): Promise<void
   const current = await prisma.bankAccount.findUnique({ where: { id } });
   if (!current) throw new NotFoundError("Bank account");
   await prisma.bankAccount.update({ where: { id }, data: { type: parsed.data, typeSource: "user" } });
+  const { syncLedgerAccounts } = await import("./ledger");
+  await syncLedgerAccounts();
 }
 
 export async function setBankAccountHidden(id: string, hidden: boolean): Promise<void> {
   const current = await prisma.bankAccount.findUnique({ where: { id } });
   if (!current) throw new NotFoundError("Bank account");
-  await prisma.bankAccount.update({ where: { id }, data: { hidden, ...(hidden ? { linkedAccountId: null } : {}) } });
+  // A typed account loses its connection to a hidden feed account; an account made for the feed keeps it and drops out of the lists.
+  const linked = current.linkedAccountId
+    ? ((await prisma.account.findUnique({ where: { id: current.linkedAccountId }, select: { origin: true } })) as { origin: string } | null)
+    : null;
+  await prisma.bankAccount.update({ where: { id }, data: { hidden, ...(hidden && linked?.origin !== "bank" ? { linkedAccountId: null } : {}) } });
   await refreshTransfers(LONG_AGO());
   await applyCategories();
+  const { syncLedgerAccounts } = await import("./ledger");
+  await syncLedgerAccounts();
 }
 
 /** Which bank account keeps the bills balance current; null to type it by hand. */
 export async function setBillsSource(bankAccountId: string | null): Promise<void> {
   const { billsAccountId } = await getSettings();
   if (!billsAccountId) throw new ValidationError({ billsAccountId: ["Choose a bills account first"] });
-  await prisma.bankAccount.updateMany({ where: { linkedAccountId: billsAccountId }, data: { linkedAccountId: null } });
-  if (!bankAccountId) return;
-  const target = await prisma.bankAccount.findUnique({ where: { id: bankAccountId } });
-  if (!target) throw new NotFoundError("Bank account");
-  if (target.hidden) throw new ValidationError({ bankAccountId: ["That account is hidden"] });
-  await prisma.bankAccount.update({ where: { id: bankAccountId }, data: { linkedAccountId: billsAccountId } });
-  await pushLinkedBalances();
+  const { connectAccount } = await import("./ledger");
+  await connectAccount(billsAccountId, bankAccountId);
 }
 
 export interface BankTransactionView {

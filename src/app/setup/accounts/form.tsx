@@ -60,12 +60,26 @@ export function AccountRow({
   account,
   kindLabel,
   settledByName,
+  removeOnly = false,
 }: {
   account: { id: string; name: string; kind: string; active: boolean };
   kindLabel: string;
   settledByName: string | null;
+  /** Just the Remove button, for a row laid out elsewhere. */
+  removeOnly?: boolean;
 }) {
-  const [, action, pending] = useActionState(removeAccountAction, INITIAL);
+  const [state, action, pending] = useActionState(removeAccountAction, INITIAL);
+  if (removeOnly) {
+    return (
+      <form action={action} className="flex flex-col items-end">
+        <input type="hidden" name="id" value={account.id} />
+        <Button type="submit" variant="danger" disabled={pending}>
+          Remove
+        </Button>
+        {!state.ok ? <span className="text-xs text-danger">{state.message}</span> : null}
+      </form>
+    );
+  }
 
   return (
     <div className="flex items-center justify-between gap-4 rounded-xl border border-line bg-surface px-4 py-3">

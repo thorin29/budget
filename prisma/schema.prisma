@@ -77,6 +77,9 @@ model Account {
   kind      AccountKind
   active    Boolean     @default(true)
   sortOrder Int         @default(0)
+  /// "manual": typed by the person. "bank": made for a feed account; its name
+  /// is a placeholder and the feed account's (encrypted) name is shown instead.
+  origin    String      @default("manual")
 
   settledById String?
   settledBy   Account?  @relation("Settles", fields: [settledById], references: [id], onDelete: SetNull)

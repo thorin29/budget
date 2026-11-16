@@ -13,6 +13,7 @@
  *    than the budget settles the item; it does not leave a balance owing.
  */
 
+import { accountLabels } from "./bank/ledger";
 import { safeHttpUrl } from "@/lib/safe-url";
 import { prisma } from "@/lib/prisma";
 import { toCents, toDecimalString, type Cents } from "@/lib/money";
@@ -168,7 +169,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   ])) as [LineItemRow[], NamedRow[], NamedRow[]];
 
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
-  const accountName = new Map(accounts.map((a) => [a.id, a.name]));
+  const accountName = await accountLabels();
 
   // A year of history is enough to surface anything genuinely outstanding
   // without sweeping the whole table on every page load.

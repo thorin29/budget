@@ -514,3 +514,20 @@ person-set category is never recomputed.
   budget and the insights don't double count.
 - **Late payments** pay the oldest unpaid month of a bill first; an overdue
   bill can match up to 45 days after its due day.
+
+## One set of accounts (0.22)
+
+Bills keep pointing at `Account` rows, so nothing about the month, the
+projection or imports changed shape. What changed is where those rows come
+from: every feed account bills could be paid from (checking, savings, cards in
+use, not hidden or quiet) has one behind it, origin "bank". Its stored name is
+a placeholder (`bank:<id>`), and the feed account's encrypted name is shown, so
+no bank name is stored in plain text.
+
+- **Typed accounts** are connected only on a clear match: compatible type, a
+  positive score from shared words, institution initials or last digits, and
+  each side the other's single best. Anything less waits for the person.
+- **Connecting** a typed account to a feed account that already backs a "bank"
+  account moves that account's bills and settings over and removes it.
+- **Hiding** a feed account drops its "bank" account from the lists but keeps
+  the link, so it comes back as it was.

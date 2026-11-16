@@ -43,7 +43,7 @@ import { getConnection } from "@/server/bank/sync";
 import { listBankAccounts } from "@/server/bank/accounts";
 import { listCsvImports } from "@/server/bank/csv-import";
 import { syncHour } from "@/lib/bank-schedule";
-import { BillsSource, ConnectBank, CsvImporter, DeleteBankData, RevertImport, SyncControls } from "../bank";
+import { BillsSource, ConnectBank, CsvImporter, LinkAccountToBank, DeleteBankData, RevertImport, SyncControls } from "../bank";
 
 export const dynamic = "force-dynamic";
 
@@ -333,33 +333,84 @@ const ACCOUNT_LABELS: Record<string, string> = {
 };
 
 async function Accounts() {
-  const accounts = await listAccounts({ includeInactive: true });
-  const bankAccounts = accounts.filter((a) => a.kind === "BANK");
+  const [accounts, feed] = await Promise.all([listAccounts({ includeInactive: true }), listBankAccounts()]);
+  const bankAccounts = accounts.filter((a) => a.kind === "BANK" && a.active);
+  const options = feed
+    .filter((b) => !b.hidden && (b.type === "CHECKING" || b.type === "SAVINGS" || b.type === "CREDIT_CARD"))
+    .map((b) => ({ id: b.id, label: b.institution ? `${b.displayName} · ${b.institution}` : b.displayName, type: b.type }));
+  const fromBank = accounts.filter((a) => a.origin === "bank" && a.active);
+  const typed = accounts.filter((a) => a.origin !== "bank");
 
   return (
     <div>
       <SectionHeading
-        title="Paid-from accounts"
-        description="The accounts your bills are paid from, as line items name them. Your bank feed's accounts are on the Accounts page; these will merge into them in a later version."
+        title="Accounts for bills"
+        description="Where bills are paid from. Your bank feed's checking, savings and card accounts show up here on their own, and their balances update after every sync. An account you typed by hand can be connected to its bank account, so it's one account, not two."
       />
-      <AccountsForm
-        kinds={ACCOUNT_KINDS.map((k) => ({ value: k, label: ACCOUNT_LABELS[k] }))}
-        bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: a.name }))}
-      />
-      <div className="mt-6 space-y-2">
-        {accounts.length === 0 ? (
-          <p className="text-sm text-muted">Nothing added yet.</p>
-        ) : (
-          accounts.map((account) => (
-            <AccountRow
-              key={account.id}
-              account={account}
-              kindLabel={ACCOUNT_LABELS[account.kind]}
-              settledByName={accounts.find((a) => a.id === account.settledById)?.name ?? null}
-            />
-          ))
-        )}
-      </div>
+      {typed.length ? (
+        <div className="space-y-2">
+          <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Typed by hand</h3>
+          {typed.map((account) => (
+            <div key={account.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3">
+              <div className="min-w-0">
+                <span className={account.active ? "font-semibold" : "text-muted line-through"}>{account.name}</span>
+                <span className="ml-2 text-xs text-muted">
+                  {ACCOUNT_LABELS[account.kind]}
+                  {account.settledById ? ` · settled by ${accounts.find((a) => a.id === account.settledById)?.name ?? "another account"}` : ""}
+                  {account.active ? "" : " · inactive"}
+                </span>
+              </div>
+              <span className="flex flex-wrap items-start gap-2">
+                {account.kind === "BANK" || account.kind === "CREDIT_CARD" ? (
+                  <LinkAccountToBank
+                    accountId={account.id}
+                    current={account.bankAccountId ?? ""}
+                    options={options.filter((o) => (account.kind === "CREDIT_CARD" ? o.type === "CREDIT_CARD" : o.type !== "CREDIT_CARD"))}
+                  />
+                ) : null}
+                <AccountRow account={account} kindLabel={ACCOUNT_LABELS[account.kind]} settledByName={null} removeOnly />
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {fromBank.length ? (
+        <div className="mt-6 space-y-2">
+          <h3 className="text-sm font-bold uppercase tracking-wide text-muted">From your bank</h3>
+          <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
+            {fromBank.map((a) => {
+              const b = feed.find((x) => x.id === a.bankAccountId);
+              return (
+                <li key={a.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <span>
+                    <span className="font-semibold">{a.name}</span>
+                    <span className="ml-2 text-xs text-muted">
+                      {ACCOUNT_LABELS[a.kind]}
+                      {b?.institution ? ` · ${b.institution}` : ""}
+                    </span>
+                  </span>
+                  <span className="tnum text-muted">{b?.balanceCents == null ? "—" : formatCents(b.balanceCents)}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className="text-xs text-muted">
+            To drop one from this list, hide it or correct its type on the{" "}
+            <Link href="/accounts" className="font-semibold text-accent-text hover:underline">
+              Accounts
+            </Link>{" "}
+            page.
+          </p>
+        </div>
+      ) : null}
+      <details className="mt-6">
+        <summary className="cursor-pointer text-sm font-semibold text-accent-text">Add an account by hand</summary>
+        <p className="my-2 text-xs text-muted">For money the bank feed doesn't see, like cash.</p>
+        <AccountsForm
+          kinds={ACCOUNT_KINDS.map((k) => ({ value: k, label: ACCOUNT_LABELS[k] }))}
+          bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: a.name }))}
+        />
+      </details>
     </div>
   );
 }
