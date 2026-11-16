@@ -588,6 +588,24 @@ async function Bank() {
 
       {accounts.length ? (
         <Card className="p-6">
+          <h3 className="font-sans text-base font-bold">Export</h3>
+          <p className="mt-1 max-w-prose text-sm text-muted">
+            Everything the feed and your files have delivered, as CSV, for your own analysis or a backup. It downloads
+            from your server to this browser.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a href="/transactions/export?what=transactions" className="rounded-[10px] border border-line-strong px-3 py-1.5 text-sm font-semibold transition hover:bg-neutral-soft">
+              Transactions.csv
+            </a>
+            <a href="/transactions/export?what=accounts" className="rounded-[10px] border border-line-strong px-3 py-1.5 text-sm font-semibold transition hover:bg-neutral-soft">
+              Accounts.csv
+            </a>
+          </div>
+        </Card>
+      ) : null}
+
+      {accounts.length ? (
+        <Card className="p-6">
           <h3 className="font-sans text-base font-bold">Load past history from CSV</h3>
           <p className="mb-4 mt-1 max-w-prose text-sm text-muted">
             The feed only reaches back about 90 days. A transaction export from your bank&rsquo;s website fills in

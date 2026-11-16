@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { cleanMerchant } from "../merchant";
 import { isVerificationNoise, pairTransfers } from "../transfers";
 import { matchDuplicates } from "../bank-match";
-import { parseBankCsv, parseCents, parseDate, splitCsv } from "../bank-csv";
+import { csvField, parseBankCsv, parseCents, parseDate, splitCsv, toCsv } from "../bank-csv";
 import { BankFeedError, allowedHosts, checkUrl, decodeSetupToken, parseAccounts } from "../simplefin";
 import { configuredKey, open, seal } from "../secret-box";
 import { isDue } from "../bank-schedule";
@@ -139,6 +139,15 @@ describe("bank CSV", () => {
       { postedOn: "2026-09-01", amountCents: -8_000, description: "Example Utility" },
       { postedOn: "2026-09-03", amountCents: 100_000, description: "Payroll Deposit" },
     ]);
+  });
+
+  it("writes CSV safely", () => {
+    expect(csvField('Say "hi", ok')).toBe('"Say ""hi"", ok"');
+    expect(csvField("=SUM(A1)")).toBe("'=SUM(A1)");
+    expect(csvField(-12.5)).toBe("-12.5");
+    expect(csvField("-12.00")).toBe("-12.00");
+    expect(csvField("-cmd")).toBe("'-cmd");
+    expect(toCsv(["a", "b"], [[1, null]])).toBe("a,b\r\n1,\r\n");
   });
 
   it("skips a title block above the header and can flip signs", () => {

@@ -3,6 +3,12 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.17.1]
+
+### Added
+- Export bank-feed data as CSV from Settings → Bank sync: every transaction (with its cleaned
+  merchant, transfer flag and account) and every account (with its balance and choice).
+
 ## [0.17.0]
 
 ### Added

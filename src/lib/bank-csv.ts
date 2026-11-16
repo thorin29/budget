@@ -181,3 +181,16 @@ export function parseBankCsv(text: string, { flipSigns = false } = {}): CsvResul
   if (!rows.length) throw new CsvError(problems[0] ?? "No transactions found");
   return { rows, problems: problems.slice(0, 20), layout };
 }
+
+/** One CSV field: quoted when needed, and guarded against spreadsheet formulas. */
+export function csvField(value: string | number | boolean | null | undefined): string {
+  if (value === null || value === undefined) return "";
+  let text = String(value);
+  // A leading =, +, - or @ makes spreadsheets evaluate the cell. Plain numbers like -12.00 are left alone.
+  if (typeof value === "string" && /^[=+\-@\t\r]/.test(text) && !/^-?\d+(\.\d+)?$/.test(text)) text = `'${text}`;
+  return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+export function toCsv(header: string[], rows: Array<Array<string | number | boolean | null | undefined>>): string {
+  return [header, ...rows].map((r) => r.map(csvField).join(",")).join("\r\n") + "\r\n";
+}
