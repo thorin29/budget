@@ -2,8 +2,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
-import { calendarMatches, detectPay, type DetectedPay } from "@/lib/pay-detect";
-import { isIncomeCategory } from "@/lib/category-guess";
+import { calendarMatches, detectPay, employerKey, type DetectedPay } from "@/lib/pay-detect";
+import { isIncomeCategory, isPeerPayment } from "@/lib/category-guess";
 import { createPaySchedule, listPaySchedules, previewPayDates, updatePaySchedule, type PaySchedule } from "./pay-schedule";
 import { NotFoundError } from "./errors";
 
@@ -21,19 +21,31 @@ export async function payFromDeposits(): Promise<PayCheck | null> {
     where: { postedOn: { gte: new Date(Date.now() - 180 * DAY) }, kind: "NORMAL", pending: false, amount: { gt: 300 }, account: { hidden: false, type: "CHECKING" } },
     select: { postedOn: true, amount: true, merchant: true, description: true, category: { select: { name: true } } },
   })) as Array<{ postedOn: Date; amount: { toString(): string }; merchant: string; description: string; category: { name: string } | null }>;
-  const pay = rows.filter((r) => isIncomeCategory(r.category?.name) || /payroll|direct dep|dir dep|salary/i.test(`${r.merchant} ${r.description}`));
-  // The employer with the most deposits is the main paycheck.
-  const byMerchant = new Map<string, string[]>();
-  for (const r of pay) if (toCents(r.amount) > 0) byMerchant.set(r.merchant, [...(byMerchant.get(r.merchant) ?? []), iso(r.postedOn)]);
-  const dates = [...byMerchant.values()].sort((a, b) => b.length - a.length)[0];
-  if (!dates) return null;
-  const detected = detectPay(dates);
-  if (!detected) return null;
+  // Every regular deposit is a candidate (feeds often drop the word "payroll"); payment apps aren't pay.
+  const deposits = rows.filter((r) => toCents(r.amount) > 0 && !isPeerPayment(r.merchant));
+  // Group one employer's deposits even when the description changes, and take the
+  // group that follows a schedule with the most deposits (paid more often beats monthly).
+  const byEmployer = new Map<string, { dates: string[]; labeled: boolean }>();
+  for (const r of deposits) {
+    const k = employerKey(r.merchant);
+    if (!k) continue;
+    const g = byEmployer.get(k) ?? { dates: [], labeled: false };
+    g.dates.push(iso(r.postedOn));
+    g.labeled ||= isIncomeCategory(r.category?.name) || /payroll|direct dep|dir dep|salary/i.test(`${r.merchant} ${r.description}`);
+    byEmployer.set(k, g);
+  }
+  const found = [...byEmployer.values()]
+    .map((g) => ({ ...g, detected: detectPay(g.dates) }))
+    .filter((g) => g.detected)
+    .sort((a, b) => Number(b.labeled) - Number(a.labeled) || b.dates.length - a.dates.length)[0];
+  if (!found) return null;
+  const dates = found.dates;
+  const detected = found.detected!;
   const schedules = await listPaySchedules();
   const today = new Date();
   const schedule = schedules.find((s) => !s.activeTo || s.activeTo >= iso(today)) ?? null;
   const from = new Date(Date.parse(`${[...dates].sort()[0]}T00:00:00Z`) - 4 * DAY);
-  const matches = schedule ? calendarMatches(previewPayDates(schedule, from, today), dates) : false;
+  const matches = schedule ? calendarMatches(previewPayDates(schedule, from, today), dates, detected.latest) : false;
   return { detected, schedule, matches };
 }
 

@@ -2,6 +2,7 @@
  * Loads a year for the Year & reports page and the CSV export.
  */
 
+import { loadPaydays } from "./pay-split";
 import { prisma } from "@/lib/prisma";
 import { toCents, type Cents } from "@/lib/money";
 import { buildYearGrid, type YearGrid, type YearItem } from "@/lib/year";
@@ -74,6 +75,7 @@ export async function getYearView(year: number, now = new Date()): Promise<YearV
     endYear: i.endYear,
     endMonth: i.endMonth,
     active: i.active,
+    paydayNumber: (i as { paydayNumber?: number | null }).paydayNumber ?? null,
     plannedCents: toCents(i.plannedAmount),
     categoryName: i.categoryId ? (categoryName.get(i.categoryId) ?? null) : null,
     paidFromSurplus: i.paidFromSurplus,
@@ -90,6 +92,7 @@ export async function getYearView(year: number, now = new Date()): Promise<YearV
     ),
     actuals: new Map(actuals.map((a) => [`${a.lineItemId}:${a.month}`, toCents(a.amount)])),
     now: { year: now.getFullYear(), month: now.getMonth() + 1 },
+    paydaysIn: await loadPaydays(),
   });
 
   const yearSet = new Set(years.map((y) => y.year));

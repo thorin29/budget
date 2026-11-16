@@ -429,17 +429,40 @@ export function CombinedImporter() {
   );
 }
 
-/** A card's two statement days and an optional 0% end date, saved together. */
+/**
+ * A card's two statement days and an optional 0% end date, saved together. The
+ * button answers in place: solid green as it saves, easing to a light green
+ * "Saved", and back to "Save" once anything changes.
+ */
 export function CardTerms({ id, closeDay, dueDay, promoEndsOn }: { id: string; closeDay: number | null; dueDay: number | null; promoEndsOn: string | null }) {
   const [pending, start] = useTransition();
-  const [state, setState] = useState<BankActionState | null>(null);
+  const [look, setLook] = useState<"idle" | "flash" | "saved">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const reset = () => {
+    setLook("idle");
+    setError(null);
+  };
+  const tone =
+    look === "flash"
+      ? "border-ok bg-ok text-surface"
+      : look === "saved"
+        ? "border-ok-soft bg-ok-soft text-ok"
+        : "border-line-strong bg-surface text-foreground hover:bg-neutral-soft";
   return (
     <form
       className="flex flex-wrap items-end gap-2 text-xs"
+      onChange={reset}
       action={(form) =>
-        start(async () =>
-          setState(await setCardTermsAction(id, String(form.get("closeDay") ?? ""), String(form.get("dueDay") ?? ""), String(form.get("promoEndsOn") ?? ""))),
-        )
+        start(async () => {
+          const r = await setCardTermsAction(id, String(form.get("closeDay") ?? ""), String(form.get("dueDay") ?? ""), String(form.get("promoEndsOn") ?? ""));
+          if (!r.ok) {
+            setLook("idle");
+            setError(r.message);
+            return;
+          }
+          setLook("flash");
+          setTimeout(() => setLook((now) => (now === "flash" ? "saved" : now)), 350);
+        })
       }
     >
       <label className="flex flex-col gap-1">
@@ -454,10 +477,15 @@ export function CardTerms({ id, closeDay, dueDay, promoEndsOn }: { id: string; c
         <span className="text-muted">0% offer ends</span>
         <input name="promoEndsOn" type="date" defaultValue={promoEndsOn ?? ""} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm" />
       </label>
-      <Button type="submit" variant="quiet" disabled={pending}>
-        {pending ? "…" : "Save"}
-      </Button>
-      {state ? <span className={state.ok ? "text-muted" : "text-danger"}>{state.message}</span> : null}
+      <button
+        type="submit"
+        disabled={pending}
+        aria-live="polite"
+        className={`inline-flex min-w-20 items-center justify-center gap-1 rounded-[10px] border px-3.5 py-2 text-sm font-semibold transition-colors duration-700 ease-out disabled:opacity-70 ${tone}`}
+      >
+        {pending ? "Saving…" : look === "idle" ? "Save" : "Saved ✓"}
+      </button>
+      {error ? <span className="text-danger">{error}</span> : null}
     </form>
   );
 }

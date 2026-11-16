@@ -6,6 +6,7 @@
  * how much can leave the account today without causing a shortfall later.
  */
 
+import { loadPaydays } from "./pay-split";
 import { accountLabels } from "./bank/ledger";
 import { prisma } from "@/lib/prisma";
 import { toCents, type Cents } from "@/lib/money";
@@ -158,11 +159,25 @@ export async function getProjection(options: {
   // calendar generates, which is what makes a three-payday month show up as
   // extra money rather than needing a third line item.
   const scheduleById = new Map(schedules.map((s) => [s.id, s]));
+  const paydaysIn = await loadPaydays();
   const income: ExpectedIncome[] = [];
 
   for (const item of items) {
     if (item.kind !== "INCOME") continue;
     const amountCents = toCents(item.plannedAmount);
+
+    // Tied to a payday of the month: one arrival on that payday, in months that have it.
+    const nth = (item as { paydayNumber?: number | null }).paydayNumber ?? 0;
+    if (nth > 0) {
+      for (const { year, month } of monthsSpanning(asOf, end)) {
+        const date = paydaysIn(year, month)[nth - 1];
+        if (!date || date < asOf || date > end) continue;
+        const override = planMap.get(key(item.id, year, month));
+        if (override?.skipped) continue;
+        income.push({ lineItemId: item.id, name: item.name, date, amountCents: override?.amountCents ?? amountCents });
+      }
+      continue;
+    }
 
     const schedule = item.payScheduleId ? scheduleById.get(item.payScheduleId) : undefined;
 

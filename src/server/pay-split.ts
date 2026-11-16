@@ -1,10 +1,16 @@
 /**
- * Where the month divides. With a pay calendar, it divides at the payday
- * nearest the 15th (from the 8th on), so each half is the bills one paycheck
- * covers: paid every two weeks on the 6th and 20th, the split is the 20th; on
- * the 2nd, 16th and 30th, it's the 16th (the third paycheck is extra); twice a
- * month on the 15th and last day, it's the 15th. Monthly pay, no calendar, or
- * the "fixed day" setting fall back to the split day.
+ * Paydays from the pay calendar, and where the month divides.
+ *
+ * The main paycheck is the calendar most income items use (or the only one).
+ * Each month uses whichever calendar was in effect then, with moved or extra
+ * paydays applied.
+ *
+ * The month divides at the payday nearest the 15th (from the 8th on), so each
+ * half is the bills one paycheck covers: paid every two weeks on the 6th and
+ * 20th, the split is the 20th; on the 2nd, 16th and 30th, it's the 16th (the
+ * third paycheck is extra); twice a month on the 15th and last day, it's the
+ * 15th. Monthly pay, no calendar, or the "fixed day" setting fall back to the
+ * split day.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -28,6 +34,44 @@ type ScheduleRow = {
   overrides: Array<{ originalDate: Date | null; actualDate: Date; suppressed: boolean }>;
 };
 
+export type PaydaysIn = (year: number, month: number) => Date[];
+
+/** Loads the pay calendars once; the result gives any month's main paydays. */
+export async function loadPaydays(): Promise<PaydaysIn & { frequency: (year: number, month: number) => ScheduleRow["frequency"] | null }> {
+  const schedules = (await prisma.paySchedule.findMany({
+    select: {
+      id: true, frequency: true, anchorDate: true, daysOfMonth: true, activeFrom: true, activeTo: true,
+      _count: { select: { lineItems: true } },
+      overrides: { select: { originalDate: true, actualDate: true, suppressed: true } },
+    },
+  })) as ScheduleRow[];
+  const pick = (year: number, month: number) => {
+    const start = utcDate(year, month, 1);
+    const end = utcDate(year, month, daysInMonth(year, month));
+    const live = schedules.filter((s) => s.activeFrom <= end && (!s.activeTo || s.activeTo >= start));
+    return { start, end, main: [...live].sort((a, b) => b._count.lineItems - a._count.lineItems || b.activeFrom.getTime() - a.activeFrom.getTime())[0] };
+  };
+  const cache = new Map<number, Date[]>();
+  const fn = ((year: number, month: number) => {
+    const k = year * 12 + month;
+    if (cache.has(k)) return cache.get(k)!;
+    const { start, end, main } = pick(year, month);
+    let days: Date[] = [];
+    if (main) {
+      days = payDatesBetween(main.frequency, main.anchorDate, main.daysOfMonth, start, end);
+      for (const o of main.overrides) {
+        if (o.originalDate) days = days.filter((d) => d.getTime() !== o.originalDate!.getTime());
+        if (!o.suppressed && o.actualDate >= start && o.actualDate <= end) days.push(o.actualDate);
+      }
+      days.sort((a, b) => a.getTime() - b.getTime());
+    }
+    cache.set(k, days);
+    return days;
+  }) as PaydaysIn & { frequency: (year: number, month: number) => ScheduleRow["frequency"] | null };
+  fn.frequency = (year, month) => pick(year, month).main?.frequency ?? null;
+  return fn;
+}
+
 /** The payday nearest the 15th, from the 8th on; null when there isn't one. */
 export function paydaySplitDay(paydays: Date[]): number | null {
   const days = paydays.map((d) => d.getUTCDate()).filter((d) => d >= 8 && d <= 28);
@@ -35,28 +79,17 @@ export function paydaySplitDay(paydays: Date[]): number | null {
   return days.reduce((best, d) => (Math.abs(d - 15) < Math.abs(best - 15) ? d : best));
 }
 
-export async function monthSplit(year: number, month: number, settings: Pick<Settings, "splitDay" | "splitMode">): Promise<MonthSplit> {
+export async function monthSplit(
+  year: number,
+  month: number,
+  settings: Pick<Settings, "splitDay" | "splitMode">,
+  paydays?: Awaited<ReturnType<typeof loadPaydays>>,
+): Promise<MonthSplit> {
   const fixed = { splitDay: settings.splitDay, payday: null };
   if (settings.splitMode === "day") return fixed;
-  const start = utcDate(year, month, 1);
-  const end = utcDate(year, month, daysInMonth(year, month));
-  const schedules = (await prisma.paySchedule.findMany({
-    where: { activeFrom: { lte: end }, OR: [{ activeTo: null }, { activeTo: { gte: start } }], frequency: { not: "MONTHLY" } },
-    select: {
-      id: true, frequency: true, anchorDate: true, daysOfMonth: true, activeFrom: true, activeTo: true,
-      _count: { select: { lineItems: true } },
-      overrides: { select: { originalDate: true, actualDate: true, suppressed: true } },
-    },
-  })) as ScheduleRow[];
-  if (!schedules.length) return fixed;
-  // The main paycheck: the calendar most income items use.
-  const main = [...schedules].sort((a, b) => b._count.lineItems - a._count.lineItems)[0];
-  let paydays = payDatesBetween(main.frequency, main.anchorDate, main.daysOfMonth, start, end);
-  for (const o of main.overrides) {
-    if (o.originalDate) paydays = paydays.filter((d) => d.getTime() !== o.originalDate!.getTime());
-    if (!o.suppressed && o.actualDate >= start && o.actualDate <= end) paydays.push(o.actualDate);
-  }
-  const day = paydaySplitDay(paydays);
+  const p = paydays ?? (await loadPaydays());
+  if (p.frequency(year, month) === "MONTHLY") return fixed;
+  const day = paydaySplitDay(p(year, month));
   if (day === null) return fixed;
   return { splitDay: day, payday: `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` };
 }

@@ -17,6 +17,7 @@ import { toCents } from "@/lib/money";
 import { merchantKey } from "@/lib/field-crypto";
 import { SPENDING_TYPES, type AccountType } from "@/lib/account-type";
 import { knownMatch, learnedDueDay, pairRecorded, shouldMoveDueDay } from "@/lib/bill-history";
+import { paydayNumbersFromNames } from "@/lib/pay-detect";
 import type { MatchTxn } from "@/lib/bill-match";
 import { recordActual, clearActual } from "./month";
 import { dismissMatch, getReview, linkActual } from "./review";
@@ -110,7 +111,28 @@ export async function recordExactMatches(): Promise<number> {
   return recorded;
 }
 
+/**
+ * Income named like "Pay", "Pay 2", "Pay 3" follows the pay calendar's 1st,
+ * 2nd and 3rd payday, once there's a calendar paid more than monthly. Only
+ * items nobody has set are touched; the line item form changes it.
+ */
+export async function assignPaydayNumbers(): Promise<number> {
+  const calendars = await prisma.paySchedule.count({ where: { frequency: { not: "MONTHLY" } } });
+  if (!calendars) return 0;
+  const items = (await prisma.lineItem.findMany({ where: { kind: "INCOME", active: true }, select: { id: true, name: true, paydayNumber: true } })) as Array<{ id: string; name: string; paydayNumber: number | null }>;
+  const numbers = paydayNumbersFromNames(items);
+  let set = 0;
+  for (const item of items) {
+    const n = numbers.get(item.id);
+    if (n === undefined || item.paydayNumber !== null) continue;
+    await prisma.lineItem.update({ where: { id: item.id }, data: { paydayNumber: n } });
+    set += 1;
+  }
+  return set;
+}
+
 export async function runBillAutomation(): Promise<AutomationResult> {
+  await assignPaydayNumbers();
   const linked = await linkRecordedPayments();
   const dueDaysMoved = await learnDueDays();
   const recorded = await recordExactMatches();

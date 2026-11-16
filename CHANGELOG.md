@@ -3,6 +3,21 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.25.1]
+
+### Fixed
+- Income follows the pay calendar. An income item can arrive on "the 1st/2nd/3rd… payday of the
+  month" (line item form → Arrives on), so a 3rd paycheck appears only in months with three
+  paydays, on that payday, in the month view, the year grid and the projection. Items named like
+  "Pay", "Pay 2", "Pay 3" are set this way automatically. Migration `0014`.
+- Income with nothing expected and nothing received (a year-end bonus in other months) no longer
+  shows a row.
+- The pay calendar check groups one employer's deposits even when the bank describes them two
+  ways, and ignores off-cycle bonus runs, so "most recently" is the real latest payday.
+
+### Changed
+- The card Save button turns green and reads "Saved", then eases to light green.
+
 ## [0.25.0]
 
 ### Added

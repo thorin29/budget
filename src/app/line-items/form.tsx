@@ -26,6 +26,7 @@ export interface LineItemDefaults {
   periodAssignment: string;
   paidFromSurplus: boolean;
   autoRecord: boolean;
+  paydayNumber: number | null;
   scheduleKind: string;
   anchorMonth: number;
   months: number[];
@@ -378,6 +379,19 @@ export function LineItemForm({
             label="Paid from what’s left over"
             detail="For a card you pay with whatever remains once the bills are covered. It stops counting against the free money, and What can I pay? shows what you can send it."
           />
+        ) : null}
+
+        {isIncome ? (
+          <Field label="Arrives on" hint="With a pay calendar, a 3rd paycheck only shows in months that have three paydays">
+            <Select name="paydayNumber" defaultValue={String(defaults.paydayNumber ?? 0)}>
+              <option value="0">Its due day</option>
+              <option value="1">The 1st payday of the month</option>
+              <option value="2">The 2nd payday of the month</option>
+              <option value="3">The 3rd payday of the month</option>
+              <option value="4">The 4th payday of the month</option>
+              <option value="5">The 5th payday of the month</option>
+            </Select>
+          </Field>
         ) : null}
 
         <Switch

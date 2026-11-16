@@ -140,6 +140,12 @@ model LineItem {
   payScheduleId String?
   paySchedule   PaySchedule? @relation(fields: [payScheduleId], references: [id], onDelete: SetNull)
 
+  /// INCOME only: which payday of the month this is (1st, 2nd, 3rd…), from
+  /// the pay calendar. A "3rd paycheck" item then appears only in months with
+  /// three paydays, on that payday. 0 means "on its due day" by choice; null
+  /// means not set yet.
+  paydayNumber Int?
+
   plannedAmount Decimal @db.Decimal(12, 2)
 
   /// Approximate day of month. Used to place the item in a pay period;

@@ -38,6 +38,8 @@ export interface LineItemForMonth {
   endYear: number | null;
   endMonth: number | null;
   active: boolean;
+  /** INCOME: which payday of the month it arrives on; 0 or null for its due day. */
+  paydayNumber?: number | null;
 }
 
 export interface Obligation {
@@ -144,8 +146,13 @@ export function isDueInMonth(
   item: LineItemForMonth,
   year: number,
   month: number,
+  /** The month's paydays, for income tied to a payday (a third paycheck only comes in three-payday months). */
+  paydaysIn?: (year: number, month: number) => Date[],
 ): boolean {
   if (!item.active) return false;
+  if (item.kind === "INCOME" && item.paydayNumber && item.paydayNumber > 0 && paydaysIn) {
+    if (paydaysIn(year, month).length < item.paydayNumber) return false;
+  }
   if (!item.months.includes(month)) return false;
   if (item.scheduleKind === "ONE_OFF" && item.onlyYear !== year) return false;
 

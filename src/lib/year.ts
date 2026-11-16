@@ -73,8 +73,10 @@ export function buildYearGrid(args: {
   actuals: Map<string, Cents>;
   /** The current year and month, to tell finished months from open ones. */
   now: { year: number; month: number };
+  /** Paydays per month, for income tied to a payday. */
+  paydaysIn?: (year: number, month: number) => Date[];
 }): YearGrid {
-  const { year, items, plans, actuals, now } = args;
+  const { year, items, plans, actuals, now, paydaysIn } = args;
   const nowOrdinal = now.year * 12 + now.month;
 
   const rows: YearRow[] = [];
@@ -83,7 +85,7 @@ export function buildYearGrid(args: {
     const cells: YearCell[] = [];
     for (let month = 1; month <= 12; month++) {
       const actual = actuals.get(key(item.id, month)) ?? null;
-      const scheduled = isDueInMonth({ ...item, active: true }, year, month);
+      const scheduled = isDueInMonth({ ...item, active: true }, year, month, paydaysIn);
       const plan = plans.get(key(item.id, month));
 
       let budgeted: Cents | null = null;

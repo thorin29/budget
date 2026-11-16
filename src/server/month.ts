@@ -13,7 +13,7 @@
  *    than the budget settles the item; it does not leave a balance owing.
  */
 
-import { monthSplit } from "./pay-split";
+import { loadPaydays, monthSplit } from "./pay-split";
 import { accountLabels } from "./bank/ledger";
 import { safeHttpUrl } from "@/lib/safe-url";
 import { prisma } from "@/lib/prisma";
@@ -142,6 +142,7 @@ interface LineItemRow {
   paymentUrl: string | null;
   active: boolean;
   paidFromSurplus: boolean;
+  paydayNumber?: number | null;
 }
 
 interface NamedRow {
@@ -169,7 +170,8 @@ interface ActualRow {
 
 export async function getMonthView(year: number, month: number): Promise<MonthView> {
   const settings = await getSettings();
-  const split = await monthSplit(year, month, settings);
+  const paydaysIn = await loadPaydays();
+  const split = await monthSplit(year, month, settings, paydaysIn);
   const splitDay = split.splitDay;
 
   const [items, categories, accounts] = (await Promise.all([
@@ -241,6 +243,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     endYear: i.endYear,
     endMonth: i.endMonth,
     active: i.active,
+    paydayNumber: i.paydayNumber ?? null,
   }));
 
   const planned = new Map(items.map((i) => [i.id, toCents(i.plannedAmount)]));
@@ -363,11 +366,13 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   // Income for this month.
   const income: MonthEntry[] = items
     .filter((i) => i.kind === "INCOME")
-    .filter((i) => isDueInMonth(forModel.find((f) => f.id === i.id)!, year, month))
+    .filter((i) => isDueInMonth(forModel.find((f) => f.id === i.id)!, year, month, paydaysIn) || actualMap.has(key(i.id, year, month)))
     .map((item) => {
       const k = key(item.id, year, month);
       const plan = planMap.get(k);
       const budgeted = plan?.amountCents ?? toCents(item.plannedAmount);
+      // Tied to a payday: it arrives on that payday this month.
+      const payday = item.paydayNumber ? paydaysIn(year, month)[item.paydayNumber - 1] : undefined;
       return {
         lineItemId: item.id,
         name: item.name,
@@ -377,7 +382,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
         categoryName: item.categoryId ? (categoryName.get(item.categoryId) ?? null) : null,
         accountName: item.paidFromId ? (accountName.get(item.paidFromId) ?? null) : null,
         paymentUrl: safeHttpUrl(item.paymentUrl),
-        dueDay: item.dueDay,
+        dueDay: payday ? payday.getUTCDate() : item.dueDay,
         budgetedCents: budgeted,
         plannedCents: toCents(item.plannedAmount),
         actualCents: actualMap.get(k) ?? null,
@@ -391,6 +396,8 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
         carriedFrom: null,
       };
     })
+    // Nothing expected and nothing received (a year-end bonus outside its month): not worth a row.
+    .filter((e) => e.budgetedCents > 0 || e.actualCents !== null)
     .sort((a, b) => (a.dueDay ?? 0) - (b.dueDay ?? 0));
 
   const carriedCents = carried.reduce((sum, e) => sum + e.budgetedCents, 0);
