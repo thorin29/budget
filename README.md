@@ -11,7 +11,7 @@ Everything runs on your own server against your own PostgreSQL database. Fonts
 are bundled. The only outside requests are optional bank sync's, once you turn it
 on.
 
-> **Status:** v0.17.1. Month view, cash projection, line items, year reports,
+> **Status:** v0.18.0. Month view, cash projection, line items, year reports,
 > import, export, sign-in for up to two people, and a token-secured API for a
 > phone app all work. See `CHANGELOG.md`.
 
@@ -113,7 +113,7 @@ import a workbook under Settings → Import & export. Nothing is pre-populated.
 | `FRAME_ANCESTORS`      | no       | Origins allowed to embed the app in a frame. Empty = none.      |
 | `REAL_IP_HEADER`       | no       | Header your proxy puts the client IP in, for rate limits.       |
 | `SESSION_SECRET`       | no       | Overrides the cookie-signing secret (32+ characters).           |
-| `BANK_SYNC_KEY`        | no       | Turns on bank sync; encrypts its access link (32+ characters).  |
+| `BANK_SYNC_KEY`        | no       | Encryption key (32+ characters). Turns on bank sync and encrypts identifying text. Keep a copy. |
 | `BANK_SYNC_HOUR`       | no       | Local hour after which the daily bank sync runs. Defaults to 6. |
 | `SIMPLEFIN_EXTRA_HOSTS`| no       | More SimpleFIN-compatible hosts to allow, comma-separated.      |
 
@@ -130,6 +130,13 @@ Sign-in is built in and always on: up to two people, scrypt-hashed passwords,
 signed session cookies, rate-limited sign-in, and a check in every server
 action. Keep an authenticating proxy in front as well if the app is reachable
 from outside; the app does not rely on it.
+
+Identifying text is encrypted before it is stored when `BANK_SYNC_KEY` is set:
+bank account and institution names, merchants, descriptions, memos, notes and
+payment links (AES-256-GCM, a fresh IV per value). A database backup on its own
+shows ciphertext for those fields. Amounts, dates and categories stay plain so
+totals run in the database; without the names they identify no one. Losing the
+key means losing those fields, so keep a copy somewhere safe.
 
 Also in place: a strict Content-Security-Policy with a fresh nonce on every
 page, `nosniff` and `same-origin` referrer headers, payment links limited to

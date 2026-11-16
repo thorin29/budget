@@ -660,6 +660,17 @@ function About() {
         <dd className="tnum font-semibold">{APP_VERSION}</dd>
         <dt className="text-muted">Build</dt>
         <dd className="tnum">{BUILD_SHA ? BUILD_SHA.slice(0, 7) : "local"}</dd>
+        <dt className="text-muted">Encryption</dt>
+        <dd>
+          {configuredKey() ? (
+            <span className="font-semibold text-ok">On</span>
+          ) : (
+            <span className="font-semibold text-warn">Off — set BANK_SYNC_KEY</span>
+          )}
+          <span className="block text-xs text-muted">
+            Bank account and institution names, merchants, descriptions, memos, notes and payment links
+          </span>
+        </dd>
         <dt className="text-muted">API</dt>
         <dd>
           <a href="/api/v1/meta" className="text-accent-text hover:underline">
@@ -669,7 +680,9 @@ function About() {
       </dl>
       <p className="mt-5 max-w-prose text-sm text-muted">
         Self-hosted. Everything you enter stays in your own database, and fonts are bundled. The only
-        outside requests are bank sync&rsquo;s, and only once you connect it.
+        outside requests are bank sync&rsquo;s, and only once you connect it. With BANK_SYNC_KEY set,
+        identifying text is encrypted before it is stored, so a database backup alone can&rsquo;t read it.
+        Keep a copy of the key: without it those fields can&rsquo;t be recovered.
       </p>
     </Card>
   );

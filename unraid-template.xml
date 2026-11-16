@@ -39,7 +39,7 @@
           Type="Variable" Display="advanced" Required="false" Mask="false">100</Config>
 
   <Config Name="BANK_SYNC_KEY" Target="BANK_SYNC_KEY" Default=""
-          Description="Optional. Turns on bank sync and encrypts its access link. A random string of at least 32 characters (openssl rand -base64 48). Keep a copy."
+          Description="Recommended. Encryption key: turns on bank sync and encrypts account names, merchants, descriptions, notes and payment links before they are stored. A random string of at least 32 characters (openssl rand -base64 48). Keep a copy: without it those fields can't be read."
           Type="Variable" Display="always" Required="false" Mask="true"/>
 
   <Config Name="BANK_SYNC_HOUR" Target="BANK_SYNC_HOUR" Default="6"

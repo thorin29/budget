@@ -25,7 +25,7 @@ export interface BankAccountView {
 
 export async function listBankAccounts(): Promise<BankAccountView[]> {
   const [accounts, stats] = await Promise.all([
-    prisma.bankAccount.findMany({ orderBy: [{ institution: "asc" }, { name: "asc" }] }),
+    prisma.bankAccount.findMany({}),
     prisma.bankTransaction.groupBy({ by: ["accountId"], _count: { _all: true }, _max: { postedOn: true } }),
   ]);
   const byAccount = new Map(
@@ -41,7 +41,10 @@ export async function listBankAccounts(): Promise<BankAccountView[]> {
     use: BankUse | null;
     linkedAccountId: string | null;
     lastSeenAt: Date;
-  }>).map((a) => ({
+  }>)
+    // Names are encrypted, so they sort here rather than in the database.
+    .sort((a, b) => (a.institution ?? "~").localeCompare(b.institution ?? "~") || a.name.localeCompare(b.name))
+    .map((a) => ({
     id: a.id,
     institution: a.institution,
     name: a.name,
@@ -106,16 +109,13 @@ export async function listBankTransactions({
   query?: string;
   take?: number;
 }): Promise<BankTransactionView[]> {
-  const text = query?.trim().slice(0, 100);
+  const text = query?.trim().slice(0, 100).toLowerCase();
+  const limit = Math.min(Math.max(take, 1), 1000);
+  // Merchant and description are encrypted, so a search reads recent rows and matches them here.
   const rows = await prisma.bankTransaction.findMany({
-    where: {
-      ...(accountId ? { accountId } : {}),
-      ...(text
-        ? { OR: [{ merchant: { contains: text, mode: "insensitive" } }, { description: { contains: text, mode: "insensitive" } }] }
-        : {}),
-    },
+    where: accountId ? { accountId } : {},
     orderBy: [{ postedOn: "desc" }, { createdAt: "desc" }],
-    take: Math.min(Math.max(take, 1), 1000),
+    take: text ? 20_000 : limit,
     include: { account: { select: { name: true, institution: true } } },
   });
   return (rows as Array<{
@@ -128,7 +128,10 @@ export async function listBankTransactions({
     kind: "NORMAL" | "TRANSFER" | "IGNORED";
     source: string;
     account: { name: string; institution: string | null };
-  }>).map((r) => ({
+  }>)
+    .filter((r) => !text || r.merchant.toLowerCase().includes(text) || r.description.toLowerCase().includes(text))
+    .slice(0, limit)
+    .map((r) => ({
     id: r.id,
     postedOn: r.postedOn,
     accountName: r.account.name,

@@ -429,3 +429,28 @@ built in. Read-only by design: the protocol has no way to move money.
   re-reads two weeks so pending charges that post at a new amount are fixed.
 - **Suggestions only, later.** Nothing from the feed records a payment. A
   "looks paid" hint will come, and the person still confirms it.
+
+## Encryption at rest (0.18)
+
+Identifying text is sealed in the application before it reaches PostgreSQL,
+because disk encryption depends on how the server was set up and a database
+backup travels further than a disk.
+
+- **What:** bank account and institution names, merchants, descriptions,
+  memos, imported file names, line-item notes and payment links, and payment
+  and month notes (`src/lib/field-crypto.ts`, `ENCRYPTED_FIELDS`).
+- **What not:** amounts, dates, categories, kinds and ids, so totals, sorting
+  and date ranges stay in SQL. Without names they point to no one. Line-item,
+  account and category names are the person's own labels and stay plain; the
+  coming account rework moves accounts onto the feed's encrypted names.
+- **How:** AES-256-GCM, a fresh IV per value, key derived with HKDF from
+  `BANK_SYNC_KEY` under its own purpose. A Prisma client extension seals
+  writes and opens reads, so the rest of the code sees plain text. Stored as
+  `enc:v1.…`; anything without the prefix is read as is, which makes the change
+  gradual: rows written before it are sealed at the next start, in batches, by
+  `src/server/seal-existing.ts`.
+- **Costs accepted:** encrypted fields can't be filtered or sorted in SQL. A
+  filter on one throws rather than silently matching nothing; searches and
+  name sorting happen in memory, which is fine at a household's scale.
+- **The key is the data.** Lose `BANK_SYNC_KEY` and those fields read
+  "[unreadable]". There is no recovery by design. Rotation is not built yet.

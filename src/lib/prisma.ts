@@ -1,5 +1,6 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
+import { fieldKey, filtersEncrypted, openDeep, sealArgs } from "./field-crypto";
 
 /**
  * Prisma 7 requires a driver adapter; the client no longer opens connections
@@ -29,10 +30,40 @@ function createClient(): PrismaClient {
     idleTimeoutMillis: 30_000,
   });
 
-  return new PrismaClient({
+  const base = new PrismaClient({
     adapter,
     log: process.env.NODE_ENV === "development" ? ["query", "error", "warn"] : ["error"],
   });
+  return withFieldEncryption(base);
+}
+
+/**
+ * Identifying text is encrypted on the way in and decrypted on the way out
+ * (src/lib/field-crypto.ts). Without a key, values are stored as given, which
+ * is the state before encryption existed; Settings → About says so.
+ */
+function withFieldEncryption(base: PrismaClient): PrismaClient {
+  return base.$extends({
+    query: {
+      $allModels: {
+        async $allOperations({ model, operation, args, query }) {
+          const key = fieldKey();
+          const blocked = filtersEncrypted(model, (args as { where?: unknown } | undefined)?.where);
+          if (blocked) throw new Error(`${model}.${blocked} is encrypted and can't be filtered in the database`);
+          const sealed = key ? sealArgs(model, operation, args, key) : args;
+          const result = await query(sealed as typeof args);
+          return openDeep(result, key);
+        },
+      },
+    },
+  }) as unknown as PrismaClient;
+}
+
+/** The client without encryption, for the one-time job that seals rows written before it existed. */
+export function rawClient(): PrismaClient {
+  const connectionString = process.env.DATABASE_URL;
+  if (!connectionString) throw new Error("DATABASE_URL is not set");
+  return new PrismaClient({ adapter: new PrismaPg({ connectionString, max: 2, connectionTimeoutMillis: 5_000 }) });
 }
 
 function client(): PrismaClient {

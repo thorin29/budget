@@ -26,7 +26,6 @@ export async function GET(request: Request) {
 
   if (what === "accounts") {
     const accounts = (await prisma.bankAccount.findMany({
-      orderBy: [{ institution: "asc" }, { name: "asc" }],
       include: { linkedAccount: { select: { name: true } }, _count: { select: { transactions: true } } },
     })) as Array<{
       id: string;
@@ -41,6 +40,7 @@ export async function GET(request: Request) {
       lastSeenAt: Date;
       _count: { transactions: number };
     }>;
+    accounts.sort((a, b) => (a.institution ?? "~").localeCompare(b.institution ?? "~") || a.name.localeCompare(b.name));
     body = toCsv(
       ["Account ID", "Institution", "Account", "Currency", "Balance", "Available", "Balance date", "Use", "Keeps current", "Transactions", "Last seen"],
       accounts.map((a) => [

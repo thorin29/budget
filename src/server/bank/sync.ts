@@ -18,7 +18,8 @@ import { ConflictError, NotFoundError } from "../errors";
 import { claimSetupToken, fetchAccounts } from "./simplefin-client";
 
 const DAY = 86_400_000;
-const FIRST_SYNC_DAYS = 90;
+// Bridges cap a request at 90 days; asking for 89 avoids a "capped" warning on every first sync.
+const FIRST_SYNC_DAYS = 89;
 const OVERLAP_DAYS = 14;
 const LOCK_MINUTES = 15;
 

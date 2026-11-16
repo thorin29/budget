@@ -3,6 +3,19 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.18.0]
+
+### Added
+- Encryption at rest for identifying text: bank account and institution names, merchants,
+  descriptions, memos and imported file names, plus notes and payment links. Each value is sealed
+  with AES-256-GCM under `BANK_SYNC_KEY` before it is stored. Values already in the database are
+  sealed at the next start. Settings → About shows whether encryption is on.
+
+### Changed
+- `BANK_SYNC_KEY` now also protects your data. Keep a copy: without it, encrypted fields can't be
+  read back.
+- The first bank sync asks for 89 days, so the bridge no longer warns that the range was capped.
+
 ## [0.17.1]
 
 ### Added
