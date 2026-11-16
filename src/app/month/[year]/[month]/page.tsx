@@ -1,3 +1,4 @@
+import { listCardPayments } from "@/server/card-payments";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -76,6 +77,10 @@ export default async function MonthPage({
   const now = new Date();
   const isCurrent = year === now.getFullYear() && month === now.getMonth() + 1;
 
+  const cards = isCurrent ? await listCardPayments(today) : [];
+  const daysUntil = (iso: string) => Math.round((Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
+  const longDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+
   const income = view.income.map((e) => withSuggestion(toRow(e, today)));
   const carried = view.carried.map((e) => withSuggestion(toRow(e, today)));
   const halves = view.halves.map((h) => h.entries.map((e) => withSuggestion(toRow(e, today))));
@@ -152,7 +157,7 @@ export default async function MonthPage({
             {MONTH_NAMES[month - 1]} {year}
           </h1>
           <p className="tnum mt-1 text-sm text-muted">
-            Split on the {ordinal(view.splitDay)} ·{" "}
+            {view.splitPayday ? `Split at the ${ordinal(view.splitDay)} payday` : `Split on the ${ordinal(view.splitDay)}`} ·{" "}
             {unpaidBills.length === 0
               ? "every bill settled"
               : `${unpaidBills.length} ${unpaidBills.length === 1 ? "bill" : "bills"} left · ${formatCents(
@@ -233,7 +238,7 @@ export default async function MonthPage({
           label="First half remaining"
           value={view.transferAfterFirstCents === null ? "—" : formatCents(view.transferAfterFirstCents)}
           tone={view.transferAfterFirstCents !== null && view.transferAfterFirstCents < 0 ? "danger" : "default"}
-          detail={`${formatCents(view.halves[0].remainingCents + view.carriedCents)} still owed before the ${ordinal(view.splitDay)}`}
+          detail={`${formatCents(view.halves[0].remainingCents + view.carriedCents)} still owed before the ${ordinal(view.splitDay)}${view.splitPayday ? " payday" : ""}`}
         />
 
         <StatCard
@@ -349,6 +354,39 @@ export default async function MonthPage({
                 </ul>
               )}
             </div>
+            {cards.length ? (
+              <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+                <h2 className="text-base font-bold">Card payments</h2>
+                <ul className="mt-3 divide-y divide-line">
+                  {cards.map((c) => {
+                    const days = daysUntil(c.nextDue);
+                    const beforePayday = view.splitPayday ? c.nextDue < view.splitPayday : null;
+                    return (
+                      <li key={c.id} className="py-2.5 text-sm first:pt-0 last:pb-0">
+                        <div className="flex items-baseline justify-between gap-3">
+                          <span className="min-w-0 truncate font-semibold">{c.name}</span>
+                          <span className="tnum shrink-0 font-semibold">{c.plan === "paid" ? "Paid" : formatCents(c.suggestedCents)}</span>
+                        </div>
+                        <p className="text-xs text-muted">
+                          Due {shortDate(c.nextDue)}
+                          {days >= 0 ? ` · in ${days} day${days === 1 ? "" : "s"}` : " · past due"}
+                          {beforePayday !== null && c.nextDue.slice(0, 7) === view.splitPayday?.slice(0, 7)
+                            ? beforePayday ? " · before payday" : " · after payday"
+                            : ""}
+                        </p>
+                        <p className="text-xs text-muted">
+                          {c.plan === "payoff" && c.monthlyCents !== null && c.paymentsLeft !== null
+                            ? `0% ends ${longDate(c.promoEndsOn!)}: ${formatCents(c.monthlyCents)} a month for ${c.paymentsLeft} payments clears ${formatCents(c.statementCents)}`
+                            : c.plan === "statement"
+                              ? `Statement ${formatCents(c.statementCents)}${c.paidSinceCents ? `, ${formatCents(c.paidSinceCents)} paid` : ""}. Paying it in full avoids interest.`
+                              : `Statement ${formatCents(c.statementCents)} is covered.`}
+                        </p>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            ) : null}
           </aside>
         </div>
       )}

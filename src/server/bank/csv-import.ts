@@ -147,6 +147,14 @@ export async function listCsvImports() {
  * the ordinary one-account import, so duplicates are skipped and each
  * account's part can be undone on its own.
  */
+interface CombinedLabel {
+  date: string;
+  description: string;
+  amount: string;
+  category: string;
+  managed: boolean;
+}
+
 export interface CombinedPart {
   key: string;
   accountId: string | null;
@@ -166,7 +174,7 @@ async function splitCombined(text: string) {
   const table = splitCsv(text);
   const header = (table[0] ?? []).map((h) => h.trim().toLowerCase());
   const col = (name: string) => header.indexOf(name);
-  const [date, id, inst, acct, desc, amount] = ["date", "account id", "institution", "account", "description", "amount"].map(col);
+  const [date, id, inst, acct, desc, amount, cat, managed] = ["date", "account id", "institution", "account", "description", "amount", "category", "managed for others"].map(col);
   if (date === -1 || desc === -1 || amount === -1 || (id === -1 && acct === -1)) {
     throw new ValidationError({ file: ["A combined file needs Date, Account ID or Account, Description and Amount columns"] });
   }
@@ -177,7 +185,7 @@ async function splitCombined(text: string) {
     const hits = accounts.filter((a) => norm(a.name) === norm(rowAcct) && (!rowInst || norm(a.institution ?? "") === norm(rowInst)));
     return hits.length === 1 ? hits[0] : null;
   };
-  const groups = new Map<string, { account: { id: string; institution: string | null; name: string } | null; label: string; rows: string[][] }>();
+  const groups = new Map<string, { account: { id: string; institution: string | null; name: string } | null; label: string; rows: string[][]; labels: CombinedLabel[] }>();
   for (const r of table.slice(1)) {
     if (r.length < 3 || !r[date]?.trim()) continue;
     const rowId = id === -1 ? "" : (r[id] ?? "").trim();
@@ -186,11 +194,14 @@ async function splitCombined(text: string) {
     const key = rowId || `${rowInst}|${rowAcct}`;
     if (!groups.has(key)) {
       const account = resolve(rowId, rowInst, rowAcct);
-      groups.set(key, { account, label: [rowInst, rowAcct].filter(Boolean).join(" · ") || rowId, rows: [] });
+      groups.set(key, { account, label: [rowInst, rowAcct].filter(Boolean).join(" · ") || rowId, rows: [], labels: [] });
     }
-    groups.get(key)!.rows.push([r[date], r[desc], r[amount]]);
+    const g = groups.get(key)!;
+    g.rows.push([r[date], r[desc], r[amount]]);
+    const category = cat === -1 ? "" : (r[cat] ?? "").trim();
+    g.labels.push({ date: r[date], description: r[desc], amount: r[amount], category, managed: managed !== -1 && /^(y|yes|true|1)$/i.test((r[managed] ?? "").trim()) });
   }
-  return [...groups].map(([key, g]) => ({ key, account: g.account, label: g.label, csv: toCsv(["Date", "Description", "Amount"], g.rows) }));
+  return [...groups].map(([key, g]) => ({ key, account: g.account, label: g.label, labels: g.labels, csv: toCsv(["Date", "Description", "Amount"], g.rows) }));
 }
 
 export async function previewCombinedCsv(text: string): Promise<CombinedPart[]> {
@@ -207,11 +218,78 @@ export async function previewCombinedCsv(text: string): Promise<CombinedPart[]> 
   return out;
 }
 
-export async function importCombinedCsv(text: string, fileName?: string): Promise<{ added: number; skipped: number; accounts: number; unmatched: string[] }> {
+/**
+ * Categories given in the file: each labeled row's transaction (same amount,
+ * within three days) gets that category as if the person set it. A merchant
+ * whose every row in the file carries the same category is remembered, so its
+ * later charges follow; payment apps never are.
+ */
+async function applyFileCategories(accountId: string, labels: CombinedLabel[]): Promise<number> {
+  const labeled = labels.filter((l) => l.category);
+  if (!labeled.length) return 0;
+  const { parseDate, parseCents } = await import("@/lib/bank-csv");
+  const { merchantKey } = await import("@/lib/field-crypto");
+  const { isPeerPayment } = await import("@/lib/category-guess");
+
+  // Categories by name, created (and marked managed for others) as needed.
+  const existing = (await prisma.category.findMany({ select: { id: true, name: true, managedForOthers: true } })) as Array<{ id: string; name: string; managedForOthers: boolean }>;
+  const byName = new Map(existing.map((c) => [c.name.trim().toLowerCase(), c]));
+  const categoryId = async (name: string, managed: boolean) => {
+    let c = byName.get(name.toLowerCase());
+    if (!c) {
+      c = (await prisma.category.create({ data: { name, managedForOthers: managed }, select: { id: true, name: true, managedForOthers: true } })) as { id: string; name: string; managedForOthers: boolean };
+      byName.set(name.toLowerCase(), c);
+    } else if (managed && !c.managedForOthers) {
+      await prisma.category.update({ where: { id: c.id }, data: { managedForOthers: true } });
+      c.managedForOthers = true;
+    }
+    return c.id;
+  };
+
+  const rows = labeled
+    .map((l) => ({ ...l, postedOn: parseDate(l.date), cents: parseCents(l.amount) }))
+    .filter((l): l is typeof l & { postedOn: string; cents: number } => !!l.postedOn && l.cents !== null);
+  if (!rows.length) return 0;
+  const dates = rows.map((r) => r.postedOn).sort();
+  const txns = (await prisma.bankTransaction.findMany({
+    where: { accountId, postedOn: { gte: new Date(Date.parse(`${dates[0]}T00:00:00Z`) - 3 * DAY), lte: new Date(Date.parse(`${dates[dates.length - 1]}T00:00:00Z`) + 3 * DAY) } },
+    select: { id: true, postedOn: true, amount: true, categorySource: true },
+  })) as Array<{ id: string; postedOn: Date; amount: { toString(): string }; categorySource: string }>;
+  const used = new Set<string>();
+  let count = 0;
+  for (const r of rows) {
+    const day = Date.parse(`${r.postedOn}T00:00:00Z`);
+    const hit = txns
+      .filter((t) => !used.has(t.id) && toCents(t.amount) === r.cents && Math.abs(t.postedOn.getTime() - day) <= 3 * DAY)
+      .sort((a, b) => Math.abs(a.postedOn.getTime() - day) - Math.abs(b.postedOn.getTime() - day))[0];
+    if (!hit) continue;
+    used.add(hit.id);
+    await prisma.bankTransaction.update({ where: { id: hit.id }, data: { categoryId: await categoryId(r.category, r.managed), categorySource: "person" } });
+    count += 1;
+  }
+
+  // Merchants labeled the same way on every one of their rows are remembered.
+  const byMerchant = new Map<string, Set<string>>();
+  for (const l of labels) {
+    const m = cleanMerchant(l.description);
+    byMerchant.set(m, new Set([...(byMerchant.get(m) ?? []), l.category]));
+  }
+  for (const [merchant, cats] of byMerchant) {
+    const [only] = [...cats];
+    if (cats.size !== 1 || !only || isPeerPayment(merchant)) continue;
+    const key = merchantKey(merchant);
+    const id = await categoryId(only, false);
+    await prisma.categoryRule.upsert({ where: { merchantKey: key }, create: { merchantKey: key, categoryId: id }, update: { categoryId: id } });
+  }
+  return count;
+}
+
+export async function importCombinedCsv(text: string, fileName?: string): Promise<{ added: number; skipped: number; accounts: number; unmatched: string[]; categorized: number }> {
   const parts = await splitCombined(text);
   let added = 0;
   let skipped = 0;
   let accounts = 0;
+  let categorized = 0;
   const unmatched: string[] = [];
   for (const p of parts) {
     if (!p.account) {
@@ -222,6 +300,8 @@ export async function importCombinedCsv(text: string, fileName?: string): Promis
     added += r.added;
     skipped += r.skipped;
     accounts += 1;
+    categorized += await applyFileCategories(p.account.id, p.labels);
   }
-  return { added, skipped, accounts, unmatched };
+  if (categorized) await applyCategories();
+  return { added, skipped, accounts, unmatched, categorized };
 }

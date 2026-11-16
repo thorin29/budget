@@ -1,3 +1,4 @@
+import { monthSplit } from "@/server/pay-split";
 import Link from "next/link";
 import { getLineItem, listLineItems } from "@/server/line-items";
 import { listAccounts } from "@/server/accounts";
@@ -108,6 +109,9 @@ export default async function LineItemsPage({
   ]);
 
   const accountName = new Map(accounts.map((a) => [a.id, a.name]));
+  // Halves follow this month's split, which may come from the pay calendar.
+  const now = new Date();
+  const { splitDay } = await monthSplit(now.getUTCFullYear(), now.getUTCMonth() + 1, settings);
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
   const inactiveCount = items.filter((i) => !i.active).length;
   const visible = showInactive ? items : items.filter((i) => i.active);
@@ -155,7 +159,7 @@ export default async function LineItemsPage({
                 </p>
               </div>
               {group.items.map((item) => {
-                const half = halfFor(item.dueDay, item.periodAssignment, settings.splitDay);
+                const half = halfFor(item.dueDay, item.periodAssignment, splitDay);
                 return (
                   <Link
                     key={item.id}

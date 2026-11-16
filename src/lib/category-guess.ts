@@ -39,7 +39,7 @@ const RULES: Array<{ category: GuessCategory; pattern: RegExp; moneyIn?: boolean
 ];
 
 /** Payment apps carry many unrelated payments under one name, so no merchant-wide rule is learned for them. */
-const PEER = /^(venmo|zelle|paypal|cash app|square cash|apple cash)\b/i;
+const PEER = /^(?:transfer (?:to|from|via) )?(venmo|zelle|paypal|cash app|square cash|apple cash)\b/i;
 
 export function isPeerPayment(merchant: string): boolean {
   return PEER.test(merchant.trim());

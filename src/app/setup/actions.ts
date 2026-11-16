@@ -141,10 +141,19 @@ export async function savePreferencesAction(
     const bufferRaw = str(form, "buffer");
     await updateSettings({
       splitDay: Number(str(form, "splitDay")),
+      splitMode: str(form, "splitMode") === "day" ? "day" : "payday",
       horizonDays: Number(str(form, "horizonDays")),
       bufferCents: bufferRaw ? parseCents(bufferRaw) : 0,
       carryMonths: Number(str(form, "carryMonths")),
       billsAccountId: str(form, "billsAccountId") || null,
     });
   });
+}
+
+/** Sets the pay calendar to what the paycheck deposits show. */
+export async function usePayFromDepositsAction(): Promise<void> {
+  await requireUser();
+  const { usePayFromDeposits } = await import("@/server/pay-detect");
+  await usePayFromDeposits();
+  revalidatePath("/", "layout");
 }

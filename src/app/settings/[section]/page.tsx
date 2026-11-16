@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { listAccounts, ACCOUNT_KINDS } from "@/server/accounts";
 import { listCategories } from "@/server/categories";
 import { listPaySchedules, previewPayDates, PAY_FREQUENCIES } from "@/server/pay-schedule";
+import { payFromDeposits } from "@/server/pay-detect";
+import { usePayFromDepositsAction } from "../../setup/actions";
 import { getSettings } from "@/server/settings";
 import { listImportBatches } from "@/server/import";
 import { prisma } from "@/lib/prisma";
@@ -17,7 +19,7 @@ import {
   type Mode,
   type Theme,
 } from "@/lib/appearance";
-import { Card, SectionHeading } from "@/components/ui";
+import { Card, SectionHeading, buttonClass } from "@/components/ui";
 import { AccountsForm, AccountRow } from "../../setup/accounts/form";
 import { CategoryForm, CategoryRow } from "../../setup/categories/form";
 import { PayScheduleForm, PayScheduleRow } from "../../setup/pay/form";
@@ -299,6 +301,7 @@ async function Planning() {
           bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: a.name }))}
           settings={{
             splitDay: settings.splitDay,
+            splitMode: settings.splitMode,
             horizonDays: settings.horizonDays,
             buffer: toDecimalString(settings.bufferCents),
             carryMonths: settings.carryMonths,
@@ -446,8 +449,11 @@ const FREQUENCY_LABELS: Record<string, string> = {
   MONTHLY: "Monthly",
 };
 
+const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
+const FREQUENCY_WORDS: Record<string, string> = { WEEKLY: "every week", BIWEEKLY: "every two weeks", SEMI_MONTHLY: "twice a month", MONTHLY: "once a month" };
+
 async function Pay() {
-  const schedules = await listPaySchedules();
+  const [schedules, fromBank] = await Promise.all([listPaySchedules(), payFromDeposits()]);
   const today = new Date();
   const horizonEnd = new Date(today.getTime() + 120 * 86_400_000);
 
@@ -455,8 +461,29 @@ async function Pay() {
     <div>
       <SectionHeading
         title="Pay calendar"
-        description="When money is expected to arrive. The projection uses it; it does not decide how the month is divided."
+        description="When paychecks arrive. The projection places pay on these days, and the month divides at the payday nearest the 15th (Settings → Planning can use a fixed day instead)."
       />
+      {fromBank ? (
+        <Card className="mb-6">
+          <p className="text-sm">
+            <span className="font-semibold">From your bank:</span> paid {FREQUENCY_WORDS[fromBank.detected.frequency]}, most recently{" "}
+            {new Date(`${fromBank.detected.latest}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
+            {fromBank.detected.daysOfMonth.length ? ` (on the ${fromBank.detected.daysOfMonth.map((d) => (d >= 28 ? "last day" : ordinal(d))).join(" and ")})` : ""}.
+          </p>
+          {fromBank.matches ? (
+            <p className="mt-1 text-xs text-muted">Your pay calendar matches.</p>
+          ) : (
+            <form action={usePayFromDepositsAction} className="mt-3 flex flex-wrap items-center gap-3">
+              <span className="text-xs text-muted">
+                {fromBank.schedule ? "Your pay calendar doesn't line up with the deposits." : "No pay calendar yet."}
+              </span>
+              <button type="submit" className={buttonClass("primary")}>
+                Use this
+              </button>
+            </form>
+          )}
+        </Card>
+      ) : null}
       <PayScheduleForm
         frequencies={PAY_FREQUENCIES.map((f) => ({ value: f, label: FREQUENCY_LABELS[f] }))}
       />
@@ -644,7 +671,9 @@ async function Bank() {
             <summary className="cursor-pointer text-sm font-semibold">One file for several accounts</summary>
             <p className="mb-3 mt-2 max-w-prose text-xs text-muted">
               A combined file with an Account ID (or Institution and Account) column on every row, like the
-              Transactions export above. Each account&rsquo;s rows are imported and can be undone on their own.
+              Transactions export above. An optional Category column sets categories (and Managed for others
+              = yes marks that category as money handled for others). Each account&rsquo;s rows are imported and
+              can be undone on their own.
             </p>
             <CombinedImporter />
           </details>

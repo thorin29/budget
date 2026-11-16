@@ -13,6 +13,7 @@ export function PreferencesForm({
   bankAccounts: Array<{ id: string; name: string }>;
   settings: {
     splitDay: number;
+    splitMode?: "payday" | "day";
     horizonDays: number;
     buffer: string;
     carryMonths: number;
@@ -42,9 +43,16 @@ export function PreferencesForm({
           </Select>
         </Field>
 
+        <Field label="Divide the month at" hint="Which paycheck covers which bills">
+          <Select name="splitMode" defaultValue={settings.splitMode ?? "payday"}>
+            <option value="payday">My payday nearest the 15th</option>
+            <option value="day">A fixed day (below)</option>
+          </Select>
+        </Field>
+
         <Field
-          label="Month splits on day"
-          hint="A planning guideline, not a payday"
+          label="Fixed split day"
+          hint="Used when there's no pay calendar, or when chosen above"
           error={state.issues?.splitDay}
         >
           <TextInput

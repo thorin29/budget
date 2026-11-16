@@ -487,6 +487,12 @@ model BankAccount {
   /// Received but ignored everywhere: not someone's spending, not net worth, no transfers.
   hidden           Boolean         @default(false)
 
+  /// Cards: the day the statement closes and the day payment is due, from a
+  /// statement (the feed doesn't carry them), and when a 0% offer ends.
+  statementCloseDay Int?
+  paymentDueDay     Int?
+  promoEndsOn       DateTime? @db.Date
+
   /// Optional: the Budget account whose balance this one keeps current.
   linkedAccountId String?  @unique
   linkedAccount   Account? @relation(fields: [linkedAccountId], references: [id], onDelete: SetNull)

@@ -15,6 +15,7 @@ export const DEFAULT_CARRY_MONTHS = Number(process.env.DEFAULT_CARRY_MONTHS ?? 1
 
 export const SETTING_KEYS = {
   splitDay: "planning.splitDay",
+  splitMode: "planning.splitMode",
   horizonDays: "planning.horizonDays",
   buffer: "planning.buffer",
   carryMonths: "planning.carryMonths",

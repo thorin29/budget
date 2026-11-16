@@ -177,12 +177,26 @@ export async function previewCombinedAction(text: string): Promise<BankResult<Co
   }
 }
 
-export async function importCombinedAction(text: string, fileName: string): Promise<BankResult<{ added: number; skipped: number; accounts: number; unmatched: string[] }>> {
+export async function importCombinedAction(text: string, fileName: string): Promise<BankResult<{ added: number; skipped: number; accounts: number; unmatched: string[]; categorized: number }>> {
   try {
     await requireUser();
     const result = await importCombinedCsv(String(text), String(fileName ?? ""));
     done();
     return { ok: true, data: result };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** A card's statement closing day, payment due day and 0% end date. */
+export async function setCardTermsAction(id: string, closeDay: string, dueDay: string, promoEndsOn: string): Promise<BankActionState> {
+  try {
+    await requireUser();
+    const { setCardTerms } = await import("@/server/card-payments");
+    const num = (v: string) => (String(v ?? "").trim() ? Number(v) : null);
+    await setCardTerms(String(id), { closeDay: num(closeDay), dueDay: num(dueDay), promoEndsOn: String(promoEndsOn ?? "").trim() || null });
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Saved." };
   } catch (error) {
     return failure(error);
   }

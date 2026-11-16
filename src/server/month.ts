@@ -13,6 +13,7 @@
  *    than the budget settles the item; it does not leave a balance owing.
  */
 
+import { monthSplit } from "./pay-split";
 import { accountLabels } from "./bank/ledger";
 import { safeHttpUrl } from "@/lib/safe-url";
 import { prisma } from "@/lib/prisma";
@@ -76,6 +77,8 @@ export interface MonthView {
   year: number;
   month: number;
   splitDay: number;
+  /** The payday the month divides at, when it follows the pay calendar. */
+  splitPayday: string | null;
   halves: [HalfSummary, HalfSummary];
   /**
    * Paid from whatever is left after the bills. Excluded from the halves, the
@@ -166,7 +169,8 @@ interface ActualRow {
 
 export async function getMonthView(year: number, month: number): Promise<MonthView> {
   const settings = await getSettings();
-  const splitDay = settings.splitDay;
+  const split = await monthSplit(year, month, settings);
+  const splitDay = split.splitDay;
 
   const [items, categories, accounts] = (await Promise.all([
     prisma.lineItem.findMany({ where: { active: true } }),
@@ -401,6 +405,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     year,
     month,
     splitDay,
+    splitPayday: split.payday,
     halves,
     surplusItems: surplus,
     surplusBudgetedCents: surplus.reduce((sum, e) => sum + e.budgetedCents, 0),

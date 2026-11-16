@@ -3,6 +3,24 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.25.0]
+
+### Added
+- The month divides at your payday: the payday nearest the 15th from the pay calendar, so each
+  half is what one paycheck covers (every two weeks, twice a month or weekly; a three-paycheck
+  month's third check is extra). Settings → Planning can still use a fixed day.
+- Pay calendar from your deposits: Settings → Pay calendar shows the schedule your paycheck
+  deposits follow and, when the calendar doesn't match, a Use this button.
+- Card payments: each card on the Accounts page takes its statement closing day, payment due day
+  and the end of a 0% offer. This month lists each card's next due date and what to pay: the full
+  statement on cards that charge interest, or equal payments that clear a 0% balance before the
+  offer ends. Migration `0013`.
+- The combined history file can carry a Category column (and Managed for others = yes). Labeled
+  rows get that category, and a merchant labeled the same way on every row is remembered.
+
+### Changed
+- Payment-app transfers ("Transfer from Venmo", "via Zelle") are always categorized one at a time.
+
 ## [0.24.0]
 
 ### Added

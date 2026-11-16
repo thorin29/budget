@@ -23,6 +23,8 @@ describe("guessCategory", () => {
     expect(name("Venmo", "VENMO PAYMENT")).toBeNull();
     expect(isPeerPayment("Zelle to someone")).toBe(true);
     expect(isPeerPayment("Kroger")).toBe(false);
+    expect(isPeerPayment("Transfer From Venmo")).toBe(true);
+    expect(isPeerPayment("Transfer via Zelle")).toBe(true);
   });
 
   it("only guesses pay for money in, and uses the merchant for card refunds", () => {

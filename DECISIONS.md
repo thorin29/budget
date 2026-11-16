@@ -550,3 +550,21 @@ entry has an Undo that also blocks that charge for the bill.
   hand locks the item.
 - **Order:** link history, then learn due days, then record exact matches, so
   the date window already reflects the learned day.
+
+## Paydays, card payments and labeled history (0.25)
+
+- **Halves follow pay.** The split was a fixed day "not a payday" by design;
+  the person asked for halves that match when they're paid. With a pay
+  calendar the month divides at the payday nearest the 15th (from the 8th
+  on), which gives the right answer for every-two-weeks (two or three checks),
+  twice-a-month and weekly pay. Monthly pay and the fixed-day setting keep the
+  split day.
+- **Pay calendars come from deposits** only when the person presses Use this.
+  A change of frequency ends the old calendar and starts a new one, so past
+  months keep resolving against what was true then.
+- **Card payments are rebuilt, not fetched.** Bank feeds don't carry statement
+  balances or due dates. The person gives the closing and due days once; the
+  statement balance is the balance now less what posted after the close. A 0%
+  offer gets equal payments over the due dates left before it ends.
+- **Labeled history** applies a file's categories as if the person set them,
+  and learns a merchant only when every row of it carries the same label.

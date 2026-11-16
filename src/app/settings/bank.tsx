@@ -15,6 +15,7 @@ import {
   setAccountHiddenAction,
   setAccountTypeAction,
   setBillsSourceAction,
+  setCardTermsAction,
   connectAccountAction,
   syncBankAction,
   type BankActionState,
@@ -412,7 +413,7 @@ export function CombinedImporter() {
                     r.ok
                       ? {
                           ok: true,
-                          message: `Imported ${r.data.added} transactions into ${r.data.accounts} accounts; skipped ${r.data.skipped} already here.${r.data.unmatched.length ? ` Left out: ${r.data.unmatched.join(", ")}.` : ""}`,
+                          message: `Imported ${r.data.added} transactions into ${r.data.accounts} accounts; skipped ${r.data.skipped} already here.${r.data.categorized ? ` Set ${r.data.categorized} categories from the file.` : ""}${r.data.unmatched.length ? ` Left out: ${r.data.unmatched.join(", ")}.` : ""}`,
                         }
                       : r,
                   );
@@ -425,5 +426,38 @@ export function CombinedImporter() {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/** A card's two statement days and an optional 0% end date, saved together. */
+export function CardTerms({ id, closeDay, dueDay, promoEndsOn }: { id: string; closeDay: number | null; dueDay: number | null; promoEndsOn: string | null }) {
+  const [pending, start] = useTransition();
+  const [state, setState] = useState<BankActionState | null>(null);
+  return (
+    <form
+      className="flex flex-wrap items-end gap-2 text-xs"
+      action={(form) =>
+        start(async () =>
+          setState(await setCardTermsAction(id, String(form.get("closeDay") ?? ""), String(form.get("dueDay") ?? ""), String(form.get("promoEndsOn") ?? ""))),
+        )
+      }
+    >
+      <label className="flex flex-col gap-1">
+        <span className="text-muted">Closes on day</span>
+        <input name="closeDay" type="number" min={1} max={31} defaultValue={closeDay ?? ""} className="w-20 rounded-lg border border-line bg-surface px-2 py-1 text-sm" />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-muted">Due on day</span>
+        <input name="dueDay" type="number" min={1} max={31} defaultValue={dueDay ?? ""} className="w-20 rounded-lg border border-line bg-surface px-2 py-1 text-sm" />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-muted">0% offer ends</span>
+        <input name="promoEndsOn" type="date" defaultValue={promoEndsOn ?? ""} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm" />
+      </label>
+      <Button type="submit" variant="quiet" disabled={pending}>
+        {pending ? "…" : "Save"}
+      </Button>
+      {state ? <span className={state.ok ? "text-muted" : "text-danger"}>{state.message}</span> : null}
+    </form>
   );
 }

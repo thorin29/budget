@@ -5,7 +5,7 @@ import { configuredKey } from "@/lib/secret-box";
 import { ACCOUNT_TYPES, GROUPS, SPENDING_TYPES, TYPE_LABELS } from "@/lib/account-type";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, PageHeading, Pill, buttonClass } from "@/components/ui";
-import { AccountTypeSelect, HideAccount } from "../settings/bank";
+import { AccountTypeSelect, CardTerms, HideAccount } from "../settings/bank";
 
 export const dynamic = "force-dynamic";
 
@@ -33,6 +33,11 @@ function Row({ a }: { a: BankAccountView }) {
         <AccountTypeSelect id={a.id} type={a.type} options={TYPE_OPTIONS} />
         <HideAccount id={a.id} hidden={a.hidden} />
       </span>
+      {a.type === "CREDIT_CARD" && !a.hidden ? (
+        <span className="basis-full">
+          <CardTerms id={a.id} closeDay={a.statementCloseDay} dueDay={a.paymentDueDay} promoEndsOn={a.promoEndsOn} />
+        </span>
+      ) : null}
     </li>
   );
 }
