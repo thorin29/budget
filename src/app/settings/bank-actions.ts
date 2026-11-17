@@ -189,7 +189,7 @@ export async function importCombinedAction(text: string, fileName: string): Prom
 }
 
 /** A card's statement closing day, payment due day and 0% end date. */
-export async function setCardTermsAction(id: string, closeDay: string, dueDay: string, promoEndsOn: string, color?: string): Promise<BankActionState> {
+export async function setCardTermsAction(id: string, closeDay: string, dueDay: string, promoEndsOn: string, color?: string, nickname?: string): Promise<BankActionState> {
   try {
     await requireUser();
     const { setCardTerms } = await import("@/server/card-payments");
@@ -199,6 +199,7 @@ export async function setCardTermsAction(id: string, closeDay: string, dueDay: s
       dueDay: num(dueDay),
       promoEndsOn: String(promoEndsOn ?? "").trim() || null,
       ...(color === undefined ? {} : { color: String(color) || null }),
+      ...(nickname === undefined ? {} : { nickname: String(nickname) }),
     });
     revalidatePath("/", "layout");
     return { ok: true, message: "Saved." };

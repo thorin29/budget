@@ -104,17 +104,17 @@ async function mergeInto(from: string, to: string): Promise<void> {
 }
 
 /** What to call each account: the typed name, or the feed account's name for accounts made for the feed. */
-export function ledgerLabel(row: { name: string; origin?: string; bankAccount?: { institution: string | null; name: string } | null }): string {
-  if (row.origin === "bank" && row.bankAccount) return displayAccountName(row.bankAccount.name);
+export function ledgerLabel(row: { name: string; origin?: string; bankAccount?: { institution: string | null; name: string; nickname?: string | null } | null }): string {
+  if (row.origin === "bank" && row.bankAccount) return row.bankAccount.nickname || displayAccountName(row.bankAccount.name);
   return row.name;
 }
 
 export async function accountLabels(): Promise<Map<string, string>> {
-  const rows = (await prisma.account.findMany({ select: { id: true, name: true, origin: true, bankAccount: { select: { institution: true, name: true } } } })) as Array<{
+  const rows = (await prisma.account.findMany({ select: { id: true, name: true, origin: true, bankAccount: { select: { institution: true, name: true, nickname: true } } } })) as Array<{
     id: string;
     name: string;
     origin: string;
-    bankAccount: { institution: string | null; name: string } | null;
+    bankAccount: { institution: string | null; name: string; nickname: string | null } | null;
   }>;
   const labels = rows.map((r) => ({ id: r.id, label: ledgerLabel(r), institution: r.bankAccount?.institution ?? null }));
   // Two feed accounts with the same name ("Checking") get their institution added.

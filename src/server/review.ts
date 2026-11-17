@@ -71,7 +71,7 @@ type TxnRow = {
   amount: { toString(): string };
   merchant: string;
   description: string;
-  account: { name: string; type: AccountType; hidden: boolean; linkedAccountId: string | null };
+  account: { name: string; nickname: string | null; type: AccountType; hidden: boolean; linkedAccountId: string | null };
   category: { name: string; managedForOthers: boolean } | null;
 };
 
@@ -91,7 +91,7 @@ async function recentTransactions(days: number): Promise<TxnRow[]> {
       actual: { is: null },
       account: { hidden: false },
     },
-    select: { id: true, postedOn: true, amount: true, merchant: true, description: true, account: { select: { name: true, type: true, hidden: true, linkedAccountId: true } }, category: { select: { name: true, managedForOthers: true } } },
+    select: { id: true, postedOn: true, amount: true, merchant: true, description: true, account: { select: { name: true, nickname: true, type: true, hidden: true, linkedAccountId: true } }, category: { select: { name: true, managedForOthers: true } } },
   })) as TxnRow[];
 }
 
@@ -152,7 +152,7 @@ export async function getReview(): Promise<Review> {
     return {
       lineItemId: s.lineItemId, year: s.year, month: s.month, billName: b.name, kind: b.kind, budgetedCents: b.budgetedCents, dueDay: b.dueDay,
       txnId: s.txnId, amountCents: Math.abs(t.cents), postedOn: iso(t.row.postedOn), merchant: t.row.merchant, description: t.row.description,
-      account: displayAccountName(t.row.account.name), confidence: s.confidence, known: s.reason === "confirmed before",
+      account: t.row.account.nickname || displayAccountName(t.row.account.name), confidence: s.confidence, known: s.reason === "confirmed before",
       reason: s.reason === "confirmed before" ? "Same place as before" : s.reason === "name" ? "Name matches" : "Exact amount",
       openMonths: (openMonths.get(s.lineItemId) ?? []).sort((x, y) => x.year * 12 + x.month - (y.year * 12 + y.month)),
     };
@@ -178,7 +178,7 @@ export async function getReview(): Promise<Review> {
     .filter((r) => ![...tokens(r.merchant)].some((w) => billWords.has(w)))
     .map((r) => {
       const account = accountOf.get(r.merchantKey)!;
-      return { ...r, account: displayAccountName(account.name), fromChecking: account.type === "CHECKING", paidFromId: account.linkedAccountId };
+      return { ...r, account: account.nickname || displayAccountName(account.name), fromChecking: account.type === "CHECKING", paidFromId: account.linkedAccountId };
     });
 
   return { looksPaid, repeats, count: looksPaid.length + repeats.length };

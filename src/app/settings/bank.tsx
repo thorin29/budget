@@ -3,7 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { Button, ErrorBanner, Select } from "@/components/ui";
 import { formatCents } from "@/lib/money";
-import { CARD_COLORS } from "@/lib/card-colors";
+import { CARD_COLORS, cardColor, isCustomColor } from "@/lib/card-colors";
 import {
   connectBankAction,
   deleteBankDataAction,
@@ -435,8 +435,27 @@ export function CombinedImporter() {
  * button answers in place: solid green as it saves, easing to a light green
  * "Saved", and back to "Save" once anything changes.
  */
-export function CardTerms({ id, closeDay, dueDay, promoEndsOn, color }: { id: string; closeDay: number | null; dueDay: number | null; promoEndsOn: string | null; color?: string | null }) {
+export function CardTerms({
+  id,
+  closeDay,
+  dueDay,
+  promoEndsOn,
+  color,
+  nickname,
+  feedName,
+}: {
+  id: string;
+  closeDay: number | null;
+  dueDay: number | null;
+  promoEndsOn: string | null;
+  color?: string | null;
+  nickname?: string | null;
+  feedName?: string;
+}) {
   const [pending, start] = useTransition();
+  const [preset, setPreset] = useState(isCustomColor(color) ? "custom" : color ?? "");
+  const [custom, setCustom] = useState(color && isCustomColor(color) ? color : "#14563c");
+  const chosen = preset === "custom" ? custom : preset;
   const [look, setLook] = useState<"idle" | "flash" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
   const reset = () => {
@@ -455,7 +474,7 @@ export function CardTerms({ id, closeDay, dueDay, promoEndsOn, color }: { id: st
       onChange={reset}
       action={(form) =>
         start(async () => {
-          const r = await setCardTermsAction(id, String(form.get("closeDay") ?? ""), String(form.get("dueDay") ?? ""), String(form.get("promoEndsOn") ?? ""), String(form.get("color") ?? ""));
+          const r = await setCardTermsAction(id, String(form.get("closeDay") ?? ""), String(form.get("dueDay") ?? ""), String(form.get("promoEndsOn") ?? ""), chosen, String(form.get("nickname") ?? ""));
           if (!r.ok) {
             setLook("idle");
             setError(r.message);
@@ -466,6 +485,10 @@ export function CardTerms({ id, closeDay, dueDay, promoEndsOn, color }: { id: st
         })
       }
     >
+      <label className="flex flex-col gap-1">
+        <span className="text-muted">Name</span>
+        <input name="nickname" maxLength={60} defaultValue={nickname ?? ""} placeholder={feedName ?? "As the bank names it"} className="w-44 rounded-lg border border-line bg-surface px-2 py-1 text-sm" />
+      </label>
       <label className="flex flex-col gap-1">
         <span className="text-muted">Closes on day</span>
         <input name="closeDay" type="number" min={1} max={31} defaultValue={closeDay ?? ""} className="w-20 rounded-lg border border-line bg-surface px-2 py-1 text-sm" />
@@ -480,14 +503,30 @@ export function CardTerms({ id, closeDay, dueDay, promoEndsOn, color }: { id: st
       </label>
       <label className="flex flex-col gap-1">
         <span className="text-muted">Card color</span>
-        <select name="color" defaultValue={color ?? ""} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm">
-          <option value="">Graphite</option>
-          {CARD_COLORS.filter((c) => c.id !== "graphite").map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.label}
-            </option>
-          ))}
-        </select>
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden className="h-6 w-9 shrink-0 rounded-md border border-line" style={{ background: cardColor(chosen).background }} />
+          <select name="color" value={preset} onChange={(e) => setPreset(e.target.value)} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm">
+            <option value="">Graphite</option>
+            {CARD_COLORS.filter((c) => c.id !== "graphite").map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+            <option value="custom">Pick exactly…</option>
+          </select>
+          {preset === "custom" ? (
+            <input
+              type="color"
+              aria-label="Card color"
+              value={custom}
+              onChange={(e) => {
+                setCustom(e.target.value);
+                reset();
+              }}
+              className="h-8 w-10 cursor-pointer rounded-md border border-line bg-surface p-0.5"
+            />
+          ) : null}
+        </span>
       </label>
       <button
         type="submit"

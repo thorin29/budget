@@ -3,6 +3,21 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.29.0]
+
+### Added
+- Suggestions on Insights, from the last six complete months: categories that are rising, a 15%
+  trim on the largest flexible categories, charges that repeat every month without being a bill,
+  what card interest and fees cost, and the monthly amount that clears each 0% balance in time.
+  Ranked by what acting on each would keep. Also in `GET /api/v1/insights`.
+- A card can be named (Accounts → Name), shown everywhere instead of the bank's name. Stored
+  encrypted.
+- Card colors: an Evergreen preset, and "Pick exactly…" to match any card with a color picker. A
+  preview swatch shows the choice before saving.
+
+### Upgrade
+- Migration `0016_account_nickname` adds the name column.
+
 ## [0.28.0]
 
 ### Added

@@ -498,8 +498,10 @@ model BankAccount {
   statementCloseDay Int?
   paymentDueDay     Int?
   promoEndsOn       DateTime? @db.Date
-  /// Cards: the color the card is drawn in (a preset name), picked by the person.
+  /// Cards: the color the card is drawn in (a preset name or #rrggbb), picked by the person.
   cardColor         String?
+  /// What to call the account on screen instead of the feed's name. Encrypted.
+  nickname          String?
 
   /// Optional: the Budget account whose balance this one keeps current.
   linkedAccountId String?  @unique

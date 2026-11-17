@@ -5,7 +5,7 @@ import { toCents } from "@/lib/money";
 import { displayAccountName } from "@/lib/account-type";
 import { cardStatus, lastCloseDate, type CardStatus } from "@/lib/card-payment";
 import { NotFoundError, ValidationError } from "./errors";
-import { CARD_COLORS } from "@/lib/card-colors";
+import { CARD_COLORS, isCustomColor } from "@/lib/card-colors";
 
 const DAY = 86_400_000;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -29,13 +29,14 @@ type Row = {
   statementCloseDay: number | null;
   paymentDueDay: number | null;
   promoEndsOn: Date | null;
+  nickname: string | null;
 };
 
 /** Cards with both days set, soonest due first. */
 export async function listCardPayments(today = localToday()): Promise<CardPayment[]> {
   const cards = (await prisma.bankAccount.findMany({
     where: { type: "CREDIT_CARD", hidden: false, statementCloseDay: { not: null }, paymentDueDay: { not: null } },
-    select: { id: true, name: true, institution: true, balance: true, statementCloseDay: true, paymentDueDay: true, promoEndsOn: true },
+    select: { id: true, name: true, nickname: true, institution: true, balance: true, statementCloseDay: true, paymentDueDay: true, promoEndsOn: true },
   })) as Row[];
   const out: CardPayment[] = [];
   for (const c of cards) {
@@ -52,12 +53,12 @@ export async function listCardPayments(today = localToday()): Promise<CardPaymen
       txns: txns.map((t) => ({ postedOn: iso(t.postedOn), amountCents: toCents(t.amount) })),
       today,
     });
-    out.push({ ...status, id: c.id, name: displayAccountName(c.name), institution: c.institution, promoEndsOn: c.promoEndsOn ? iso(c.promoEndsOn) : null });
+    out.push({ ...status, id: c.id, name: c.nickname || displayAccountName(c.name), institution: c.institution, promoEndsOn: c.promoEndsOn ? iso(c.promoEndsOn) : null });
   }
   return out.sort((a, b) => a.nextDue.localeCompare(b.nextDue));
 }
 
-export async function setCardTerms(id: string, input: { closeDay: number | null; dueDay: number | null; promoEndsOn: string | null; color?: string | null }): Promise<void> {
+export async function setCardTerms(id: string, input: { closeDay: number | null; dueDay: number | null; promoEndsOn: string | null; color?: string | null; nickname?: string | null }): Promise<void> {
   const card = await prisma.bankAccount.findUnique({ where: { id }, select: { type: true } });
   if (!card) throw new NotFoundError("Card");
   const day = (n: number | null, field: string) => {
@@ -66,14 +67,16 @@ export async function setCardTerms(id: string, input: { closeDay: number | null;
     return n;
   };
   if (input.promoEndsOn && !/^\d{4}-\d{2}-\d{2}$/.test(input.promoEndsOn)) throw new ValidationError({ promoEndsOn: ["Use a date"] });
-  if (input.color && !CARD_COLORS.some((c) => c.id === input.color)) throw new ValidationError({ color: ["Unknown color"] });
+  const nickname = input.nickname === undefined ? undefined : input.nickname?.trim().slice(0, 60) || null;
+  if (input.color && !isCustomColor(input.color) && !CARD_COLORS.some((c) => c.id === input.color)) throw new ValidationError({ color: ["Unknown color"] });
   await prisma.bankAccount.update({
     where: { id },
     data: {
       statementCloseDay: day(input.closeDay, "closeDay"),
       paymentDueDay: day(input.dueDay, "dueDay"),
       promoEndsOn: input.promoEndsOn ? new Date(`${input.promoEndsOn}T00:00:00Z`) : null,
-      ...(input.color === undefined ? {} : { cardColor: input.color || null }),
+      ...(input.color === undefined ? {} : { cardColor: input.color ? input.color.toLowerCase() : null }),
+      ...(nickname === undefined ? {} : { nickname }),
     },
   });
 }
@@ -85,7 +88,7 @@ export interface CardRow {
   owedNowCents: number;
   /** Null until the card's closing and due days are set. */
   status: CardPayment | null;
-  /** A preset id from src/lib/card-colors.ts. */
+  /** A preset id from src/lib/card-colors.ts, or #rrggbb. */
   color: string | null;
   /** The last digits the feed shows in the account name, if any. */
   lastDigits: string | null;
@@ -104,15 +107,15 @@ export async function cardOverview(today = localToday()): Promise<CardOverview> 
   const [cards, payments] = await Promise.all([
     prisma.bankAccount.findMany({
       where: { type: "CREDIT_CARD", hidden: false },
-      select: { id: true, name: true, institution: true, balance: true, statementCloseDay: true, paymentDueDay: true, cardColor: true },
-    }) as Promise<Array<{ id: string; name: string; institution: string | null; balance: { toString(): string } | null; statementCloseDay: number | null; paymentDueDay: number | null; cardColor: string | null }>>,
+      select: { id: true, name: true, nickname: true, institution: true, balance: true, statementCloseDay: true, paymentDueDay: true, cardColor: true },
+    }) as Promise<Array<{ id: string; name: string; nickname: string | null; institution: string | null; balance: { toString(): string } | null; statementCloseDay: number | null; paymentDueDay: number | null; cardColor: string | null }>>,
     listCardPayments(today),
   ]);
   const byId = new Map(payments.map((p) => [p.id, p]));
   const rows: CardRow[] = cards
     .map((c) => ({
       id: c.id,
-      name: displayAccountName(c.name),
+      name: c.nickname || displayAccountName(c.name),
       institution: c.institution,
       owedNowCents: Math.max(0, c.balance === null ? 0 : -toCents(c.balance)),
       status: byId.get(c.id) ?? null,

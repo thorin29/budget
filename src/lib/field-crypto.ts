@@ -23,7 +23,7 @@ const PURPOSE = "fields";
 
 /** Which text fields are encrypted, per Prisma model. */
 export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
-  BankAccount: ["institution", "name"],
+  BankAccount: ["institution", "name", "nickname"],
   BankTransaction: ["description", "payee", "memo", "merchant"],
   BankImport: ["fileName"],
   LineItem: ["paymentUrl", "notes"],

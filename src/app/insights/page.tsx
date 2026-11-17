@@ -1,6 +1,7 @@
 import { InsightsTabs } from "@/components/insights-tabs";
 import Link from "next/link";
-import { getInsights, type CategorySpend, type MonthTotal } from "@/server/insights";
+import { getInsights, getSuggestions, type CategorySpend, type MonthTotal } from "@/server/insights";
+import type { Suggestion } from "@/lib/insight-suggestions";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, PageHeading, StatCard, buttonClass } from "@/components/ui";
 
@@ -116,13 +117,68 @@ function NetChart({ months, selected }: { months: MonthTotal[]; selected: number
   );
 }
 
+const MARK: Record<Suggestion["kind"], { glyph: string; tone: string }> = {
+  rising: { glyph: "▲", tone: "text-warn" },
+  interest: { glyph: "%", tone: "text-danger" },
+  fees: { glyph: "!", tone: "text-danger" },
+  trim: { glyph: "✂", tone: "text-accent-text" },
+  repeating: { glyph: "↻", tone: "text-accent-text" },
+  payoff: { glyph: "◎", tone: "text-ok" },
+};
+
+function Suggestions({ items }: { items: Suggestion[] }) {
+  const keep = items.reduce((s, x) => s + x.monthlyCents, 0);
+  return (
+    <Card>
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-base font-bold">Suggestions</h2>
+        <span className="text-xs text-muted">
+          From the last six complete months
+          {keep > 0 ? (
+            <>
+              {" "}· together, up to <span className="font-semibold text-foreground">{whole(keep)}</span> a month
+            </>
+          ) : null}
+        </span>
+      </div>
+      <ul className="grid gap-3 md:grid-cols-2">
+        {items.map((x) => (
+          <li key={`${x.kind}-${x.categoryId ?? x.title}`} className="flex gap-3 rounded-xl border border-line p-3 text-sm">
+            <span aria-hidden className={`w-4 shrink-0 text-center font-bold ${MARK[x.kind].tone}`}>
+              {MARK[x.kind].glyph}
+            </span>
+            <span className="min-w-0">
+              <span className="block font-semibold">{x.title}</span>
+              <span className="mt-0.5 block text-xs text-muted">{x.detail}</span>
+              {x.items?.length ? (
+                <span className="mt-2 flex flex-wrap gap-1.5">
+                  {x.items.map((i) => (
+                    <span key={i.name} className="rounded-md bg-neutral-soft px-2 py-0.5 text-xs">
+                      {i.name} <span className="tnum text-muted">{money(i.cents)}</span>
+                    </span>
+                  ))}
+                </span>
+              ) : null}
+              {x.categoryId ? (
+                <Link href={`/transactions?category=${x.categoryId}`} className="mt-1.5 inline-block text-xs font-semibold text-accent-text hover:underline">
+                  See the charges
+                </Link>
+              ) : null}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 export default async function InsightsPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
   const { m } = await searchParams;
   const now = today();
   const match = /^(\d{4})-(\d{2})$/.exec(m ?? "");
   const asked = match ? { year: Number(match[1]), month: Number(match[2]) } : now;
   const picked = asked.month >= 1 && asked.month <= 12 && asked.year * 12 + asked.month <= now.year * 12 + now.month ? asked : now;
-  const data = await getInsights(picked.year, picked.month);
+  const [data, suggestions] = await Promise.all([getInsights(picked.year, picked.month), getSuggestions()]);
   const prev = shift(picked.year, picked.month, -1);
   const next = shift(picked.year, picked.month, 1);
   const atNow = picked.year === now.year && picked.month === now.month;
@@ -173,6 +229,8 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
               tone={current.netCents < 0 ? "danger" : "default"}
             />
           </div>
+
+          {suggestions.length ? <Suggestions items={suggestions} /> : null}
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
             <Card>

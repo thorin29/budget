@@ -14,6 +14,8 @@ import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
 import { SPENDING_TYPES, type AccountType } from "@/lib/account-type";
 import { isIncomeCategory } from "@/lib/category-guess";
+import { faceName } from "@/lib/card-colors";
+import { buildSuggestions, isFeeCharge, isInterestCharge, isSteadyEveryday, type CategorySeries, type MerchantSeries, type Suggestion } from "@/lib/insight-suggestions";
 
 export interface MonthTotal {
   year: number;
@@ -194,4 +196,72 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
     changes,
     managed,
   };
+}
+
+/**
+ * Suggestions from the six complete months before this one (a month still in
+ * progress would read as spending going down). See src/lib/insight-suggestions.ts.
+ */
+export async function getSuggestions(today = new Date()): Promise<Suggestion[]> {
+  const end = ym(today.getUTCFullYear(), today.getUTCMonth() + 1) - 1;
+  const first = end - 5;
+  const start = fromYm(first);
+  const rows = (await prisma.bankTransaction.findMany({
+    where: {
+      postedOn: { gte: new Date(Date.UTC(start.year, start.month - 1, 1)), lt: new Date(Date.UTC(fromYm(end + 1).year, fromYm(end + 1).month - 1, 1)) },
+      kind: "NORMAL",
+      pending: false,
+      account: { hidden: false },
+    },
+    select: {
+      postedOn: true, amount: true, merchant: true, description: true, categoryId: true,
+      category: { select: { name: true, managedForOthers: true } },
+      account: { select: { type: true } },
+      actual: { select: { id: true } },
+    },
+  })) as Array<Row & { description: string }>;
+
+  const zeros = () => Array.from({ length: 6 }, () => 0);
+  const categories = new Map<string, CategorySeries>();
+  const merchants = new Map<string, MerchantSeries & { categoryName: string | null }>();
+  const interest = zeros();
+  const fees = zeros();
+  for (const r of rows) {
+    const i = ym(r.postedOn.getUTCFullYear(), r.postedOn.getUTCMonth() + 1) - first;
+    if (i < 0 || i > 5 || r.category?.managedForOthers || r.actual) continue;
+    if (!SPENDING_TYPES.includes(r.account.type)) continue;
+    const cents = toCents(r.amount);
+    const text = `${r.description} ${r.merchant}`;
+    if (cents < 0 && isInterestCharge(text)) interest[i] -= cents;
+    else if (cents < 0 && isFeeCharge(text)) fees[i] -= cents;
+    // Charges, less refunds on them; deposits to checking are income, not refunds.
+    const refund = cents > 0 && (r.account.type === "CREDIT_CARD" || (r.categoryId !== null && !isIncomeCategory(r.category?.name)));
+    if (cents >= 0 && !refund) continue;
+    const spend = -cents;
+    if (r.categoryId && r.category) {
+      const c = categories.get(r.categoryId) ?? { id: r.categoryId, name: r.category.name, monthly: zeros() };
+      c.monthly[i] += spend;
+      categories.set(r.categoryId, c);
+    }
+    if (spend > 0 && r.merchant.trim()) {
+      const key = r.merchant.trim().toLowerCase();
+      const m = merchants.get(key) ?? { name: r.merchant.trim(), monthly: zeros(), charges: zeros(), categoryName: r.category?.name ?? null };
+      m.monthly[i] += spend;
+      m.charges[i] += 1;
+      merchants.set(key, m);
+    }
+  }
+
+  const { listCardPayments } = await import("./card-payments");
+  const promos = (await listCardPayments())
+    .filter((p) => p.promoEndsOn && p.paymentsLeft && p.monthlyCents)
+    .map((p) => ({ name: faceName(p.name), monthlyCents: p.monthlyCents!, paymentsLeft: p.paymentsLeft!, endsOn: p.promoEndsOn! }));
+
+  return buildSuggestions({
+    categories: [...categories.values()],
+    merchants: [...merchants.values()].filter((m) => !isSteadyEveryday(m.categoryName)),
+    interest,
+    fees,
+    promos,
+  });
 }

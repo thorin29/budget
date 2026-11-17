@@ -38,6 +38,8 @@ export interface BankAccountView {
   /** YYYY-MM-DD. */
   promoEndsOn: string | null;
   cardColor: string | null;
+  /** The person's own name for the account, if set. */
+  nickname: string | null;
 }
 
 type Row = {
@@ -56,6 +58,7 @@ type Row = {
   paymentDueDay?: number | null;
   promoEndsOn?: Date | null;
   cardColor?: string | null;
+  nickname?: string | null;
 };
 
 /** Re-guesses every type the person hasn't set. Cheap; runs after each sync and on the Accounts page. */
@@ -105,7 +108,7 @@ export async function listBankAccounts(): Promise<BankAccountView[]> {
         id: a.id,
         institution: a.institution,
         name: a.name,
-        displayName: displayAccountName(a.name),
+        displayName: a.nickname || displayAccountName(a.name),
         currency: a.currency,
         balanceCents,
         balanceDate: a.balanceDate,
@@ -122,6 +125,7 @@ export async function listBankAccounts(): Promise<BankAccountView[]> {
         paymentDueDay: a.paymentDueDay ?? null,
         promoEndsOn: a.promoEndsOn ? a.promoEndsOn.toISOString().slice(0, 10) : null,
         cardColor: a.cardColor ?? null,
+        nickname: a.nickname ?? null,
       };
     });
 }

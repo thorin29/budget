@@ -2,7 +2,7 @@ import Link from "next/link";
 import { applyTypeGuesses, listBankAccounts, type BankAccountView } from "@/server/bank/accounts";
 import { getConnection } from "@/server/bank/sync";
 import { configuredKey } from "@/lib/secret-box";
-import { ACCOUNT_TYPES, GROUPS, SPENDING_TYPES, TYPE_LABELS } from "@/lib/account-type";
+import { ACCOUNT_TYPES, GROUPS, SPENDING_TYPES, TYPE_LABELS, displayAccountName } from "@/lib/account-type";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, PageHeading, Pill, buttonClass } from "@/components/ui";
 import { AccountTypeSelect, CardTerms, HideAccount } from "../settings/bank";
@@ -35,7 +35,7 @@ function Row({ a }: { a: BankAccountView }) {
       </span>
       {a.type === "CREDIT_CARD" && !a.hidden ? (
         <span className="basis-full">
-          <CardTerms id={a.id} closeDay={a.statementCloseDay} dueDay={a.paymentDueDay} promoEndsOn={a.promoEndsOn} color={a.cardColor} />
+          <CardTerms id={a.id} closeDay={a.statementCloseDay} dueDay={a.paymentDueDay} promoEndsOn={a.promoEndsOn} color={a.cardColor} nickname={a.nickname} feedName={displayAccountName(a.name)} />
         </span>
       ) : null}
     </li>
