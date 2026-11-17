@@ -11,7 +11,7 @@ Everything runs on your own server against your own PostgreSQL database. Fonts
 are bundled. The only outside requests are optional bank sync's, once you turn it
 on.
 
-> **Status:** v0.38.0. Month view, cash projection, line items, year reports,
+> **Status:** v0.39.0. Month view, cash projection, line items, year reports,
 > import, export, sign-in for up to two people, and a token-secured API for a
 > phone app all work. See `CHANGELOG.md`.
 
@@ -42,7 +42,7 @@ on.
 - **Import.** Load past years from a converted workbook, reviewed before anything
   is written, and undoable as a batch.
 - **Bank sync (optional).** Connect a SimpleFIN bridge and Budget pulls
-  balances and transactions once a day, read-only. Each account is marked
+  balances and transactions every four hours, read-only. Each account is marked
   Spending, Balance only or Hidden; a bank account can keep the bills balance
   current. Merchant names are cleaned up, transfers between your own accounts
   are set aside, and past months load from a bank's CSV export. See
@@ -114,7 +114,8 @@ import a workbook under Settings → Import & export. Nothing is pre-populated.
 | `REAL_IP_HEADER`       | no       | Header your proxy puts the client IP in, for rate limits.       |
 | `SESSION_SECRET`       | no       | Overrides the cookie-signing secret (32+ characters).           |
 | `BANK_SYNC_KEY`        | no       | Encryption key (32+ characters). Turns on bank sync and encrypts identifying text. Keep a copy. |
-| `BANK_SYNC_HOUR`       | no       | Local hour after which the daily bank sync runs. Defaults to 6. |
+| `BANK_SYNC_HOUR`       | no       | Local hour the bank sync schedule counts from. Defaults to 6. |
+| `BANK_SYNC_EVERY_HOURS` | no      | Hours between bank syncs, 2 to 24. Defaults to 4 (six a day, at 17 past). |
 | `SIMPLEFIN_EXTRA_HOSTS`| no       | More SimpleFIN-compatible hosts to allow, comma-separated.      |
 
 See `.env.example` for the full list.

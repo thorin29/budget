@@ -44,7 +44,7 @@ import { formatCents } from "@/lib/money";
 import { getConnection } from "@/server/bank/sync";
 import { listBankAccounts } from "@/server/bank/accounts";
 import { listCsvImports } from "@/server/bank/csv-import";
-import { syncHour } from "@/lib/bank-schedule";
+import { SLOT_MINUTE, syncHours } from "@/lib/bank-schedule";
 import { BillsSource, CombinedImporter, ConnectBank, CsvImporter, LinkAccountToBank, DeleteBankData, RevertImport, SyncControls } from "../bank";
 
 export const dynamic = "force-dynamic";
@@ -565,7 +565,7 @@ async function Bank() {
     <div className="space-y-6">
       <SectionHeading
         title="Bank sync"
-        description="Optional. Reads balances and transactions once a day through a SimpleFIN bridge. Read-only: nothing here can move money."
+        description="Optional. Reads balances and transactions every few hours through a SimpleFIN bridge. Read-only: nothing here can move money."
       />
 
       {!key ? (
@@ -594,8 +594,8 @@ async function Bank() {
               <h3 className="font-sans text-base font-bold">Connected</h3>
               <p className="mt-1 text-sm text-muted">
                 Through {connection.host}. Last good sync:{" "}
-                {connection.lastSuccessAt ? stamp.format(connection.lastSuccessAt) : "not yet"}. Syncs daily after{" "}
-                {syncHour()}:00.
+                {connection.lastSuccessAt ? stamp.format(connection.lastSuccessAt) : "not yet"}. Syncs at{" "}
+                {syncHours().map((h) => `${h}:${String(SLOT_MINUTE).padStart(2, "0")}`).join(", ")}.
               </p>
             </div>
             <Link href="/transactions" className="text-sm font-semibold text-accent-text hover:underline">

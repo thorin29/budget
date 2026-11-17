@@ -6,7 +6,7 @@ import { matchDuplicates } from "../bank-match";
 import { csvField, parseBankCsv, parseCents, parseDate, splitCsv, toCsv } from "../bank-csv";
 import { BankFeedError, allowedHosts, checkUrl, decodeSetupToken, parseAccounts } from "../simplefin";
 import { configuredKey, open, seal } from "../secret-box";
-import { isDue } from "../bank-schedule";
+import { isDue, lastSlot, requestsToday, syncHours } from "../bank-schedule";
 
 describe("cleanMerchant", () => {
   it("strips processor prefixes, store numbers and order ids", () => {
@@ -235,14 +235,29 @@ describe("secret box", () => {
   });
 });
 
-describe("daily schedule", () => {
+describe("sync schedule", () => {
   const at = (s: string) => new Date(s);
-  it("runs once after the hour, with retries spaced out", () => {
+  it("runs every four hours at 17 past, counted from the start hour", () => {
     process.env.TZ = "UTC";
-    expect(isDue(at("2026-11-16T05:00:00Z"), null, null, 6)).toBe(false);
-    expect(isDue(at("2026-11-16T06:10:00Z"), null, null, 6)).toBe(true);
-    expect(isDue(at("2026-11-16T09:00:00Z"), at("2026-11-16T06:10:00Z"), at("2026-11-16T06:10:00Z"), 6)).toBe(false);
-    expect(isDue(at("2026-11-16T07:00:00Z"), at("2026-11-15T06:10:00Z"), at("2026-11-16T06:10:00Z"), 6)).toBe(false);
-    expect(isDue(at("2026-11-16T10:00:00Z"), at("2026-11-15T06:10:00Z"), at("2026-11-16T06:10:00Z"), 6)).toBe(true);
+    expect(syncHours(6, 4)).toEqual([2, 6, 10, 14, 18, 22]);
+    expect(lastSlot(at("2026-11-16T06:10:00Z"), 6, 4).toISOString()).toBe("2026-11-16T02:17:00.000Z");
+    expect(lastSlot(at("2026-11-16T06:20:30Z"), 6, 4).toISOString()).toBe("2026-11-16T06:17:00.000Z");
+    expect(lastSlot(at("2026-11-16T01:00:00Z"), 6, 4).toISOString()).toBe("2026-11-15T22:17:00.000Z");
+  });
+
+  it("is due once per slot, with a failed attempt retried an hour later", () => {
+    process.env.TZ = "UTC";
+    expect(isDue(at("2026-11-16T06:20:00Z"), at("2026-11-16T02:20:00Z"), at("2026-11-16T02:20:00Z"), 6, 4)).toBe(true);
+    expect(isDue(at("2026-11-16T09:00:00Z"), at("2026-11-16T06:20:00Z"), at("2026-11-16T06:20:00Z"), 6, 4)).toBe(false);
+    expect(isDue(at("2026-11-16T10:40:00Z"), at("2026-11-16T06:20:00Z"), at("2026-11-16T10:20:00Z"), 6, 4)).toBe(false);
+    expect(isDue(at("2026-11-16T11:25:00Z"), at("2026-11-16T06:20:00Z"), at("2026-11-16T10:20:00Z"), 6, 4)).toBe(true);
+    expect(isDue(at("2026-11-16T03:00:00Z"), null, null, 6, 4)).toBe(true);
+  });
+
+  it("counts requests per local day", () => {
+    process.env.TZ = "UTC";
+    expect(requestsToday({ day: "2026-11-16", count: 5 }, at("2026-11-16T12:00:00Z"))).toBe(5);
+    expect(requestsToday({ day: "2026-11-15", count: 19 }, at("2026-11-16T12:00:00Z"))).toBe(0);
+    expect(requestsToday(null, at("2026-11-16T12:00:00Z"))).toBe(0);
   });
 });

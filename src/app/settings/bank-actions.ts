@@ -53,7 +53,7 @@ export async function syncBankAction(): Promise<BankActionState> {
   try {
     await requireUser();
     if (!manualSyncs.hit("bank")) {
-      return { ok: false, message: "Manual syncs are limited to 6 a day, to stay inside the bridge's limits. The daily sync still runs." };
+      return { ok: false, message: "Manual syncs are limited to 6 a day, to stay inside the bridge's limits. The scheduled sync still runs." };
     }
     const result = await syncBank();
     done();

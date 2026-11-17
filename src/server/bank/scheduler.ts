@@ -1,17 +1,17 @@
 /**
- * The daily sync. Started once per server process from src/instrumentation.ts.
+ * The scheduled sync. Started once per server process from src/instrumentation.ts.
  *
- * Every 15 minutes it checks whether today's sync is due: at or after
- * BANK_SYNC_HOUR local time (6 by default), no successful sync yet today, and
- * no failed attempt in the last three hours. Bridges limit requests per day,
- * so this asks once a day plus a few retries, never in a tight loop.
+ * Every 5 minutes it checks whether a sync is due: every BANK_SYNC_EVERY_HOURS
+ * hours (4 by default) from BANK_SYNC_HOUR, at 17 past, with a failed attempt
+ * retried an hour later. Bridges limit requests per day (SimpleFIN: 24), so
+ * the sync also stops at a daily cap; see src/lib/bank-schedule.ts.
  */
 
 import { configuredKey } from "@/lib/secret-box";
 import { isDue } from "@/lib/bank-schedule";
 import { getConnection, syncBank } from "./sync";
 
-const TICK_MS = 15 * 60_000;
+const TICK_MS = 5 * 60_000;
 
 declare global {
   var __budgetBankScheduler: boolean | undefined;

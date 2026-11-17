@@ -24,6 +24,9 @@ describe("guessCategory", () => {
     expect(name("Jane Q Example, DDS")).toBe("Medical");
     expect(name("Meijer", "MEIJER #123")).toBe("Groceries");
     expect(name("Hillcrestbible")).toBe("Giving");
+    expect(name("Samaritan Ministries")).toBe("Insurance");
+    expect(name("Example HealthShare", "EXAMPLE HEALTH-SHARE MONTHLY")).toBe("Insurance");
+    expect(name("Example Ministries")).toBe("Giving");
     expect(name("Microsoft Store", "MICROSOFT*STORE")).toBe("Subscriptions");
   });
 

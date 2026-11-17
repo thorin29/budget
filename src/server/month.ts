@@ -103,6 +103,12 @@ export interface MonthView {
    * — it is the last known position, not a fresh one.
    */
   billsBalanceFrom: { year: number; month: number } | null;
+  /** When the balance was last set, by hand or by the bank. */
+  billsBalanceAsOf: string | null;
+  /** The bills account follows a bank account, so the balance updates with each sync. */
+  billsBalanceFromBank: boolean;
+  /** The last good bank sync, when bank sync is connected. */
+  bankSyncedAt: string | null;
   billsAccountId: string | null;
   billsAccountName: string | null;
   /** Balance less the first half's remaining. */
@@ -207,8 +213,14 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   ])) as [
     MonthlyPlanRow[],
     ActualRow[],
-    { amount: { toString(): string }; year: number; month: number } | null,
+    { amount: { toString(): string }; year: number; month: number; asOf: Date } | null,
   ];
+  const [linkedBank, connection] = (await Promise.all([
+    settings.billsAccountId
+      ? prisma.bankAccount.findFirst({ where: { linkedAccountId: settings.billsAccountId, hidden: false }, select: { id: true } })
+      : null,
+    prisma.bankConnection.findUnique({ where: { id: "default" }, select: { lastSuccessAt: true } }),
+  ])) as [{ id: string } | null, { lastSuccessAt: Date | null } | null];
 
   const planMap = new Map(
     plans.map((p) => [
@@ -425,6 +437,9 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     incomeReceivedCents: income.reduce((s, e) => s + (e.actualCents ?? 0), 0),
     billsBalanceCents,
     billsBalanceFrom,
+    billsBalanceAsOf: balance ? balance.asOf.toISOString() : null,
+    billsBalanceFromBank: linkedBank !== null,
+    bankSyncedAt: connection?.lastSuccessAt ? connection.lastSuccessAt.toISOString() : null,
     billsAccountId: settings.billsAccountId,
     billsAccountName: settings.billsAccountId
       ? (accountName.get(settings.billsAccountId) ?? null)

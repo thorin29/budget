@@ -16,6 +16,30 @@ import { BankFeedError, type FeedDocument } from "@/lib/simplefin";
 import { MissingKeyError, configuredKey, open, seal } from "@/lib/secret-box";
 import { ConflictError, NotFoundError } from "../errors";
 import { claimSetupToken, fetchAccounts } from "./simplefin-client";
+import { DAILY_LIMIT, MANUAL_GAP_MS, localParts, requestsToday } from "@/lib/bank-schedule";
+
+const REQUESTS_KEY = "bankSyncRequests";
+
+/** Counts a request toward today's cap; false when today's are used up. */
+async function takeRequest(now: Date): Promise<boolean> {
+  const row = (await prisma.setting.findUnique({ where: { key: REQUESTS_KEY } })) as { value: unknown } | null;
+  const used = requestsToday(row?.value ?? null, now);
+  if (used >= DAILY_LIMIT) return false;
+  const value = { day: localParts(now).day, count: used + 1 };
+  await prisma.setting.upsert({ where: { key: REQUESTS_KEY }, create: { key: REQUESTS_KEY, value }, update: { value } });
+  return true;
+}
+
+/**
+ * "Sync now" from a phone: runs unless the last attempt was only minutes ago,
+ * in which case the feed has nothing new yet and the request is saved.
+ */
+export async function syncBankIfStale(): Promise<{ ran: boolean; result: SyncResult | null }> {
+  const connection = await getConnection();
+  if (!connection) throw new NotFoundError("Bank connection");
+  if (connection.lastSyncAt && Date.now() - connection.lastSyncAt.getTime() < MANUAL_GAP_MS) return { ran: false, result: null };
+  return { ran: true, result: await syncBank() };
+}
 
 const DAY = 86_400_000;
 // Bridges cap a request at 90 days; asking for 89 avoids a "capped" warning on every first sync.
@@ -107,6 +131,10 @@ export async function syncBank(): Promise<SyncResult> {
     data: { syncStartedAt: now },
   });
   if (locked.count === 0) throw new ConflictError("A sync is already running");
+  if (!(await takeRequest(now))) {
+    await prisma.bankConnection.update({ where: { id: "default" }, data: { syncStartedAt: null } });
+    throw new ConflictError(`The bank feed allows about 24 requests a day and today's ${DAILY_LIMIT} are used. The next sync runs tomorrow.`);
+  }
 
   try {
     const earliest = new Date(now.getTime() - FIRST_SYNC_DAYS * DAY);

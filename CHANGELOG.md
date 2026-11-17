@@ -3,6 +3,23 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.39.0]
+
+### Changed
+- Bank sync runs every four hours at 17 past (BANK_SYNC_EVERY_HOURS, from BANK_SYNC_HOUR) instead
+  of once a day, with a failed attempt retried after an hour. Every request, scheduled or by hand,
+  counts toward a cap of 20 a day, under SimpleFIN's 24.
+
+### Added
+- `POST /api/v1/bank/sync`: read the bank now from the phone (skipped within 10 minutes of the last attempt).
+- `POST /api/v1/review/repeat`: add a repeating charge as a bill, or dismiss it. The Review API lists them in `repeatList`.
+- The month view says whether the bills balance follows the bank, when it was set, and the last good sync.
+
+## [0.38.1]
+
+### Fixed
+- Health-share plans, whose names often say "ministry", are guessed as Insurance, not Giving.
+
 ## [0.38.0]
 
 ### Changed
