@@ -11,7 +11,7 @@ import { prisma } from "@/lib/prisma";
 import { toCents, toDecimalString } from "@/lib/money";
 import { cleanMerchant } from "@/lib/merchant";
 import { matchDuplicates } from "@/lib/bank-match";
-import { isVerificationNoise, pairTransfers } from "@/lib/transfers";
+import { isBalanceTransfer, isVerificationNoise, pairTransfers } from "@/lib/transfers";
 import { BankFeedError, type FeedDocument } from "@/lib/simplefin";
 import { MissingKeyError, configuredKey, open, seal } from "@/lib/secret-box";
 import { ConflictError, NotFoundError } from "../errors";
@@ -309,5 +309,9 @@ export async function refreshTransfers(since: Date): Promise<number> {
       prisma.bankTransaction.update({ where: { id: inn }, data: { kind: "TRANSFER", transferOfId: out } }),
     ]);
   }
+  // A balance transfer whose other side isn't in the feed is still not spending.
+  const paired = new Set(pairs.flat());
+  const balanceMoves = candidates.filter((c) => !paired.has(c.id) && !noiseSet.has(c.id) && isBalanceTransfer(c.description)).map((c) => c.id);
+  if (balanceMoves.length) await prisma.bankTransaction.updateMany({ where: { id: { in: balanceMoves } }, data: { kind: "TRANSFER", transferOfId: null } });
   return pairs.length;
 }

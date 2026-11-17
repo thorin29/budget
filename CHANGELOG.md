@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.28.0]
+
+### Added
+- Phone API for the bank features (phone app 0.5): `GET /api/v1/cards` (cards with their
+  statement picture and colors), `GET /api/v1/review` with `POST /api/v1/review/confirm`,
+  `/dismiss` and `/undo-auto`, and `GET /api/v1/insights` (a month's spending summary).
+
+### Fixed
+- A balance transfer onto a card counts as a transfer, not spending, even when the other card's
+  side isn't in the feed. It no longer shows up in Insights.
+- Card names that repeat their digits ("Card - 1234 (1234)") show cleanly on the card faces.
+
 ## [0.27.1]
 
 ### Changed

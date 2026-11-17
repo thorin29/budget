@@ -44,7 +44,9 @@ export interface DeckSummary {
 }
 
 /** The card's name without the trailing account digits, which the face shows on their own. */
-const faceName = (name: string) => name.replace(/[\s\-–]*\(?\.{0,3}\d{3,4}\)?\s*$/, "").trim() || name;
+const TAIL = /[\s\-–]*\(?\.{0,3}\d{3,4}\)?\s*$/;
+// Feeds often repeat the digits ("Card - 1234 (1234)").
+const faceName = (name: string) => name.replace(TAIL, "").trim().replace(TAIL, "").trim() || name;
 const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 const long = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 const money = (cents: number) => formatCents(cents);

@@ -66,3 +66,11 @@ export function pairTransfers(rows: TransferCandidate[], windowDays = TRANSFER_W
 export function isVerificationNoise(row: Pick<TransferCandidate, "amountCents" | "description">): boolean {
   return Math.abs(row.amountCents) < 100 && VERIFICATION.test(row.description);
 }
+
+/**
+ * Moving a balance from one card to another. It isn't spending even when the
+ * other card's side isn't in the feed (a closed or unlinked card).
+ */
+export function isBalanceTransfer(description: string): boolean {
+  return /\bbal(ance)?\.?\s*(transfer|xfer)\b/i.test(description);
+}

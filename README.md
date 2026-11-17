@@ -11,7 +11,7 @@ Everything runs on your own server against your own PostgreSQL database. Fonts
 are bundled. The only outside requests are optional bank sync's, once you turn it
 on.
 
-> **Status:** v0.27.1. Month view, cash projection, line items, year reports,
+> **Status:** v0.28.0. Month view, cash projection, line items, year reports,
 > import, export, sign-in for up to two people, and a token-secured API for a
 > phone app all work. See `CHANGELOG.md`.
 
@@ -194,6 +194,14 @@ The phone can queue these while offline. Each write carries:
 - `enteredAt`, when Confirm was pressed. If the entry changed after that (on
   the web or the other phone), the write is refused with 409
   `changed_elsewhere` instead of overwriting the newer value.
+
+Bank features (when bank sync is on): `GET /api/v1/cards` (each card's balance,
+statement and what to pay, with its color), `GET /api/v1/review` (charges that
+look like bill payments and what was recorded on its own), `POST
+/api/v1/review/confirm` with `{lineItemId, year, month, txnId, amount, paidOn}`
+(the confirm step), `POST /api/v1/review/dismiss` with `{lineItemId, txnId}`,
+`POST /api/v1/review/undo-auto` with `{lineItemId, year, month}`, and
+`GET /api/v1/insights?m=YYYY-MM` (a month's spending summary).
 
 ## Bank sync
 

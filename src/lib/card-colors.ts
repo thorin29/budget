@@ -12,6 +12,12 @@ export interface CardColor {
   ink: "light" | "dark";
 }
 
+/** The two ends of a preset's gradient, for clients that draw their own (the phone app). */
+export function colorStops(color: CardColor): [string, string] {
+  const hex = color.background.match(/#[0-9a-f]{6}/gi) ?? ["#2b2f36", "#4a505a"];
+  return [hex[0], hex[hex.length - 1]];
+}
+
 export const CARD_COLORS: CardColor[] = [
   { id: "graphite", label: "Graphite", background: "linear-gradient(135deg, #2b2f36 0%, #4a505a 100%)", ink: "light" },
   { id: "midnight", label: "Midnight", background: "linear-gradient(135deg, #0a1428 0%, #1d2c4c 60%, #2a3b60 100%)", ink: "light" },
