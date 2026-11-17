@@ -3,6 +3,15 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.38.0]
+
+### Changed
+- More categories, guessed for new charges: eating out splits into Fast food, Restaurants and
+  Coffee & treats; Phone is apart from Utilities; plus Housing, Loans, School (was Education),
+  Kohl's, Clothing, Outdoors & sports, Fitness, Alcohol, Gifts & occasions, Aquarium and Crypto.
+  More gas station chains count as Fuel. Phone, Housing and Loans are essentials in the category
+  targets; the new eating-out, clothing and hobby categories are flexible.
+
 ## [0.37.0]
 
 ### Added

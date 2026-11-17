@@ -24,16 +24,23 @@ const RULES: Array<{ category: GuessCategory; pattern: RegExp; moneyIn?: boolean
   { category: { name: "Cash", aliases: ["ATM"] }, pattern: w("atm", "cash withdrawal") },
   { category: { name: "Subscriptions", aliases: ["Streaming", "Subscription"] }, pattern: w("netflix", "spotify", "hulu", "disney plus", "disneyplus", "youtube", "apple com bill", "apple\\.com/bill", "icloud", "google one", "google storage", "prime video", "paramount", "peacock", "audible", "patreon", "sirius", "openai", "chatgpt", "anthropic", "microsoft", "msft", "adobe", "dropbox") },
   // Fuel at a warehouse club or big-box store is fuel, not a shopping trip.
-  { category: FUEL, pattern: w("costco gas", "costco fuel", "sams club fuel", "sam s club fuel", "sams fuel", "walmart fuel", "murphy express") },
+  { category: FUEL, pattern: w("costco gas", "costco fuel", "sams club fuel", "sam s club fuel", "sams fuel", "walmart fuel", "murphy express", "murphy\\d*atwalma?rt", "buc ee s", "quiktrip", "qt \\d+", "racetrac", "love s", "wawa", "sheetz", "casey s", "kum go", "flying j", "pilot") },
   // Big-box and warehouse trips mix groceries and everything else, so they get their own categories.
   { category: { name: "Target & Walmart", aliases: ["Big box", "Target and Walmart"] }, pattern: w("target", "target com", "walmart", "wal mart", "walmart com", "wm supercenter", "walmart supercenter") },
   { category: { name: "Costco & Sam's Club", aliases: ["Warehouse club", "Warehouse clubs", "Costco and Sams Club", "Costco & Sams Club"] }, pattern: w("costco", "costco whse", "costco wholesale", "sams club", "sam s club", "samsclub") },
   { category: { name: "Groceries", aliases: ["Grocery", "Food"] }, pattern: w("grocery", "groceries", "supermarket", "kroger", "aldi", "whole foods", "meijer", "hy vee", "giant eagle", "stop shop", "shoprite", "harris teeter", "winn dixie", "ingles", "fred meyer", "ralphs", "vons", "jewel osco", "king soopers", "piggly wiggly", "hannaford", "price chopper", "schnucks", "save mart", "stater bros", "winco", "tom thumb", "heb", "h e b", "natural grocers", "food 4 less", "food4less", "trader joe s?", "safeway", "publix", "albertsons", "food lion", "wegmans", "sprouts") },
-  { category: { name: "Dining", aliases: ["Restaurants", "Eating out", "Dining out"] }, pattern: w("restaurant", "cafe", "coffee", "starbucks", "dunkin", "mcdonald s?", "chick fil a", "taco bell", "wendy s?", "burger", "pizza", "grill", "diner", "bakery", "donuts?", "bbq", "sushi", "doordash", "uber eats", "grubhub", "chipotle", "panera", "domino s?", "popeyes", "kfc", "arby s?", "sonic drive") },
+  // Eating out, three ways: quick-service chains, coffee and treats, and sit-down restaurants.
+  { category: { name: "Coffee & treats", aliases: ["Coffee", "Treats"] }, pattern: w("coffee", "starbucks", "dunkin", "donuts?", "bakery", "smoothie king", "tropical smoothie", "ice cream", "frozen custard", "custard", "gelato", "boba", "tea house", "dutch bros", "krispy kreme", "baskin", "dairy queen", "braums", "cold stone", "crumbl") },
+  { category: { name: "Fast food", aliases: ["Quick service"] }, pattern: w("mcdonald s?", "chick fil a", "taco bell", "wendy s?", "burger king", "in n out", "whataburger", "sonic drive", "popeyes", "kfc", "arby s?", "jack in the box", "five guys", "raising cane s?", "canes", "wingstop", "subway", "jersey mike s?", "jimmy john s?", "firehouse subs", "chipotle", "qdoba", "panda express", "panera", "domino s?", "pizza hut", "papa john s?", "little caesars", "shake shack", "culver s?", "zaxby s?", "doordash", "uber eats", "grubhub", "cava", "sweetgreen", "steak n shake") },
+  { category: { name: "Restaurants", aliases: ["Sit-down", "Eating out", "Dining out"] }, pattern: w("restaurant", "cafe", "grill", "diner", "steakhouse", "bbq", "sushi", "bistro", "trattoria", "cucina", "kitchen", "eatery", "tavern", "pub", "brewery", "cantina", "taqueria", "olive garden", "chili s", "applebee s?", "cheesecake factory", "texas roadhouse", "outback", "red lobster", "buffalo wild wings", "cheddar s", "pizza", "pizzeria") },
   { category: FUEL, pattern: w("fuel", "gas station", "shell", "exxon", "exxonmobil", "mobil", "chevron", "valero", "texaco", "phillips 66", "circle k", "7 eleven", "murphy usa", "sunoco", "speedway", "citgo", "conoco", "sinclair", "marathon petro") },
   { category: { name: "Auto", aliases: ["Car", "Vehicle", "Transportation"] }, pattern: w("auto parts", "autozone", "o reilly", "oreilly", "advance auto", "jiffy lube", "car wash", "tires?", "toll", "tollway", "parking", "dmv") },
-  { category: { name: "Home", aliases: ["Housing", "Home improvement"] }, pattern: w("home depot", "lowe s", "lowes", "ikea", "wayfair", "hardware", "hoa", "homeowners") },
-  { category: { name: "Utilities", aliases: ["Utility", "Bills"] }, pattern: w("electric", "energy", "water", "utility", "utilities", "internet", "wireless", "verizon", "at t", "t mobile", "comcast", "xfinity", "spectrum", "sewer", "trash", "waste") },
+  { category: { name: "Home", aliases: ["Home improvement"] }, pattern: w("home depot", "lowe s", "lowes", "ikea", "wayfair", "hardware", "homegoods", "homesense", "pottery barn", "kirkland s?", "world market", "container store", "pest", "nursery", "tractor supply") },
+  { category: { name: "Phone", aliases: ["Cell phone", "Mobile", "Wireless"] }, pattern: w("verizon", "vzwrlss", "at t", "t mobile", "mint mobile", "visible", "cricket", "boost mobile", "us cellular", "google fi", "metro by t mobile", "wireless") },
+  { category: { name: "Utilities", aliases: ["Utility", "Bills"] }, pattern: w("electric", "energy", "water utility", "water dept", "utility", "utilities", "internet", "comcast", "xfinity", "spectrum", "sewer", "trash", "waste", "frontier") },
+  { category: { name: "Housing", aliases: ["Mortgage", "Rent", "HOA"] }, pattern: w("mortgage", "home loan", "hoa", "homeowners assn", "assn dues", "property management") },
+  { category: { name: "Loans", aliases: ["Loan", "Student loans"] }, pattern: w("student loan", "navient", "mohela", "nelnet", "aidvantage", "great lakes", "sallie mae", "auto loan", "car payment") },
+  { category: { name: "Crypto", aliases: ["Investing"] }, pattern: w("coinbase", "kraken", "gemini", "crypto com") },
   { category: { name: "Insurance", aliases: [] }, pattern: w("insurance", "geico", "progressive", "state farm", "allstate", "liberty mutual", "nationwide") },
   { category: { name: "Medical", aliases: ["Health", "Healthcare", "Medical & health"] }, pattern: w("pharmacy", "cvs", "walgreens", "medical", "clinic", "hospital", "dental", "dentist", "dds", "dmd", "orthodont\\w*", "optometr\\w*", "urgent care", "labcorp", "quest diagnostics", "physicians?", "pediatrics?", "pediatric \\w+", "myeyedr", "eye care", "eyecare", "vision", "optical", "dermatology", "chiropractic", "physical therapy", "family medicine", "health center", "imaging", "radiology", "orthopedics?") },
   { category: { name: "Pets", aliases: ["Pet"] }, pattern: w("pets?", "petco", "petsmart", "chewy", "vet", "veterinary", "animal hospital") },
@@ -43,8 +50,15 @@ const RULES: Array<{ category: GuessCategory; pattern: RegExp; moneyIn?: boolean
   { category: { name: "Giving", aliases: ["Church", "Tithe", "Donations", "Charity"] }, pattern: w("church", "ministry", "ministries", "tithe", "tithely", "pushpay", "donation", "charity", "chapel", "baptist", "methodist", "fellowship", "parish", "catholic", "lutheran", "presbyterian") },
   // Church names often run together ("Hillcrestbible"), so these match anywhere in the name.
   { category: { name: "Giving", aliases: ["Church", "Tithe", "Donations", "Charity"] }, pattern: /bible|church/ },
-  { category: { name: "Education", aliases: ["School"] }, pattern: w("school", "tuition", "college", "university") },
-  { category: { name: "Shopping", aliases: ["Household", "General"] }, pattern: w("amazon", "amzn", "best buy", "ebay", "etsy", "kohl s?", "macy s?", "tj maxx", "marshalls", "old navy", "dollar tree", "dollar general") },
+  { category: { name: "School", aliases: ["Education"] }, pattern: w("school", "tuition", "college", "university", "academy", "homeschool", "curriculum", "textbooks?", "collegeboard", "college board", "driver ed") },
+  { category: { name: "Kohl's", aliases: ["Kohls"] }, pattern: w("kohl s?", "kohls") },
+  { category: { name: "Clothing", aliases: ["Clothes", "Apparel"] }, pattern: w("old navy", "gap", "tj maxx", "t j maxx", "tjmaxx", "marshalls", "ross", "burlington", "under armour", "nike", "adidas", "american eagle", "aerie", "loft", "ann taylor", "j crew", "banana republic", "levi s?", "columbia", "vans", "foot locker", "famous footwear", "macy s?", "nordstrom", "jcpenney", "dillard s?") },
+  { category: { name: "Outdoors & sports", aliases: ["Sporting goods", "Outdoors"] }, pattern: w("rei", "bass pro", "cabela s?", "academy sports", "dick s sporting", "dickssportinggoods", "scheels", "sportsman s warehouse", "recreation gov", "state park", "golf") },
+  { category: { name: "Fitness", aliases: ["Gym"] }, pattern: w("gym", "fitness", "planet fitness", "orangetheory", "hotworx", "crossfit", "ymca", "lifetime fitness", "peloton") },
+  { category: { name: "Alcohol", aliases: ["Liquor"] }, pattern: w("liquor", "liquors", "wine spirits", "total wine", "spec s", "specs", "bevmo") },
+  { category: { name: "Gifts & occasions", aliases: ["Gifts"] }, pattern: w("florist", "flowers", "1 800 flowers", "shutterfly", "hallmark", "party city") },
+  { category: { name: "Aquarium", aliases: [] }, pattern: w("aquarium", "aquatics", "reef", "fish store") },
+  { category: { name: "Shopping", aliases: ["Household", "General"] }, pattern: w("amazon", "amzn", "best buy", "ebay", "etsy", "dollar tree", "dollar general", "family dollar", "staples", "barnes noble", "usps") },
 ];
 
 /** Payment apps carry many unrelated payments under one name, so no merchant-wide rule is learned for them. */
@@ -84,7 +98,7 @@ export function isIncomeCategory(name: string | null | undefined): boolean {
 
 /** Day-to-day spending that repeats without being a bill (groceries, fuel…), by category name or alias. */
 const EVERYDAY = new Set(
-  RULES.filter((r) => ["Groceries", "Target & Walmart", "Costco & Sam's Club", "Dining", "Fuel", "Shopping", "Personal care", "Entertainment", "Travel", "Cash", "Fees", "Auto"].includes(r.category.name))
+  RULES.filter((r) => ["Groceries", "Target & Walmart", "Costco & Sam's Club", "Fast food", "Restaurants", "Coffee & treats", "Kohl's", "Clothing", "Fuel", "Shopping", "Personal care", "Entertainment", "Travel", "Cash", "Fees", "Auto"].includes(r.category.name))
     .flatMap((r) => [r.category.name, ...r.category.aliases])
     .map((n) => n.toLowerCase()),
 );

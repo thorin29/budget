@@ -16,7 +16,7 @@
  *     categories are scaled down together to fit what's left.
  */
 
-export const ESSENTIAL = /^(groceries|grocery|food|costco & sam's club|warehouse clubs?|fuel|gas|gasoline|medical|health|healthcare|medical & health|utilities|utility|insurance|pets?)$/i;
+export const ESSENTIAL = /^(phone|cell phone|housing|loans|groceries|grocery|food|costco & sam's club|warehouse clubs?|fuel|gas|gasoline|medical|health|healthcare|medical & health|utilities|utility|insurance|pets?)$/i;
 
 export interface CardInput {
   id: string;

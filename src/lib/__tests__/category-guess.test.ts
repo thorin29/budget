@@ -7,8 +7,8 @@ const name = (m: string, d = m, cents = -1_000) => guessCategory(m, d, cents)?.n
 describe("guessCategory", () => {
   it("recognizes common merchants and plain words", () => {
     expect(name("Kroger", "KROGER #123")).toBe("Groceries");
-    expect(name("Starbucks")).toBe("Dining");
-    expect(name("Uber Eats", "UBER EATS PENDING")).toBe("Dining");
+    expect(name("Starbucks")).toBe("Coffee & treats");
+    expect(name("Uber Eats", "UBER EATS PENDING")).toBe("Fast food");
     expect(name("Uber", "UBER TRIP")).toBe("Travel");
     expect(name("Shell Oil", "SHELL OIL 5744")).toBe("Fuel");
     expect(name("Netflix.com")).toBe("Subscriptions");
@@ -25,6 +25,17 @@ describe("guessCategory", () => {
     expect(name("Meijer", "MEIJER #123")).toBe("Groceries");
     expect(name("Hillcrestbible")).toBe("Giving");
     expect(name("Microsoft Store", "MICROSOFT*STORE")).toBe("Subscriptions");
+  });
+
+  it("splits eating out, and knows phones, schools, clothing and Kohl's", () => {
+    expect(name("Whataburger", "WHATABURGER 1177")).toBe("Fast food");
+    expect(name("Example Steakhouse")).toBe("Restaurants");
+    expect(name("Braums", "128 BRAUMS STORE")).toBe("Coffee & treats");
+    expect(name("Mint Mobile")).toBe("Phone");
+    expect(name("Example Classical Academy")).toBe("School");
+    expect(name("Kohls", "KOHLS 0368")).toBe("Kohl's");
+    expect(name("Tjmaxx", "TJMAXX #0038")).toBe("Clothing");
+    expect(name("Murphy7189atwalmart")).toBe("Fuel");
   });
 
   it("keeps big-box stores, warehouse clubs and grocery stores apart", () => {
