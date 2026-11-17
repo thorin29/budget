@@ -1,3 +1,4 @@
+import { InsightsTabs } from "@/components/insights-tabs";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getYearView } from "@/server/year";
@@ -79,8 +80,9 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
 
   return (
     <div className="mx-auto max-w-[1180px]">
+      <InsightsTabs active="year" />
       <PageHeading
-        title="Year & reports"
+        title="Year plan"
         description="Every bill by every month — what was planned beside what was paid."
         action={
           <div className="flex flex-wrap items-center gap-2">

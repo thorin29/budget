@@ -17,7 +17,8 @@ const MAIN: NavItem[] = [
   {
     href: "/month",
     label: "This month",
-    match: ["/month"],
+    // "What can I pay?" opens from the month's 45-day card.
+    match: ["/month", "/projection"],
     icon: "calendar-blank",
   },
   {
@@ -27,33 +28,22 @@ const MAIN: NavItem[] = [
     icon: "check",
   },
   {
-    href: "/projection",
-    label: "What can I pay?",
-    match: ["/projection"],
-    icon: "chart-line",
-  },
-  {
-    href: "/line-items",
-    label: "Line items",
-    match: ["/line-items"],
+    href: "/transactions",
+    label: "Transactions",
+    match: ["/transactions"],
     icon: "list-bullets",
-  },
-  {
-    href: "/year",
-    label: "Year & reports",
-    match: ["/year"],
-    icon: "chart-bar",
   },
   {
     href: "/insights",
     label: "Insights",
-    match: ["/insights"],
+    // The year plan is a tab of Insights.
+    match: ["/insights", "/year"],
     icon: "chart-pie-slice",
   },
   {
     href: "/accounts",
     label: "Accounts",
-    match: ["/accounts", "/transactions"],
+    match: ["/accounts"],
     icon: "bank",
   },
 ];
@@ -61,7 +51,8 @@ const MAIN: NavItem[] = [
 const SETTINGS: NavItem = {
   href: "/settings",
   label: "Settings",
-  match: ["/settings", "/setup", "/import"],
+  // Bills & income (line items) lives under Settings.
+  match: ["/settings", "/setup", "/import", "/line-items"],
   icon: "gear-six",
 };
 

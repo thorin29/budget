@@ -1,4 +1,4 @@
-import { listCardPayments } from "@/server/card-payments";
+import { cardOverview } from "@/server/card-payments";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -77,7 +77,7 @@ export default async function MonthPage({
   const now = new Date();
   const isCurrent = year === now.getFullYear() && month === now.getMonth() + 1;
 
-  const cards = isCurrent ? await listCardPayments(today) : [];
+  const cards = isCurrent ? await cardOverview(today) : null;
   const daysUntil = (iso: string) => Math.round((Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
   const longDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
@@ -146,7 +146,6 @@ export default async function MonthPage({
         )
       : null;
 
-  const heroItem = view.surplusItems[0] ?? null;
   const free = view.transferAfterSecondCents;
 
   return (
@@ -248,23 +247,19 @@ export default async function MonthPage({
           detail={`${formatCents(view.totalRemainingCents)} still owed this month`}
         />
 
-        {heroItem ? (
-          <StatCard
-            tone="hero"
-            label={heroItem.name}
-            value={
-              heroItem.actualCents !== null
-                ? formatCents(heroItem.actualCents)
-                : free === null
-                  ? "—"
-                  : formatCents(Math.max(free, 0))
-            }
-            detail={
-              heroItem.actualCents !== null
-                ? `paid · ${formatCents(heroItem.budgetedCents)} planned`
-                : `available to send · ${formatCents(heroItem.budgetedCents)} planned`
-            }
-          />
+        {cards && cards.rows.length ? (
+          <a href="#cards" className="block rounded-2xl outline-offset-4 transition hover:brightness-105">
+            <StatCard
+              tone="hero"
+              label="Cards"
+              value={formatCents(cards.totalOwedCents)}
+              detail={
+                cards.nextDue
+                  ? `owed now · ${formatCents(cards.dueOnStatementsCents)} due on statements · next ${shortDate(cards.nextDue)}`
+                  : "owed now across your cards"
+              }
+            />
+          </a>
         ) : (
           <StatCard
             tone="hero"
@@ -288,10 +283,80 @@ export default async function MonthPage({
         </div>
       ) : (
         <div className="mt-6 grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_300px]">
-          <MonthList
-            sections={sections}
-            footer={{ paidCents: paidOf(billRows), budgetedCents: budgetOf(billRows) }}
-          />
+          <div className="min-w-0 space-y-6">
+            <MonthList
+              sections={sections}
+              footer={{ paidCents: paidOf(billRows), budgetedCents: budgetOf(billRows) }}
+            />
+            {cards && cards.rows.length ? (
+              <section id="cards" className="scroll-mt-6 rounded-2xl border border-line bg-surface shadow-card">
+                <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-5">
+                  <h2 className="text-base font-bold">Cards</h2>
+                  <Link href="/accounts" className="text-xs font-semibold text-accent-text hover:underline">
+                    Closing and due days
+                  </Link>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="mt-3 w-full min-w-[640px] text-sm">
+                    <thead>
+                      <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted">
+                        <th className="px-5 py-2 font-semibold">Card</th>
+                        <th className="px-3 py-2 text-right font-semibold">Owed now</th>
+                        <th className="px-3 py-2 text-right font-semibold">Statement due</th>
+                        <th className="px-3 py-2 text-right font-semibold">New since statement</th>
+                        <th className="px-5 py-2 text-right font-semibold">Pay</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-line">
+                      {cards.rows.map((r) => {
+                        const c = r.status;
+                        const days = c ? daysUntil(c.nextDue) : null;
+                        return (
+                          <tr key={r.id} className="align-top">
+                            <td className="px-5 py-3">
+                              <span className="block font-semibold">{r.name}</span>
+                              <span className="block text-xs text-muted">{r.institution ?? ""}</span>
+                            </td>
+                            <td className="tnum px-3 py-3 text-right">{formatCents(r.owedNowCents)}</td>
+                            <td className="tnum px-3 py-3 text-right">
+                              {c ? (
+                                <>
+                                  <span className="block">{c.dueCents ? formatCents(c.dueCents) : "Paid"}</span>
+                                  <span className="block text-xs text-muted">
+                                    by {shortDate(c.nextDue)}
+                                    {days !== null && days >= 0 ? ` · ${days}d` : ""}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="text-xs text-muted">Add its days</span>
+                              )}
+                            </td>
+                            <td className="tnum px-3 py-3 text-right">{c ? formatCents(c.newChargesCents) : "—"}</td>
+                            <td className="tnum px-5 py-3 text-right">
+                              {c ? (
+                                <>
+                                  <span className="block font-semibold">{c.plan === "paid" ? "—" : formatCents(c.suggestedCents)}</span>
+                                  <span className="block text-xs text-muted">
+                                    {c.plan === "payoff" && c.paymentsLeft !== null
+                                      ? `0% ends ${longDate(c.promoEndsOn!)} · ${c.paymentsLeft} left`
+                                      : c.plan === "statement"
+                                        ? "in full, no interest"
+                                        : "nothing due"}
+                                  </span>
+                                </>
+                              ) : (
+                                "—"
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            ) : null}
+          </div>
 
           <aside className="space-y-4 xl:sticky xl:top-7">
             <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
@@ -354,39 +419,6 @@ export default async function MonthPage({
                 </ul>
               )}
             </div>
-            {cards.length ? (
-              <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
-                <h2 className="text-base font-bold">Card payments</h2>
-                <ul className="mt-3 divide-y divide-line">
-                  {cards.map((c) => {
-                    const days = daysUntil(c.nextDue);
-                    const beforePayday = view.splitPayday ? c.nextDue < view.splitPayday : null;
-                    return (
-                      <li key={c.id} className="py-2.5 text-sm first:pt-0 last:pb-0">
-                        <div className="flex items-baseline justify-between gap-3">
-                          <span className="min-w-0 truncate font-semibold">{c.name}</span>
-                          <span className="tnum shrink-0 font-semibold">{c.plan === "paid" ? "Paid" : formatCents(c.suggestedCents)}</span>
-                        </div>
-                        <p className="text-xs text-muted">
-                          Due {shortDate(c.nextDue)}
-                          {days >= 0 ? ` · in ${days} day${days === 1 ? "" : "s"}` : " · past due"}
-                          {beforePayday !== null && c.nextDue.slice(0, 7) === view.splitPayday?.slice(0, 7)
-                            ? beforePayday ? " · before payday" : " · after payday"
-                            : ""}
-                        </p>
-                        <p className="text-xs text-muted">
-                          {c.plan === "payoff" && c.monthlyCents !== null && c.paymentsLeft !== null
-                            ? `0% ends ${longDate(c.promoEndsOn!)}: ${formatCents(c.monthlyCents)} a month for ${c.paymentsLeft} payments clears ${formatCents(c.statementCents)}`
-                            : c.plan === "statement"
-                              ? `Statement ${formatCents(c.statementCents)}${c.paidSinceCents ? `, ${formatCents(c.paidSinceCents)} paid` : ""}. Paying it in full avoids interest.`
-                              : `Statement ${formatCents(c.statementCents)} is covered.`}
-                        </p>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </div>
-            ) : null}
           </aside>
         </div>
       )}

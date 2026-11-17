@@ -43,6 +43,9 @@ export default async function ProjectionPage({
 
   return (
     <div className="mx-auto max-w-[1180px]">
+      <Link href="/month" className="mb-2 inline-block text-sm text-muted hover:text-foreground">
+        ← This month
+      </Link>
       <PageHeading
         title="What can I pay?"
         description={`Your ${view.billsAccountName ?? "bills"} balance walked forward day by day. The lowest point it reaches is the limit — anything above it can leave today.`}

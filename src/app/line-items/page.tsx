@@ -126,8 +126,11 @@ export default async function LineItemsPage({
 
   return (
     <div className="mx-auto max-w-[1000px]">
+      <Link href="/settings" className="mb-2 inline-block text-sm text-muted hover:text-foreground">
+        ← Settings
+      </Link>
       <PageHeading
-        title="Line items"
+        title="Bills & income"
         description="The recurring things that make up a month. The usual amount lives here; a single month that differs is changed on the month view."
         action={
           <div className="flex items-center gap-2">

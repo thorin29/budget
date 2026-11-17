@@ -74,3 +74,50 @@ export async function setCardTerms(id: string, input: { closeDay: number | null;
     },
   });
 }
+
+export interface CardRow {
+  id: string;
+  name: string;
+  institution: string | null;
+  owedNowCents: number;
+  /** Null until the card's closing and due days are set. */
+  status: CardPayment | null;
+}
+
+export interface CardOverview {
+  totalOwedCents: number;
+  /** Left to pay on statements, across cards with their days set. */
+  dueOnStatementsCents: number;
+  nextDue: string | null;
+  rows: CardRow[];
+}
+
+/** Every card that isn't hidden: what's owed now, and for cards with their days set, the statement picture. */
+export async function cardOverview(today = localToday()): Promise<CardOverview> {
+  const [cards, payments] = await Promise.all([
+    prisma.bankAccount.findMany({
+      where: { type: "CREDIT_CARD", hidden: false },
+      select: { id: true, name: true, institution: true, balance: true, statementCloseDay: true, paymentDueDay: true },
+    }) as Promise<Array<{ id: string; name: string; institution: string | null; balance: { toString(): string } | null; statementCloseDay: number | null; paymentDueDay: number | null }>>,
+    listCardPayments(today),
+  ]);
+  const byId = new Map(payments.map((p) => [p.id, p]));
+  const rows: CardRow[] = cards
+    .map((c) => ({
+      id: c.id,
+      name: displayAccountName(c.name),
+      institution: c.institution,
+      owedNowCents: Math.max(0, c.balance === null ? 0 : -toCents(c.balance)),
+      status: byId.get(c.id) ?? null,
+    }))
+    // A paid-off card with no days set has nothing to say.
+    .filter((r) => r.owedNowCents > 0 || r.status)
+    .sort((a, b) => (a.status?.nextDue ?? "9999").localeCompare(b.status?.nextDue ?? "9999") || b.owedNowCents - a.owedNowCents);
+  const due = payments.filter((p) => p.suggestedCents > 0);
+  return {
+    totalOwedCents: rows.reduce((s, r) => s + r.owedNowCents, 0),
+    dueOnStatementsCents: payments.reduce((s, p) => s + p.dueCents, 0),
+    nextDue: due.length ? due.map((p) => p.nextDue).sort()[0] : null,
+    rows,
+  };
+}

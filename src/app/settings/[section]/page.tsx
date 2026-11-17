@@ -426,7 +426,7 @@ async function Categories() {
     <div>
       <SectionHeading
         title="Categories"
-        description="Used by bills, transactions, Year & reports and Insights. Mark a category as managed for others when it holds money that isn't yours, like league fees you collect and pass on: it stays out of spending and income and gets its own running balance."
+        description="Used by bills, transactions and Insights. Mark a category as managed for others when it holds money that isn't yours, like league fees you collect and pass on: it stays out of spending and income and gets its own running balance."
       />
       <CategoryForm />
       <div className="mt-6 space-y-2">

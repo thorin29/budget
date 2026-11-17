@@ -1,3 +1,4 @@
+import { InsightsTabs } from "@/components/insights-tabs";
 import Link from "next/link";
 import { getInsights, type CategorySpend, type MonthTotal } from "@/server/insights";
 import { formatCents } from "@/lib/money";
@@ -130,6 +131,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="space-y-6">
+      <InsightsTabs active="spending" />
       <PageHeading
         title="Insights"
         description="Where the money went, from the bank feed. Transfers between your accounts and money managed for others are left out."

@@ -3,6 +3,17 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.26.0]
+
+### Changed
+- This month's blue card is now Cards: what you owe across every card right now, what's due on
+  statements and the next due date. Below the bills, a Cards table shows each card's balance,
+  statement due, what's built up since the statement, and what to pay. "Available to send" is gone;
+  it repeated Second half remaining.
+- The menu matches the design: This month, Review, Transactions, Insights, Accounts. The year plan
+  is a tab of Insights, What can I pay? opens from the month's 45-day card, and line items moved to
+  Settings as Bills & income.
+
 ## [0.25.1]
 
 ### Fixed

@@ -32,7 +32,7 @@ describe("cardStatus", () => {
       today: "2026-11-16",
     });
     // Owed 600 now; after the close: -100 charge, +200 payment → 700 at close.
-    expect(s).toMatchObject({ lastClose: "2026-11-12", nextDue: "2026-12-09", statementCents: 70_000, paidSinceCents: 20_000, dueCents: 50_000, suggestedCents: 50_000, plan: "statement" });
+    expect(s).toMatchObject({ lastClose: "2026-11-12", nextDue: "2026-12-09", statementCents: 70_000, paidSinceCents: 20_000, newChargesCents: 10_000, dueCents: 50_000, suggestedCents: 50_000, plan: "statement" });
   });
 
   it("spreads a 0% balance over the payments left", () => {
