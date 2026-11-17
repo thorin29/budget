@@ -3,6 +3,15 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.35.0]
+
+### Added
+- Inviting the second person shows a QR code beside the one-time code. Scanned in the phone app,
+  it asks for a username and password of their own, creates the account and signs that phone in,
+  with no separate Add a phone step. The code still works on the web's "Create your account".
+- `POST /api/v1/auth/join` (public, rate limited): invite code, username and password → the new
+  account and the phone's token. Single use, same expiry and rules as joining on the web.
+
 ## [0.34.0]
 
 ### Added

@@ -27,6 +27,7 @@ const PUBLIC_API = new Set([
   "meta", // version only, read before signing in
   "auth/login", // password → five-minute proof; rate limited
   "auth/enroll", // proof + one-time code → token; rate limited
+  "auth/join", // one-time invite code → the second account and its phone's token; rate limited
 ]);
 
 const PUBLIC_OTHER = new Set([

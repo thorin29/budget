@@ -4,7 +4,7 @@ import { ConflictError, NotFoundError, ValidationError } from "./errors";
 import { UnauthorizedError } from "./auth";
 
 export type AuthFormState =
-  | { ok: true; redirect?: string; message?: string; code?: string; expiresAt?: string }
+  | { ok: true; redirect?: string; message?: string; code?: string; expiresAt?: string; qr?: string; link?: string }
   | { ok: false; message?: string; issues?: Record<string, string[]> };
 
 export function toAuthState(error: unknown): AuthFormState {

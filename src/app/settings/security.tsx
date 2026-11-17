@@ -89,13 +89,21 @@ export function InviteSecondPerson() {
       ? new Date(result.expiresAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
       : "";
     return (
-      <div className="rounded-xl border border-line bg-sunken p-4">
-        <p className="text-sm">Give them this code. It works once, until {until}.</p>
-        <p className="tnum mt-2 select-all font-mono text-xl font-bold tracking-wider">{result.code}</p>
-        <p className="mt-2 text-xs text-muted">
-          They open this site, choose &ldquo;Create your account&rdquo; under the sign-in form, and enter it with a
-          username and password of their own. It is shown only now.
-        </p>
+      <div className="flex flex-wrap items-start gap-4 rounded-xl border border-line bg-sunken p-4">
+        {result.qr ? <img src={result.qr} alt="QR code for creating the second account" width={168} height={168} className="rounded-lg bg-white p-1.5" /> : null}
+        <div className="min-w-0 flex-1 text-sm">
+          <p className="font-semibold">On their phone</p>
+          <p className="mt-1 text-muted">
+            Open the Budget app, tap <span className="font-semibold text-foreground">Scan QR code</span> on the first screen and scan this. The app
+            asks for a username and password of their own, creates the account and signs the phone in.
+          </p>
+          <p className="mt-3 font-semibold">Or on the web</p>
+          <p className="mt-1 text-muted">
+            They open this site, choose &ldquo;Create your account&rdquo; under the sign-in form, and enter this code:
+          </p>
+          <p className="tnum mt-1 select-all font-mono text-lg font-bold tracking-wider text-foreground">{result.code}</p>
+          <p className="mt-2 text-xs text-muted">Works once, until {until}. Shown only now.</p>
+        </div>
       </div>
     );
   }

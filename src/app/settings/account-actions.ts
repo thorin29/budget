@@ -66,7 +66,11 @@ export async function createInviteAction(): Promise<AuthFormState> {
     const key = `user:${user.id}`;
     if (!limits.inviteByUser.hit(key)) return { ok: false, message: tooMany(limits.inviteByUser.retryAfter(key)) };
     const { code, expiresAt } = await createInvite(user.id);
-    return { ok: true, code, expiresAt: expiresAt.toISOString() };
+    // The phone app scans this to create the account: the server address and the code, nothing else.
+    const server = await publicOrigin();
+    const link = `budget://join?server=${encodeURIComponent(server)}&code=${encodeURIComponent(code)}`;
+    const qr = await QRCode.toString(link, { type: "svg", margin: 1, errorCorrectionLevel: "M" });
+    return { ok: true, code, expiresAt: expiresAt.toISOString(), link, qr: `data:image/svg+xml;base64,${Buffer.from(qr).toString("base64")}` };
   } catch (error) {
     return toAuthState(error);
   }

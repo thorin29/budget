@@ -180,6 +180,31 @@ export async function enrollDevice(input: {
   return { token, expiresAt, device, userId: user.id };
 }
 
+/**
+ * A token for a brand-new account's first phone: the invite it was created
+ * with already proved the person may be here, so no add-a-phone code is needed.
+ */
+export async function enrollNewAccountDevice(user: { id: string; credentialVersion: number }, name: unknown): Promise<{
+  token: string;
+  expiresAt: Date;
+  device: { id: string; name: string };
+}> {
+  const token = newDeviceToken();
+  const expiresAt = new Date(Date.now() + DEVICE_TOKEN_DAYS * 86_400_000);
+  const device = (await prisma.device.create({
+    data: {
+      userId: user.id,
+      name: cleanDeviceName(name),
+      tokenHash: hashToken(token),
+      credentialVersion: user.credentialVersion,
+      expiresAt,
+      lastSeenAt: new Date(),
+    },
+    select: { id: true, name: true },
+  })) as { id: string; name: string };
+  return { token, expiresAt, device };
+}
+
 /** A fresh token for a device in good standing; the old one stops working. */
 export async function refreshDevice(auth: DeviceAuth): Promise<{ token: string; expiresAt: Date }> {
   const token = newDeviceToken();
