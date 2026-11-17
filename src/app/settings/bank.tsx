@@ -359,7 +359,10 @@ export function CombinedImporter() {
   const [parts, setParts] = useState<CombinedPart[] | null>(null);
   const [message, setMessage] = useState<BankActionState | null>(null);
   const [pending, start] = useTransition();
-  const ready = parts?.filter((p) => p.accountId && p.total > p.duplicates) ?? [];
+  // A part counts when it brings new rows or categories; a file of rows already here can still set categories.
+  const ready = parts?.filter((p) => p.accountId && (p.total > p.duplicates || p.labeled > 0)) ?? [];
+  const newRows = ready.reduce((s, p) => s + p.total - p.duplicates, 0);
+  const labeled = ready.reduce((s, p) => s + p.labeled, 0);
 
   return (
     <div className="space-y-4">
@@ -396,7 +399,7 @@ export function CombinedImporter() {
                 <span className="text-xs text-muted">
                   {!p.accountId
                     ? "No matching account; these rows will be left out"
-                    : `${p.total} rows, ${p.from} to ${p.to}${p.duplicates ? ` · ${p.duplicates} already here` : ""}`}
+                    : `${p.total} rows, ${p.from} to ${p.to}${p.duplicates ? ` · ${p.duplicates} already here` : ""}${p.labeled ? ` · ${p.labeled} with categories` : ""}`}
                 </span>
               </li>
             ))}
@@ -421,7 +424,11 @@ export function CombinedImporter() {
                 })
               }
             >
-              {pending ? "Importing…" : `Import into ${ready.length} account${ready.length === 1 ? "" : "s"}`}
+              {pending
+                ? "Importing…"
+                : newRows === 0 && labeled > 0
+                  ? `Set ${labeled.toLocaleString()} categories`
+                  : `Import into ${ready.length} account${ready.length === 1 ? "" : "s"}`}
             </Button>
           </div>
         </div>

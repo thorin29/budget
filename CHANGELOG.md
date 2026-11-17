@@ -3,6 +3,13 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.39.1]
+
+### Fixed
+- A combined history file whose rows are all already here (an edited copy of the Transactions
+  export, say) can still set categories: the button reads "Set N categories" instead of
+  "Import into 0 accounts", and no empty import is listed.
+
 ## [0.39.0]
 
 ### Changed

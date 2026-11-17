@@ -163,6 +163,8 @@ export interface CombinedPart {
   duplicates: number;
   from: string;
   to: string;
+  /** Rows carrying a category, which are set even on rows already here. */
+  labeled: number;
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/\s*\([^)]*\)\s*$/, "").replace(/[^a-z0-9]+/g, " ").trim();
@@ -209,11 +211,12 @@ export async function previewCombinedCsv(text: string): Promise<CombinedPart[]> 
   const out: CombinedPart[] = [];
   for (const p of parts) {
     if (!p.account) {
-      out.push({ key: p.key, accountId: null, label: p.label, total: 0, duplicates: 0, from: "", to: "" });
+      out.push({ key: p.key, accountId: null, label: p.label, total: 0, duplicates: 0, from: "", to: "", labeled: 0 });
       continue;
     }
     const preview = await previewCsv(p.account.id, p.csv);
-    out.push({ key: p.key, accountId: p.account.id, label: p.label, total: preview.total, duplicates: preview.duplicates, from: preview.from, to: preview.to });
+    const labeled = p.labels.filter((l) => l.category).length;
+    out.push({ key: p.key, accountId: p.account.id, label: p.label, total: preview.total, duplicates: preview.duplicates, from: preview.from, to: preview.to, labeled });
   }
   return out;
 }
@@ -296,10 +299,16 @@ export async function importCombinedCsv(text: string, fileName?: string): Promis
       unmatched.push(p.label);
       continue;
     }
-    const r = await importCsv(p.account.id, p.csv, false, fileName);
-    added += r.added;
-    skipped += r.skipped;
-    accounts += 1;
+    // Every row already here: nothing to add (and no empty batch to list), but its categories still apply.
+    const preview = await previewCsv(p.account.id, p.csv);
+    if (preview.total > preview.duplicates) {
+      const r = await importCsv(p.account.id, p.csv, false, fileName);
+      added += r.added;
+      skipped += r.skipped;
+      accounts += 1;
+    } else {
+      skipped += preview.total;
+    }
     categorized += await applyFileCategories(p.account.id, p.labels);
   }
   if (categorized) await applyCategories();
