@@ -44,6 +44,22 @@ describe("buildSuggestions", () => {
     expect(rep?.items?.map((i) => i.name)).toEqual(["Gym", "Streaming A"]);
   });
 
+  it("keeps small subscriptions and flags new ones and price increases", () => {
+    const out = buildSuggestions({
+      ...base,
+      merchants: [
+        { name: "Cloud Storage", monthly: [0, 0, 0, 299, 299, 299], charges: [0, 0, 0, 1, 1, 1] },
+        { name: "New App", monthly: [0, 0, 0, 0, 499, 499], charges: [0, 0, 0, 0, 1, 1] },
+        { name: "Streaming B", monthly: [1_599, 1_599, 1_599, 1_599, 1_599, 1_799], charges: [1, 1, 1, 1, 1, 1] },
+      ],
+    });
+    expect(out.find((s) => s.kind === "repeating")?.items?.map((i) => i.name)).toContain("Cloud Storage");
+    expect(out.find((s) => s.kind === "new-repeat")?.title).toBe("New monthly charge: New App, $4.99");
+    const up = out.find((s) => s.kind === "price-up");
+    expect(up?.title).toBe("Streaming B went up to $17.99");
+    expect(up?.items?.[0]).toEqual({ name: "Streaming B", cents: 1_799, fromCents: 1_599 });
+  });
+
   it("totals card interest and fees, and lists payoff plans", () => {
     const out = buildSuggestions({
       ...base,

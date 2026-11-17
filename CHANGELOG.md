@@ -3,6 +3,26 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.30.0]
+
+### Added
+- Pace on Insights for the month in progress: everyday spending so far against where a usual month
+  is by the same day, and what the month is on pace for. Also in `GET /api/v1/insights` (phone
+  app 0.6).
+- Two more kinds of suggestion, to catch smaller charges: new monthly charges (charged the last two
+  months and not before) and monthly charges whose price went up.
+
+### Changed
+- Target and Walmart have their own category, "Target & Walmart", and Costco and Sam's Club theirs,
+  "Costco & Sam's Club"; Groceries is for grocery stores. Fuel at those stores counts as Fuel.
+  Guessed categories update on their own; a merchant set by hand keeps its category.
+- Repeating-charge suggestions include charges from $1 a month and list up to 12.
+- `GET /api/v1/insights` suggestions carry their items.
+
+### Fixed
+- Transfers are re-checked over the last four months when the server starts, so a balance
+  transfer received before 0.28 stops counting as spending.
+
 ## [0.29.0]
 
 ### Added

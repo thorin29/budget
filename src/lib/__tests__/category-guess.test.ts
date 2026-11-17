@@ -18,6 +18,16 @@ describe("guessCategory", () => {
     expect(name("Lowe's", "LOWE'S #0001")).toBe("Home");
   });
 
+  it("keeps big-box stores, warehouse clubs and grocery stores apart", () => {
+    expect(name("Target", "TARGET T-1234")).toBe("Target & Walmart");
+    expect(name("Walmart", "WM SUPERCENTER #100")).toBe("Target & Walmart");
+    expect(name("Walmart Grocery", "WALMART GROCERY")).toBe("Target & Walmart");
+    expect(name("Costco", "COSTCO WHSE #0001")).toBe("Costco & Sam's Club");
+    expect(name("Sam's Club", "SAMS CLUB #0001")).toBe("Costco & Sam's Club");
+    expect(name("Costco Gas", "COSTCO GAS #0001")).toBe("Fuel");
+    expect(name("Aldi", "ALDI 12345")).toBe("Groceries");
+  });
+
   it("guesses nothing for unknown merchants or payment apps", () => {
     expect(name("Brightwater Studio")).toBeNull();
     expect(name("Venmo", "VENMO PAYMENT")).toBeNull();

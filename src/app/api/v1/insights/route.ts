@@ -21,7 +21,14 @@ export async function GET(request: Request) {
       inCents: i.current.inCents,
       categories: i.categories.slice(0, 6).map((c) => ({ name: c.name, cents: c.cents, averageCents: c.averageCents })),
       uncategorizedCount: i.uncategorized.count,
-      suggestions: suggestions.map((x) => ({ kind: x.kind, title: x.title, detail: x.detail, monthlyCents: x.monthlyCents })),
+      pace: i.pace,
+      suggestions: suggestions.map((x) => ({
+        kind: x.kind,
+        title: x.title,
+        detail: x.detail,
+        monthlyCents: x.monthlyCents,
+        items: (x.items ?? []).map((it) => ({ name: it.name, cents: it.cents, fromCents: it.fromCents ?? null })),
+      })),
     });
   } catch (error) {
     return fail(error);

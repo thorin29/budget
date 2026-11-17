@@ -18,6 +18,10 @@ export async function register(): Promise<void> {
         await autoLinkBills();
         const { syncLedgerAccounts } = await import("./server/bank/ledger");
         await syncLedgerAccounts();
+        // Transfers over the last few months, so a rule added in an update (a balance
+        // transfer with only one side in the feed) applies to rows already received.
+        const { refreshTransfers } = await import("./server/bank/sync");
+        await refreshTransfers(new Date(Date.now() - 120 * 86_400_000));
         const { applyCategories } = await import("./server/categorize");
         await applyCategories();
         const { runBillAutomation } = await import("./server/bills-auto");

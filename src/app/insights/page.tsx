@@ -1,6 +1,6 @@
 import { InsightsTabs } from "@/components/insights-tabs";
 import Link from "next/link";
-import { getInsights, getSuggestions, type CategorySpend, type MonthTotal } from "@/server/insights";
+import { getInsights, getSuggestions, type CategorySpend, type MonthTotal, type Pace } from "@/server/insights";
 import type { Suggestion } from "@/lib/insight-suggestions";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, PageHeading, StatCard, buttonClass } from "@/components/ui";
@@ -123,8 +123,43 @@ const MARK: Record<Suggestion["kind"], { glyph: string; tone: string }> = {
   fees: { glyph: "!", tone: "text-danger" },
   trim: { glyph: "✂", tone: "text-accent-text" },
   repeating: { glyph: "↻", tone: "text-accent-text" },
+  "new-repeat": { glyph: "+", tone: "text-warn" },
+  "price-up": { glyph: "↑", tone: "text-warn" },
   payoff: { glyph: "◎", tone: "text-ok" },
 };
+
+/** The month in progress against a usual month by the same day. */
+function PaceCard({ pace }: { pace: Pace }) {
+  const scale = Math.max(pace.projectedCents, pace.usualMonthCents, 1);
+  const pct = (cents: number) => `${Math.min(100, (cents / scale) * 100).toFixed(1)}%`;
+  const diff = pace.projectedCents - pace.usualMonthCents;
+  const close = Math.abs(diff) < Math.max(2_500, pace.usualMonthCents * 0.03);
+  return (
+    <Card>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-base font-bold">Pace</h2>
+        <span className="text-xs text-muted">
+          Day {pace.day} of {pace.daysInMonth} · everyday spending
+        </span>
+      </div>
+      <p className="mt-2 text-sm">
+        On pace for <span className="tnum font-bold">{whole(pace.projectedCents)}</span>
+        {close ? ", about the same as a usual month." : diff > 0 ? `, about ${whole(diff)} more than a usual month.` : `, about ${whole(-diff)} less than a usual month.`}
+      </p>
+      <div className="relative mt-3 h-3 rounded-full bg-neutral-soft" role="img" aria-label={`Spent ${whole(pace.soFarCents)} so far; a usual month has spent ${whole(pace.usualByNowCents)} by now and ${whole(pace.usualMonthCents)} in all.`}>
+        <div className="absolute inset-y-0 left-0 rounded-full bg-accent" style={{ width: pct(pace.soFarCents) }} />
+        <div className="absolute inset-y-0 rounded-full bg-accent/25" style={{ left: pct(pace.soFarCents), width: `calc(${pct(pace.projectedCents)} - ${pct(pace.soFarCents)})` }} />
+        <div className="absolute -top-1 h-5 w-0.5 bg-foreground" style={{ left: pct(pace.usualByNowCents) }} />
+      </div>
+      <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-muted">
+        <span>
+          <span className="font-semibold text-foreground">{whole(pace.soFarCents)}</span> so far · a usual month is at {whole(pace.usualByNowCents)} by now (the line)
+        </span>
+        <span>Usual month {whole(pace.usualMonthCents)}</span>
+      </div>
+    </Card>
+  );
+}
 
 function Suggestions({ items }: { items: Suggestion[] }) {
   const keep = items.reduce((s, x) => s + x.monthlyCents, 0);
@@ -154,7 +189,11 @@ function Suggestions({ items }: { items: Suggestion[] }) {
                 <span className="mt-2 flex flex-wrap gap-1.5">
                   {x.items.map((i) => (
                     <span key={i.name} className="rounded-md bg-neutral-soft px-2 py-0.5 text-xs">
-                      {i.name} <span className="tnum text-muted">{money(i.cents)}</span>
+                      {i.name}{" "}
+                      <span className="tnum text-muted">
+                        {i.fromCents !== undefined ? `${money(i.fromCents)} → ` : ""}
+                        {money(i.cents)}
+                      </span>
                     </span>
                   ))}
                 </span>
@@ -230,6 +269,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
             />
           </div>
 
+          {data.pace ? <PaceCard pace={data.pace} /> : null}
           {suggestions.length ? <Suggestions items={suggestions} /> : null}
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">

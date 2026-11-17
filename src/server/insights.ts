@@ -44,6 +44,19 @@ export interface ManagedLedger {
   monthOutCents: number;
 }
 
+/** How the month in progress compares with a usual month by the same day. */
+export interface Pace {
+  day: number;
+  daysInMonth: number;
+  soFarCents: number;
+  /** Average everyday spending of the three months before, through the same day. */
+  usualByNowCents: number;
+  /** Average everyday spending of the three months before, whole months. */
+  usualMonthCents: number;
+  /** So far, plus what a usual month spends from here to the end. */
+  projectedCents: number;
+}
+
 export interface Insights {
   year: number;
   month: number;
@@ -56,6 +69,8 @@ export interface Insights {
   uncategorized: { count: number; cents: number };
   changes: CategorySpend[];
   managed: ManagedLedger[];
+  /** Only for the month in progress, with at least one month before it. */
+  pace: Pace | null;
 }
 
 type Row = {
@@ -90,6 +105,10 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
     },
   })) as Row[];
 
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: process.env.TZ || "UTC", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+  const isCurrent = Number(today.slice(0, 4)) === year && Number(today.slice(5, 7)) === month;
+  const todayDay = Number(today.slice(8, 10));
+  const byNow = new Map<number, number>();
   const totals = new Map<number, MonthTotal>();
   for (let n = first; n <= end; n++) totals.set(n, { ...fromYm(n), everydayCents: 0, billsCents: 0, inCents: 0, netCents: 0 });
   // Everyday spending per month per category.
@@ -126,6 +145,8 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
     }
     if (!everyday) continue;
     total.everydayCents += everyday;
+    // Same-day comparison, capped at each month's own length.
+    if (isCurrent && r.postedOn.getUTCDate() <= todayDay) byNow.set(n, (byNow.get(n) ?? 0) + everyday);
     const key = r.categoryId ?? "";
     const cats = byCategory.get(n) ?? new Map();
     const c = cats.get(key) ?? { name: r.category?.name ?? "Uncategorized", cents: 0 };
@@ -183,6 +204,20 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
   const months = [...totals.values()];
   const current = totals.get(end)!;
   const avgOf = prior.map((n) => totals.get(n)!.everydayCents);
+  const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : 0);
+  let pace: Pace | null = null;
+  if (isCurrent && prior.length) {
+    const usualMonthCents = avg(avgOf);
+    const usualByNowCents = avg(prior.map((n) => byNow.get(n) ?? 0));
+    pace = {
+      day: todayDay,
+      daysInMonth: new Date(Date.UTC(year, month, 0)).getUTCDate(),
+      soFarCents: current.everydayCents,
+      usualByNowCents,
+      usualMonthCents,
+      projectedCents: current.everydayCents + Math.max(0, usualMonthCents - usualByNowCents),
+    };
+  }
   return {
     year,
     month,
@@ -195,6 +230,7 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
     uncategorized,
     changes,
     managed,
+    pace,
   };
 }
 

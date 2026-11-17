@@ -1,7 +1,8 @@
 /**
  * Suggestions worked out from complete months of bank history: where spending
  * is rising, which flexible categories are worth trimming, charges that repeat
- * every month without being a bill, and what card interest and fees cost.
+ * every month without being a bill (small ones too: those add up), new monthly
+ * charges and prices that went up, and what card interest and fees cost.
  *
  * Every figure is a monthly amount so the suggestions can be ranked by what
  * acting on them would keep. Pure: the server gathers the numbers.
@@ -40,7 +41,7 @@ export interface SuggestionInput {
   promos: PromoPlan[];
 }
 
-export type SuggestionKind = "rising" | "trim" | "repeating" | "interest" | "fees" | "payoff";
+export type SuggestionKind = "rising" | "trim" | "repeating" | "new-repeat" | "price-up" | "interest" | "fees" | "payoff";
 
 export interface Suggestion {
   kind: SuggestionKind;
@@ -49,14 +50,14 @@ export interface Suggestion {
   /** What acting on it would keep each month; 0 for information only. */
   monthlyCents: number;
   /** Items behind the suggestion (repeating charges), largest first. */
-  items?: Array<{ name: string; cents: number }>;
+  items?: Array<{ name: string; cents: number; /** The amount before, for a price that went up. */ fromCents?: number }>;
   categoryId?: string;
 }
 
 /** Categories people can usually turn down without missing a bill. */
-const FLEXIBLE = /^(dining|restaurants|eating out|dining out|shopping|household|general|entertainment|fun|recreation|travel|vacation|personal care|personal|subscriptions?|streaming|hobbies|coffee|alcohol)$/i;
+const FLEXIBLE = /^(target & walmart|dining|restaurants|eating out|dining out|shopping|household|general|entertainment|fun|recreation|travel|vacation|personal care|personal|subscriptions?|streaming|hobbies|coffee|alcohol)$/i;
 /** Spending that repeats by nature and isn't a subscription. */
-const NOT_SUBSCRIPTION = /^(groceries|grocery|food|fuel|gas|gasoline|dining|restaurants|eating out|dining out|cash|atm)$/i;
+const NOT_SUBSCRIPTION = /^(groceries|grocery|food|target & walmart|costco & sam's club|fuel|gas|gasoline|dining|restaurants|eating out|dining out|cash|atm)$/i;
 
 /** Groceries, fuel and the like repeat by nature; they aren't subscriptions. */
 export function isSteadyEveryday(categoryName: string | null | undefined): boolean {
@@ -65,6 +66,7 @@ export function isSteadyEveryday(categoryName: string | null | undefined): boole
 
 const avg = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0);
 const dollars = (cents: number) => `$${Math.round(cents / 100).toLocaleString("en-US")}`;
+const money = (cents: number) => `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const sum = (xs: number[]) => xs.reduce((a, b) => a + b, 0);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const longDate = (iso: string) => `${MONTHS[Number(iso.slice(5, 7)) - 1]} ${Number(iso.slice(8, 10))}, ${iso.slice(0, 4)}`;
@@ -126,7 +128,7 @@ export function buildSuggestions(input: SuggestionInput): Suggestion[] {
       const charges = m.charges.slice(-3);
       if (last.length < 3 || last.some((x) => x <= 0) || charges.some((n) => n < 1 || n > 2)) return false;
       const mean = avg(last);
-      return mean >= 300 && mean <= 30_000 && Math.max(...last) - Math.min(...last) <= Math.max(200, mean * 0.15);
+      return mean >= 100 && mean <= 30_000 && Math.max(...last) - Math.min(...last) <= Math.max(200, mean * 0.15);
     })
     .map((m) => ({ name: m.name, cents: Math.round(avg(m.monthly.slice(-3))) }))
     .sort((a, b) => b.cents - a.cents);
@@ -134,11 +136,55 @@ export function buildSuggestions(input: SuggestionInput): Suggestion[] {
     const total = sum(repeating.map((r) => r.cents));
     out.push({
       kind: "repeating",
-      title: `${repeating.length} charge${repeating.length === 1 ? "" : "s"} repeat every month: ${dollars(total)} a month`,
+      title: `${repeating.length} charge${repeating.length === 1 ? " repeats" : "s repeat"} every month: ${money(total)} a month`,
       detail: "Steady charges that aren't set up as bills, like subscriptions and memberships. Worth a look for any you no longer use, or add them as bills so they're planned for.",
       monthlyCents: 0,
-      items: repeating.slice(0, 8),
+      items: repeating.slice(0, 12),
     });
+  }
+
+  // Worth keeping an eye on: monthly charges that only just started, and steady
+  // ones whose latest charge went up.
+  const steadyMonths = (xs: number[], ns: number[]) => {
+    if (!xs.length || xs.some((x) => x <= 0) || ns.some((n) => n < 1 || n > 2)) return false;
+    const mean = avg(xs);
+    return mean >= 100 && Math.max(...xs) - Math.min(...xs) <= Math.max(100, mean * 0.15);
+  };
+  if (months >= 4) {
+    const started = input.merchants
+      .filter((m) => steadyMonths(m.monthly.slice(-2), m.charges.slice(-2)) && m.monthly.slice(0, -2).every((x) => x === 0) && avg(m.monthly.slice(-2)) <= 30_000)
+      .map((m) => ({ name: m.name, cents: Math.round(avg(m.monthly.slice(-2))) }))
+      .sort((a, b) => b.cents - a.cents);
+    if (started.length) {
+      out.push({
+        kind: "new-repeat",
+        title: started.length === 1
+          ? `New monthly charge: ${started[0].name}, ${money(started[0].cents)}`
+          : `${started.length} new monthly charges: ${dollars(sum(started.map((x) => x.cents)))} a month`,
+        detail: "Charged the last two months and not before, like a trial that turned into a subscription.",
+        monthlyCents: 0,
+        items: started.slice(0, 8),
+      });
+    }
+    const raised = input.merchants
+      .filter((m) => steadyMonths(m.monthly.slice(-4, -1), m.charges.slice(-4, -1)) && m.charges[m.charges.length - 1] === 1)
+      .map((m) => ({ name: m.name, cents: m.monthly[m.monthly.length - 1], fromCents: Math.round(avg(m.monthly.slice(-4, -1))) }))
+      .filter((x) => x.cents - x.fromCents >= Math.max(50, x.fromCents * 0.05) && x.cents <= x.fromCents * 2)
+      .sort((a, b) => b.cents - b.fromCents - (a.cents - a.fromCents));
+    if (raised.length) {
+      const up = sum(raised.map((x) => x.cents - x.fromCents));
+      out.push({
+        kind: "price-up",
+        title: raised.length === 1
+          ? `${raised[0].name} went up to ${money(raised[0].cents)}`
+          : `${raised.length} monthly charges went up: ${money(up)} a month more`,
+        detail: raised.length === 1
+          ? `It was ${money(raised[0].fromCents)} a month before last month.`
+          : "Each was steady for months before last month's charge came in higher.",
+        monthlyCents: 0,
+        items: raised.slice(0, 8),
+      });
+    }
   }
 
   // Card interest and fees over the whole window.
@@ -174,7 +220,7 @@ export function buildSuggestions(input: SuggestionInput): Suggestion[] {
     });
   }
 
-  const order: SuggestionKind[] = ["rising", "interest", "fees", "trim", "repeating", "payoff"];
+  const order: SuggestionKind[] = ["rising", "interest", "fees", "trim", "price-up", "new-repeat", "repeating", "payoff"];
   return out.sort((a, b) => b.monthlyCents - a.monthlyCents || order.indexOf(a.kind) - order.indexOf(b.kind));
 }
 
