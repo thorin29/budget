@@ -18,6 +18,15 @@ describe("guessCategory", () => {
     expect(name("Lowe's", "LOWE'S #0001")).toBe("Home");
   });
 
+  it("knows doctors, regional grocers and churches whose names run together", () => {
+    expect(name("Maple Grove Pediatrics")).toBe("Medical");
+    expect(name("Myeyedr")).toBe("Medical");
+    expect(name("Jane Q Example, DDS")).toBe("Medical");
+    expect(name("Meijer", "MEIJER #123")).toBe("Groceries");
+    expect(name("Hillcrestbible")).toBe("Giving");
+    expect(name("Microsoft Store", "MICROSOFT*STORE")).toBe("Subscriptions");
+  });
+
   it("keeps big-box stores, warehouse clubs and grocery stores apart", () => {
     expect(name("Target", "TARGET T-1234")).toBe("Target & Walmart");
     expect(name("Walmart", "WM SUPERCENTER #100")).toBe("Target & Walmart");

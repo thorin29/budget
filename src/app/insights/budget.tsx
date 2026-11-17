@@ -181,7 +181,7 @@ export function CategoryTargets({ plan, period }: { plan: BudgetPlan; period: st
           const over = r.monthCents > r.targetCents;
           return (
             <li key={r.id ?? "none"}>
-              <Link href={`/insights/category/${r.id ?? "none"}?m=${period}`} className="group block">
+              <Link href={r.id ? `/insights/category/${r.id}?m=${period}` : "/insights/uncategorized"} className="group block">
                 <span className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
                   <span className="font-semibold group-hover:underline">
                     {r.name}

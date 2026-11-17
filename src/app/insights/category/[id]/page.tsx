@@ -42,6 +42,18 @@ export default async function CategoryPage({ params, searchParams }: { params: P
         description={`${money(thisMonth)} in ${monthLabel(year, month)} · ${whole(average)} a month on average over the three months before · ${whole(yearTotal)} over these 12 months`}
       />
 
+      {detail.id === null ? (
+        <Card>
+          <p className="text-sm">
+            These charges have no category, so they can&rsquo;t be budgeted.{" "}
+            <Link href="/insights/uncategorized" className="font-semibold text-accent-text hover:underline">
+              Sort them by merchant
+            </Link>
+            : one choice per merchant settles every charge from it, or marks it as paying a bill (giving, a doctor) so it stops counting as spending.
+          </p>
+        </Card>
+      ) : null}
+
       <Card>
         <h2 className="mb-3 text-base font-bold">Each month</h2>
         <div role="img" aria-label={`${detail.name} by month`}>

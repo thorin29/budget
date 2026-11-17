@@ -3,6 +3,26 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.36.0]
+
+### Added
+- Sort uncategorized (Insights → Uncategorized, or "Sort them by merchant"): every merchant with
+  uncategorized charges over the last 12 months, largest first, with its charge count, accounts and
+  last date. One choice per merchant settles every charge from it, past and future: a category,
+  or "It pays a bill" (giving, a doctor paid monthly), after which none of its charges counts as
+  spending. Payment apps are listed apart, set one at a time on Transactions.
+- "Spending that may be a bill": charges counted as spending in a category your bills use but not
+  tied to a bill, likely a bill paid under another name and counted twice, each with "It pays a
+  bill".
+
+### Changed
+- Better category guesses: doctors and dentists (pediatrics, DDS, eye care, imaging…) as Medical,
+  more regional grocery chains, church names that run together
+  ("…bible", "…church") as Giving, and Microsoft, Adobe and Dropbox as Subscriptions.
+
+### Upgrade
+- Migration `0018_bill_merchant_all_charges`.
+
 ## [0.35.0]
 
 ### Added

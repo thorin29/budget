@@ -15,6 +15,7 @@ import { toCents } from "@/lib/money";
 import { SPENDING_TYPES, type AccountType } from "@/lib/account-type";
 import { isIncomeCategory } from "@/lib/category-guess";
 import { faceName } from "@/lib/card-colors";
+import { billCharge } from "./bill-merchants";
 import { buildSuggestions, isFeeCharge, isInterestCharge, isSteadyEveryday, type CategorySeries, type MerchantSeries, type Suggestion } from "@/lib/insight-suggestions";
 
 export interface MonthTotal {
@@ -122,6 +123,7 @@ export async function getInsights(year: number, month: number, monthsBack = 12, 
   const onCards = new Map<number, number>();
   const weekFrom = Date.parse(`${today}T00:00:00Z`) - 6 * 86_400_000;
   let weekCents = 0;
+  const isBill = await billCharge();
   const totals = new Map<number, MonthTotal>();
   for (let n = first; n <= end; n++) totals.set(n, { ...fromYm(n), everydayCents: 0, onCardsCents: 0, billsCents: 0, inCents: 0, netCents: 0 });
   // Everyday spending per month per category.
@@ -149,11 +151,11 @@ export async function getInsights(year: number, month: number, monthsBack = 12, 
 
     let everyday = 0;
     if (cents < 0 && spending) {
-      if (r.actual) total.billsCents -= cents;
+      if (isBill(r)) total.billsCents -= cents;
       else everyday = -cents;
     } else if (cents > 0) {
       const refund = spending && (r.account.type === "CREDIT_CARD" || (r.categoryId !== null && !isIncomeCategory(r.category?.name)));
-      if (refund && !r.actual) everyday = -cents;
+      if (refund && !isBill(r)) everyday = -cents;
       else if (!refund) total.inCents += cents;
     }
     if (!everyday) continue;
@@ -291,6 +293,7 @@ export async function getSuggestions(today = new Date()): Promise<Suggestion[]> 
     },
   })) as Array<Row & { description: string }>;
 
+  const isBillCharge = await billCharge();
   const zeros = () => Array.from({ length: 6 }, () => 0);
   const categories = new Map<string, CategorySeries>();
   const merchants = new Map<string, MerchantSeries & { categoryName: string | null }>();
@@ -298,7 +301,7 @@ export async function getSuggestions(today = new Date()): Promise<Suggestion[]> 
   const fees = zeros();
   for (const r of rows) {
     const i = ym(r.postedOn.getUTCFullYear(), r.postedOn.getUTCMonth() + 1) - first;
-    if (i < 0 || i > 5 || r.category?.managedForOthers || r.actual) continue;
+    if (i < 0 || i > 5 || r.category?.managedForOthers || isBillCharge(r)) continue;
     if (!SPENDING_TYPES.includes(r.account.type)) continue;
     const cents = toCents(r.amount);
     const text = `${r.description} ${r.merchant}`;

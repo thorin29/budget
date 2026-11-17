@@ -14,6 +14,7 @@ import { budgetPlan, type BudgetPlan, type CardInput } from "@/lib/budget-plan";
 import { loadPlan } from "./allowance";
 import { getInsights } from "./insights";
 import { payoffTrackers } from "./card-payments";
+import { billCharge } from "./bill-merchants";
 
 const DAY = 86_400_000;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -77,13 +78,14 @@ export async function getBudgetPlan(): Promise<BudgetPlan | null> {
   const txns = (await prisma.bankTransaction.findMany({
     where: { postedOn: { gte: new Date(Date.UTC(year, month - 1 - 3, 1) - 40 * DAY) }, kind: "NORMAL", pending: false, account: { hidden: false } },
     select: {
-      postedOn: true, amount: true, accountId: true, categoryId: true,
+      postedOn: true, amount: true, accountId: true, categoryId: true, merchant: true,
       account: { select: { type: true } },
       category: { select: { name: true, managedForOthers: true } },
       actual: { select: { id: true } },
     },
-  })) as Array<{ postedOn: Date; amount: { toString(): string }; accountId: string; categoryId: string | null; account: { type: AccountType }; category: { name: string; managedForOthers: boolean } | null; actual: { id: string } | null }>;
+  })) as Array<{ postedOn: Date; amount: { toString(): string }; accountId: string; categoryId: string | null; merchant: string; account: { type: AccountType }; category: { name: string; managedForOthers: boolean } | null; actual: { id: string } | null }>;
 
+  const isBill = await billCharge();
   const spend = new Map<string, number>(); // `${accountId}:${n}`
   const bill = new Map<string, number>();
   const sinceSpend = new Map<string, number>();
@@ -96,13 +98,13 @@ export async function getBudgetPlan(): Promise<BudgetPlan | null> {
     const day = iso(t.postedOn);
     const from = periodFrom.get(t.accountId);
     const inPeriod = from !== undefined && day > from;
-    if (cents < 0 && t.actual) {
+    if (cents < 0 && isBill(t)) {
       add(bill, `${t.accountId}:${n}`, -cents);
       if (inPeriod) add(sinceBill, t.accountId, -cents);
       continue;
     }
     const refund = cents > 0 && (t.account.type === "CREDIT_CARD" || (t.categoryId !== null && !isIncomeCategory(t.category?.name)));
-    if (cents > 0 && (!refund || t.actual)) continue;
+    if (cents > 0 && (!refund || isBill(t))) continue;
     add(spend, `${t.accountId}:${n}`, -cents);
     if (inPeriod) add(sinceSpend, t.accountId, -cents);
   }

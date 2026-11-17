@@ -37,3 +37,27 @@ export async function dismissYearlyAction(key: string): Promise<InsightState> {
     return failure(error);
   }
 }
+
+export async function sortMerchantAction(key: string, categoryId: string): Promise<InsightState> {
+  try {
+    await requireUser();
+    const { sortMerchant } = await import("@/server/sorting");
+    const r = await sortMerchant(String(key), String(categoryId));
+    revalidatePath("/", "layout");
+    return { ok: true, message: `${r.merchant}: done. Its other charges follow.` };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function merchantPaysBillAction(key: string, lineItemId: string): Promise<InsightState> {
+  try {
+    await requireUser();
+    const { merchantPaysBill } = await import("@/server/sorting");
+    const r = await merchantPaysBill(String(key), String(lineItemId));
+    revalidatePath("/", "layout");
+    return { ok: true, message: `${r.merchant} now counts as ${r.bill}, not spending.` };
+  } catch (error) {
+    return failure(error);
+  }
+}

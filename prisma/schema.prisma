@@ -590,6 +590,9 @@ model BillRule {
   lineItemId  String
   lineItem    LineItem @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
   merchantKey String
+  /// Every charge from this merchant pays the bill (giving, say, which can
+  /// come several times a month), so none of them counts as everyday spending.
+  coversAll   Boolean  @default(false)
   createdAt   DateTime @default(now())
 
   @@unique([lineItemId, merchantKey])

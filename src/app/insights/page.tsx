@@ -452,10 +452,10 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
               {data.uncategorized.count ? (
                 <p className="mt-4 rounded-lg bg-neutral-soft px-3 py-2 text-xs text-muted">
                   {data.uncategorized.count} charge{data.uncategorized.count === 1 ? "" : "s"} ({money(data.uncategorized.cents)}) without a category.{" "}
-                  <Link href="/transactions?category=none" className="font-semibold text-accent-text hover:underline">
-                    Sort them
+                  <Link href="/insights/uncategorized" className="font-semibold text-accent-text hover:underline">
+                    Sort them by merchant
                   </Link>{" "}
-                  — setting one for a merchant covers the rest from it.
+                  — one choice per merchant covers every charge from it.
                 </p>
               ) : null}
             </Card>

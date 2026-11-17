@@ -10,6 +10,7 @@ import { toCents } from "@/lib/money";
 import { SPENDING_TYPES, displayAccountName, type AccountType } from "@/lib/account-type";
 import { isIncomeCategory } from "@/lib/category-guess";
 import { NotFoundError } from "./errors";
+import { billCharge } from "./bill-merchants";
 
 export interface CategoryDetail {
   id: string | null;
@@ -43,10 +44,9 @@ export async function getCategoryDetail(id: string, year: number, month: number)
       kind: "NORMAL",
       pending: false,
       account: { hidden: false },
-      actual: { is: null },
     },
     select: {
-      id: true, postedOn: true, amount: true, merchant: true, description: true,
+      id: true, postedOn: true, amount: true, merchant: true, description: true, actual: { select: { id: true } },
       category: { select: { name: true, managedForOthers: true } },
       account: { select: { type: true, name: true, nickname: true } },
     },
@@ -55,14 +55,16 @@ export async function getCategoryDetail(id: string, year: number, month: number)
     id: string; postedOn: Date; amount: { toString(): string }; merchant: string; description: string;
     category: { name: string; managedForOthers: boolean } | null;
     account: { type: AccountType; name: string; nickname: string | null };
+    actual: { id: string } | null;
   }>;
+  const isBill = await billCharge();
 
   const totals = new Map<number, number>();
   for (let n = first; n <= end; n++) totals.set(n, 0);
   const merchants = new Map<string, { merchant: string; byMonth: Map<number, number>; count: number }>();
   const charges: CategoryDetail["charges"] = [];
   for (const r of rows) {
-    if (r.category?.managedForOthers || !SPENDING_TYPES.includes(r.account.type)) continue;
+    if (r.category?.managedForOthers || !SPENDING_TYPES.includes(r.account.type) || isBill(r)) continue;
     const cents = toCents(r.amount);
     const refund = cents > 0 && (r.account.type === "CREDIT_CARD" || (categoryId !== null && !isIncomeCategory(r.category?.name)));
     if (cents > 0 && !refund) continue;
