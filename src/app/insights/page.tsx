@@ -5,8 +5,8 @@ import type { Suggestion } from "@/lib/insight-suggestions";
 import { getUpcoming } from "@/server/yearly";
 import { payoffTrackers, type PayoffTracker } from "@/server/card-payments";
 import { getMonthView } from "@/server/month";
-import { getAllowance } from "@/server/allowance";
-import type { Allowance } from "@/lib/allowance";
+import { getBudgetPlan } from "@/server/budget-plan";
+import { CardBudget, CategoryTargets, IncomeBar } from "./budget";
 import { ComingUpRow } from "./coming-up";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, PageHeading, StatCard, buttonClass } from "@/components/ui";
@@ -139,77 +139,6 @@ const MARK: Record<Suggestion["kind"], { glyph: string; tone: string }> = {
   "price-up": { glyph: "↑", tone: "text-warn" },
   payoff: { glyph: "◎", tone: "text-ok" },
 };
-
-/** The big picture: what everyday spending can be each month, against what it has been. */
-function LimitCard({ a }: { a: Allowance }) {
-  const t = a.thisMonth;
-  const scale = Math.max(a.limitCents, t.projectedCents ?? 0, t.spentCents, 1);
-  const pct = (cents: number) => `${Math.min(100, (Math.max(0, cents) / scale) * 100).toFixed(1)}%`;
-  const over = a.overCents > 0;
-  return (
-    <Card>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold">Spending limit</h2>
-        <span className="text-xs text-muted">Everyday spending, cards and debit together</span>
-      </div>
-      {a.limitCents > 0 ? (
-        <p className="mt-2 text-sm">
-          To stay within your plan, keep everyday spending to about{" "}
-          <span className="tnum text-xl font-extrabold">{whole(a.limitCents)}</span> a month.
-        </p>
-      ) : (
-        <p className="mt-2 text-sm font-semibold text-danger">
-          The bills and 0% payoff in the plan already take more than its income, so nothing is left for everyday spending.
-        </p>
-      )}
-      <p className="tnum mt-1 text-xs text-muted">
-        {whole(a.incomeCents)} income{a.incomeSource === "bank" ? " (recent deposits: the plan has no income items)" : ""} − {whole(a.fixedBillsCents)} bills
-        {a.payoffCents ? ` − ${whole(a.payoffCents)} 0% payoff` : ""} = {whole(a.limitCents)}, averaged over the next 12 months
-      </p>
-
-      {a.averageCents > 0 ? (
-        <p className={`mt-3 rounded-lg px-3 py-2 text-sm ${over ? "bg-danger-soft text-danger" : "bg-ok-soft text-ok"}`}>
-          {over ? (
-            <>
-              The last three months averaged <span className="font-bold">{whole(a.averageCents)}</span>: about{" "}
-              <span className="font-bold">{whole(a.overCents)} a month over</span> ({whole(a.overCents * 12)} a year).
-            </>
-          ) : (
-            <>
-              The last three months averaged <span className="font-bold">{whole(a.averageCents)}</span>, about {whole(-a.overCents)} a month under.
-            </>
-          )}
-          {a.averageOnCardsCents > 0 ? ` ${whole(a.averageOnCardsCents)} of it went on cards.` : ""}
-        </p>
-      ) : null}
-
-      <div className="mt-4">
-        <div className="flex flex-wrap items-baseline justify-between gap-2 text-sm">
-          <span>
-            This month: <span className="tnum font-bold">{whole(t.spentCents)}</span> of {whole(a.limitCents)}
-          </span>
-          <span className={`tnum font-semibold ${t.leftCents < 0 ? "text-danger" : ""}`}>
-            {t.leftCents >= 0 ? `${whole(t.leftCents)} left · about ${whole(t.perWeekLeftCents)} a week for the next ${t.daysLeft} days` : `${whole(-t.leftCents)} over already`}
-          </span>
-        </div>
-        <div className="relative mt-2 h-3 rounded-full bg-neutral-soft" role="img" aria-label={`Spent ${whole(t.spentCents)} of a ${whole(a.limitCents)} limit`}>
-          {t.projectedCents ? <div className="absolute inset-y-0 left-0 rounded-full bg-accent/25" style={{ width: pct(t.projectedCents) }} /> : null}
-          <div className={`absolute inset-y-0 left-0 rounded-full ${t.spentCents > a.limitCents ? "bg-danger" : "bg-accent"}`} style={{ width: pct(t.spentCents) }} />
-          <div className="absolute -top-1 h-5 w-0.5 bg-foreground" style={{ left: pct(a.limitCents) }} />
-        </div>
-        <p className="mt-1.5 text-xs text-muted">
-          The line is the limit{t.projectedCents ? `; at your usual pace the month ends near ${whole(t.projectedCents)}` : ""}.
-        </p>
-      </div>
-      {a.cardPaymentNames.length ? (
-        <p className="mt-3 text-xs text-muted">
-          Card payments ({a.cardPaymentNames.join(", ")}) aren&rsquo;t counted as bills here: they pay for this spending. If one of
-          these isn&rsquo;t a card payment, set &ldquo;Pays a card&rdquo; to &ldquo;Not a card payment&rdquo; on it in Bills &amp; income.
-        </p>
-      ) : null}
-    </Card>
-  );
-}
 
 const longDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
@@ -425,7 +354,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
     payoffTrackers(),
     isNow ? getMonthView(picked.year, picked.month).catch(() => null) : Promise.resolve(null),
   ]);
-  const limit = isNow ? await getAllowance().catch(() => null) : null;
+  const budget = isNow ? await getBudgetPlan().catch((error) => (console.error("Budget plan:", error), null)) : null;
   const prev = shift(picked.year, picked.month, -1);
   const next = shift(picked.year, picked.month, 1);
   const atNow = picked.year === now.year && picked.month === now.month;
@@ -485,7 +414,13 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
             />
           </div>
 
-          {limit ? <LimitCard a={limit} /> : null}
+          {budget ? (
+            <>
+              <IncomeBar plan={budget} />
+              <CardBudget plan={budget} />
+              <CategoryTargets plan={budget} period={param(picked)} />
+            </>
+          ) : null}
           {data.pace ? <PaceCard pace={data.pace} leftAfterBillsCents={view?.transferAfterSecondCents ?? null} weekCents={data.weekCents} /> : null}
           {payoff.length ? <PayoffCard rows={payoff} /> : null}
           {upcoming.length ? (

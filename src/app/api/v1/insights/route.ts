@@ -4,6 +4,7 @@ import { getUpcoming } from "@/server/yearly";
 import { payoffTrackers } from "@/server/card-payments";
 import { getMonthView } from "@/server/month";
 import { getAllowance } from "@/server/allowance";
+import { getBudgetPlan } from "@/server/budget-plan";
 import { fail, ok } from "@/server/http";
 
 export const dynamic = "force-dynamic";
@@ -29,6 +30,7 @@ export async function GET(request: Request) {
       atNow ? getMonthView(y, m).catch(() => null) : Promise.resolve(null),
     ]);
     const limit = atNow ? await getAllowance().catch(() => null) : null;
+    const budget = atNow ? await getBudgetPlan().catch(() => null) : null;
     return ok({
       year: i.year,
       month: i.month,
@@ -42,6 +44,8 @@ export async function GET(request: Request) {
       pace: i.pace,
       /** The month in progress: the most everyday spending can be each month and keep within the plan. */
       limit,
+      /** The month in progress: where the income goes, the card budget per card, and category targets. */
+      budget,
       /** What the bills account has left after this month's bills and paychecks (Second half remaining). */
       leftAfterBillsCents: view?.transferAfterSecondCents ?? null,
       weekCents: i.weekCents,

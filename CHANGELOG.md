@@ -3,6 +3,26 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.34.0]
+
+### Added
+- A budget plan at the top of Insights, from the big picture down:
+  - **Where the income goes**: one bar where the whole is a typical month's income, split into
+    bills from the bank, bills on cards, card spending, debit and other spending, and the 0%
+    payoff, with what's left over, or the shortfall running past the end of the bar.
+  - **Card budget**: what can go on the cards each month (income less bank bills, debit spending
+    and the 0% payoff), split into the bills on them and room for spending. Each card (0% cards
+    left out) gets its bills plus a share of the spending room by how it has been used, and
+    shows, since its statement closed, how much of the balance is bills and how much is spending,
+    the bills still to come, and the spending room left.
+  - **Category targets**: the everyday budget shared out: essentials (groceries, Costco & Sam's
+    Club, fuel, medical, utilities, insurance, pets) keep their usual amount and flexible
+    categories come down together to fit, each with this month against its target.
+- Also in `GET /api/v1/insights` (phone app 0.10).
+
+### Changed
+- The spending limit card is replaced by the budget plan, which carries the same numbers.
+
 ## [0.33.0]
 
 ### Added
