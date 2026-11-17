@@ -30,6 +30,7 @@ export const ENCRYPTED_FIELDS: Record<string, readonly string[]> = {
   ActualEntry: ["note"],
   MonthlyPlan: ["note"],
   PayDateOverride: ["note"],
+  TransactionSplit: ["note"],
 };
 
 export function fieldKey(env: Record<string, string | undefined> = process.env): string | null {

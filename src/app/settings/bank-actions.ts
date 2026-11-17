@@ -207,3 +207,39 @@ export async function setCardTermsAction(id: string, closeDay: string, dueDay: s
     return failure(error);
   }
 }
+
+// ---------------------------------------------------------------- Amazon orders
+
+export async function previewAmazonAction(text: string): Promise<BankResult<import("@/server/amazon-import").AmazonPreview>> {
+  try {
+    await requireUser();
+    const { previewAmazon } = await import("@/server/amazon-import");
+    return { ok: true, data: await previewAmazon(String(text)) };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function importAmazonAction(text: string): Promise<BankActionState> {
+  try {
+    await requireUser();
+    const { importAmazon } = await import("@/server/amazon-import");
+    const r = await importAmazon(String(text));
+    revalidatePath("/", "layout");
+    return { ok: true, message: `Split ${r.charges} Amazon charges by what was in each order.` };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function removeAmazonAction(): Promise<BankActionState> {
+  try {
+    await requireUser();
+    const { removeAmazonSplits } = await import("@/server/amazon-import");
+    const n = await removeAmazonSplits();
+    revalidatePath("/", "layout");
+    return { ok: true, message: n ? "Removed. Amazon charges count in their own category again." : "Nothing to remove." };
+  } catch (error) {
+    return failure(error);
+  }
+}

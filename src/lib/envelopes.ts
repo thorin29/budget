@@ -20,6 +20,8 @@
  */
 
 export type Tier = "ESSENTIAL" | "PLANNED" | "FLEXIBLE";
+/** How a group is stored: a tier, or BILLS for categories paid through the plan's bills. */
+export type GroupTier = Tier | "BILLS";
 export const TIERS: Tier[] = ["ESSENTIAL", "PLANNED", "FLEXIBLE"];
 
 export interface LimitGroup {
@@ -73,7 +75,8 @@ export function assignLimits(input: { incomeCents: number; billsCents: number; d
     limits,
     flexibleCents: Math.max(0, pot),
     unassignedCents: Math.max(0, rest - given),
-    shortCents: Math.max(0, manualTotal - pot),
+    // Only what the set limits ask beyond the pot: a pot already below zero is reported on its own.
+    shortCents: Math.max(0, manualTotal - Math.max(0, pot)),
   };
 }
 
@@ -160,6 +163,25 @@ export function carried(limitCents: number, spentByPeriod: number[], capCents: n
     if (capCents !== null) have = Math.min(capCents, Math.max(0, have));
   }
   return have;
+}
+
+export interface Totals {
+  /** What's left in every envelope, less any overage nothing covered. */
+  leftCents: number;
+  /** Overage nothing covered: spending past what the period had. */
+  overCents: number;
+  byTier: Record<Tier, { leftCents: number; overCents: number }>;
+}
+
+/** The summary across every envelope, and per tier. */
+export function totals(shared: Shared): Totals {
+  const byTier = { ESSENTIAL: { leftCents: 0, overCents: 0 }, PLANNED: { leftCents: 0, overCents: 0 }, FLEXIBLE: { leftCents: 0, overCents: 0 } };
+  for (const e of shared.envelopes) {
+    byTier[e.tier].leftCents += e.leftCents;
+    byTier[e.tier].overCents += e.overCents;
+  }
+  const left = shared.envelopes.reduce((s, e) => s + e.leftCents, 0);
+  return { leftCents: left - shared.shortCents, overCents: shared.shortCents, byTier };
 }
 
 /** A monthly amount as its share of one pay period. */

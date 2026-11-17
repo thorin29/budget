@@ -92,6 +92,7 @@ type Row = {
   category: { name: string; managedForOthers: boolean } | null;
   account: { type: AccountType };
   actual: { id: string } | null;
+  splits?: Array<{ categoryId: string | null; amount: { toString(): string }; category: { name: string } | null }>;
 };
 
 const ym = (year: number, month: number) => year * 12 + (month - 1);
@@ -113,6 +114,7 @@ export async function getInsights(year: number, month: number, monthsBack = 12, 
       category: { select: { name: true, managedForOthers: true } },
       account: { select: { type: true } },
       actual: { select: { id: true } },
+      splits: { select: { categoryId: true, amount: true, category: { select: { name: true } } } },
     },
   })) as Row[];
 
@@ -167,11 +169,16 @@ export async function getInsights(year: number, month: number, monthsBack = 12, 
       total.onCardsCents += everyday;
     }
     if (isCurrent && r.postedOn.getTime() >= weekFrom) weekCents += everyday;
-    const key = r.categoryId ?? "";
+    // A split charge (an Amazon order by item) counts in its parts' categories.
+    const parts = r.splits?.length
+      ? r.splits.map((p) => ({ key: p.categoryId ?? "", name: p.category?.name ?? "Uncategorized", cents: cents !== 0 ? Math.round((everyday * toCents(p.amount)) / cents) : 0 }))
+      : [{ key: r.categoryId ?? "", name: r.category?.name ?? "Uncategorized", cents: everyday }];
     const cats = byCategory.get(n) ?? new Map();
-    const c = cats.get(key) ?? { name: r.category?.name ?? "Uncategorized", cents: 0 };
-    c.cents += everyday;
-    cats.set(key, c);
+    for (const part of parts) {
+      const c = cats.get(part.key) ?? { name: part.name, cents: 0 };
+      c.cents += part.cents;
+      cats.set(part.key, c);
+    }
     byCategory.set(n, cats);
     if (n === end) {
       if (everyday > 0) {

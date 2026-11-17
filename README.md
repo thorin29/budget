@@ -11,7 +11,7 @@ Everything runs on your own server against your own PostgreSQL database. Fonts
 are bundled. The only outside requests are optional bank sync's, once you turn it
 on.
 
-> **Status:** v0.40.0. Month view, cash projection, line items, year reports,
+> **Status:** v0.41.0. Month view, cash projection, line items, year reports,
 > import, export, sign-in for up to two people, and a token-secured API for a
 > phone app all work. See `CHANGELOG.md`.
 
@@ -51,8 +51,8 @@ on.
   out in order: bills, essentials, planned spending, the debt payment, then one
   shared pot of flexible money split into envelopes. An envelope that runs over
   takes from the others, so nothing goes negative; limits start from your usual
-  spending and move together when you change one; "Can I afford it?" shows what
-  a purchase would do before you make it.
+  spending and move together when you change one. Amazon's order history can be
+  loaded to split each Amazon charge by what was in the order.
 - **One look with the phone app.** Figtree type, Phosphor icons, and one of six
   accents (Cobalt by default) in light or dark, chosen per browser under
   Settings → Appearance.

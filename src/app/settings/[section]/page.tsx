@@ -43,9 +43,10 @@ import { allowedHosts } from "@/lib/simplefin";
 import { formatCents } from "@/lib/money";
 import { getConnection } from "@/server/bank/sync";
 import { listBankAccounts } from "@/server/bank/accounts";
+import { amazonStatus } from "@/server/amazon-import";
 import { listCsvImports } from "@/server/bank/csv-import";
 import { SLOT_MINUTE, syncHours } from "@/lib/bank-schedule";
-import { BillsSource, CombinedImporter, ConnectBank, CsvImporter, LinkAccountToBank, DeleteBankData, RevertImport, SyncControls } from "../bank";
+import { AmazonImporter, BillsSource, CombinedImporter, ConnectBank, CsvImporter, LinkAccountToBank, DeleteBankData, RevertImport, SyncControls } from "../bank";
 
 export const dynamic = "force-dynamic";
 
@@ -558,7 +559,7 @@ const stamp = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric",
 
 async function Bank() {
   const key = configuredKey();
-  const [connection, accounts, imports] = await Promise.all([getConnection(), listBankAccounts(), listCsvImports()]);
+  const [connection, accounts, imports, amazon] = await Promise.all([getConnection(), listBankAccounts(), listCsvImports(), amazonStatus()]);
   const shown = accounts.filter((a) => !a.hidden && !a.dormant).length;
 
   return (
@@ -718,6 +719,19 @@ async function Bank() {
               ))}
             </ul>
           ) : null}
+        </Card>
+      ) : null}
+
+      {accounts.length ? (
+        <Card className="p-6">
+          <h3 className="font-sans text-base font-bold">Amazon orders</h3>
+          <p className="mb-4 mt-1 max-w-prose text-sm text-muted">
+            The bank shows one total per Amazon charge. Amazon&rsquo;s order history says what was in each, so each charge can be split
+            into groceries, household, clothing and the rest. Download it from Amazon (Account → Request your data → Your Orders), unzip
+            it, and choose <b>Order History.csv</b> from the &ldquo;Your Amazon Orders&rdquo; folder. Only the amounts, categories and item
+            names (encrypted) are kept. Load a newer file any time; charges already split are left alone.
+          </p>
+          <AmazonImporter status={{ charges: amazon.charges, lastImportAt: amazon.lastImportAt ? amazon.lastImportAt.toISOString() : null }} />
         </Card>
       ) : null}
 

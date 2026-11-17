@@ -114,6 +114,7 @@ model Category {
   lineItems    LineItem[]
   transactions BankTransaction[]
   rules        CategoryRule[]
+  splits       TransactionSplit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -130,6 +131,8 @@ enum EnvelopeTier {
   PLANNED
   /// Wants. One shared pot: an envelope that runs over takes from the others.
   FLEXIBLE
+  /// Paid through the plan's bills (step 1); the envelopes skip this spending.
+  BILLS
 }
 
 /// A spending envelope: a group of categories with one limit per pay period.
@@ -607,6 +610,9 @@ model BankTransaction {
 
   /// The payment this transaction was confirmed as.
   actual ActualEntry?
+  /// Shares of this charge in other categories (an Amazon order's items). When
+  /// present they replace the transaction's own category in spending totals.
+  splits TransactionSplit[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -668,4 +674,23 @@ model CategoryRule {
   category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+/// Part of one charge in a category, from the items in an order. The parts of
+/// a charge add up to its amount. `note` names the items and is encrypted.
+model TransactionSplit {
+  id            String          @id @default(cuid())
+  transactionId String
+  transaction   BankTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  categoryId    String?
+  category      Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  /// Negative is money out, as on the transaction.
+  amount        Decimal         @db.Decimal(14, 2)
+  note          String?
+  source        String          @default("amazon")
+  importId      String?
+  createdAt     DateTime        @default(now())
+
+  @@index([transactionId])
+  @@index([importId])
 }

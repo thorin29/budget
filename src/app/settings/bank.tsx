@@ -11,6 +11,9 @@ import {
   importCsvAction,
   importCombinedAction,
   previewCombinedAction,
+  previewAmazonAction,
+  importAmazonAction,
+  removeAmazonAction,
   previewCsvAction,
   revertCsvAction,
   setAccountHiddenAction,
@@ -21,6 +24,7 @@ import {
   syncBankAction,
   type BankActionState,
 } from "./bank-actions";
+import { slimOrderHistory } from "@/lib/amazon-orders";
 import type { CombinedPart, CsvPreview } from "@/server/bank/csv-import";
 
 const INITIAL: BankActionState = { ok: true };
@@ -545,5 +549,91 @@ export function CardTerms({
       </button>
       {error ? <span className="text-danger">{error}</span> : null}
     </form>
+  );
+}
+
+/**
+ * Amazon's order history: each matched card charge is split into the
+ * categories of the items in it. The file is read and dropped.
+ */
+export function AmazonImporter({ status }: { status: { charges: number; lastImportAt: string | null } }) {
+  const [file, setFile] = useState<string | null>(null);
+  const [preview, setPreview] = useState<import("@/server/amazon-import").AmazonPreview | null>(null);
+  const [message, setMessage] = useState<BankActionState | null>(null);
+  const [pending, start] = useTransition();
+  const dollars = (c: number) => `$${Math.round(c / 100).toLocaleString("en-US")}`;
+  return (
+    <div className="space-y-3">
+      <Notice state={message} />
+      {status.charges ? (
+        <p className="text-sm text-muted">
+          {status.charges.toLocaleString()} Amazon charges are split by item
+          {status.lastImportAt ? `, last file loaded ${new Date(status.lastImportAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}` : ""}.
+        </p>
+      ) : null}
+      <label className="block text-[13px] font-semibold">
+        Order History.csv
+        <input
+          type="file"
+          accept=".csv,text/csv"
+          className="mt-1 block w-full text-sm text-muted file:mr-3 file:rounded-[10px] file:border file:border-line-strong file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground"
+          onChange={async (e) => {
+            setPreview(null);
+            setMessage(null);
+            const chosen = e.target.files?.[0];
+            if (!chosen) return setFile(null);
+            if (chosen.size > 15 * 1024 * 1024) return setMessage({ ok: false, message: "The file is larger than 15 MB" });
+            // Only the columns the import needs are sent: no addresses or payment details.
+            const text = slimOrderHistory(await chosen.text());
+            setFile(text);
+            start(async () => {
+              const r = await previewAmazonAction(text);
+              if (r.ok) setPreview(r.data);
+              else setMessage(r);
+            });
+          }}
+        />
+      </label>
+      {pending && !preview ? <p className="text-sm text-muted">Reading…</p> : null}
+      {preview ? (
+        <div className="rounded-xl border border-line p-4 text-sm">
+          <p>
+            {preview.items.toLocaleString()} items from {preview.from} to {preview.to}. <b>{preview.matched.toLocaleString()}</b> of {preview.charges.toLocaleString()} Amazon charges
+            matched an order ({dollars(preview.matchedCents)}).
+            {preview.alreadySplit ? ` ${preview.alreadySplit.toLocaleString()} were split by an earlier file and are left alone.` : ""}
+          </p>
+          {preview.kinds.length ? (
+            <ul className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
+              {preview.kinds.map((k) => (
+                <li key={k.kind} className="flex justify-between gap-3">
+                  <span className="text-muted">{k.name}</span>
+                  <span className="tnum">{dollars(k.cents)}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <div className="mt-3">
+            <Button
+              type="button"
+              disabled={pending || !preview.matched || !file}
+              onClick={() =>
+                start(async () => {
+                  if (!file) return;
+                  setMessage(await importAmazonAction(file));
+                  setPreview(null);
+                })
+              }
+            >
+              {pending ? "Splitting…" : `Split ${preview.matched.toLocaleString()} charges`}
+            </Button>
+          </div>
+        </div>
+      ) : null}
+      {status.charges ? (
+        <Button type="button" variant="danger" disabled={pending} onClick={() => start(async () => setMessage(await removeAmazonAction()))}>
+          Remove all Amazon splits
+        </Button>
+      ) : null}
+    </div>
   );
 }

@@ -2,10 +2,11 @@
 
 import { useState, useTransition } from "react";
 import type { EnvelopeSetup } from "@/server/envelopes";
-import type { Tier } from "@/lib/envelopes";
+import type { GroupTier as Tier } from "@/lib/envelopes";
 import { Button, Card, CONTROL, Select } from "@/components/ui";
 import {
   deleteGroupAction,
+  resetGroupsAction,
   saveGroupAction,
   setCategoryGroupAction,
   setDebtPaymentAction,
@@ -16,6 +17,7 @@ const TIERS: Array<{ value: Tier; label: string }> = [
   { value: "ESSENTIAL", label: "Essential" },
   { value: "PLANNED", label: "Planned" },
   { value: "FLEXIBLE", label: "Flexible" },
+  { value: "BILLS", label: "Paid as bills" },
 ];
 const dollars = (cents: number | null) =>
   cents === null ? "" : String(Math.round(cents / 100));
@@ -278,6 +280,28 @@ export function EnvelopeSetupForm({
           />
         ))}
       </div>
+
+      <Card>
+        <h2 className="text-base font-bold">Kinds of envelope</h2>
+        <ul className="mt-2 space-y-1 text-sm text-muted">
+          <li><b className="text-foreground">Essential</b>: protected; what isn&rsquo;t used stays for a later pay period.</li>
+          <li><b className="text-foreground">Planned</b>: giving and other spending you plan for.</li>
+          <li><b className="text-foreground">Flexible</b>: one shared pot; an envelope that runs over takes from the others.</li>
+          <li><b className="text-foreground">Paid as bills</b>: these categories are paid through the plan&rsquo;s bills, so the envelopes skip them.</li>
+        </ul>
+        <div className="mt-3">
+          <Button
+            type="button"
+            variant="quiet"
+            disabled={pending}
+            onClick={() => {
+              if (window.confirm("Remove every envelope and make the suggested set again from your categories? Limits you set are cleared.")) start(async () => setState(await resetGroupsAction()));
+            }}
+          >
+            Start over with the suggested envelopes
+          </Button>
+        </div>
+      </Card>
 
       <Card>
         <h2 className="text-base font-bold">Add an envelope</h2>

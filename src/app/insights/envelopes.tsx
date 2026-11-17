@@ -9,8 +9,8 @@
 import Link from "next/link";
 import { useMemo, useState, useTransition } from "react";
 import type { EnvelopesView, EnvelopeView } from "@/server/envelopes";
-import { assignLimits, whatIf, type Tier } from "@/lib/envelopes";
-import { Button, Card, CONTROL, Select } from "@/components/ui";
+import { assignLimits, type Tier } from "@/lib/envelopes";
+import { Button, Card, CONTROL } from "@/components/ui";
 import {
   resetLimitsAction,
   setLimitsAction,
@@ -40,7 +40,7 @@ const TIER_TITLE: Record<Tier, { title: string; note: string }> = {
   },
   PLANNED: {
     title: "Planned",
-    note: "Giving, and save-ups for costs that come in lumps.",
+    note: "Giving, sports and other spending you plan for.",
   },
   FLEXIBLE: {
     title: "Flexible",
@@ -171,118 +171,46 @@ function EnvelopeRow({ e, daysShare }: { e: EnvelopeView; daysShare: number }) {
   );
 }
 
-function Afford({ view }: { view: EnvelopesView }) {
-  const spendable = view.groups.filter((g) => !g.saveUp);
-  const [amount, setAmount] = useState("");
-  const [id, setId] = useState(
-    spendable.find((g) => g.tier === "FLEXIBLE")?.id ?? spendable[0]?.id ?? "",
-  );
-  const cents = Math.round(Number(amount.replace(/[$,\s]/g, "")) * 100);
-  const result = useMemo(
-    () =>
-      Number.isFinite(cents) && cents > 0 && id
-        ? whatIf(view.groups, id, cents)
-        : null,
-    [view.groups, id, cents],
-  );
-  const before = new Map(view.groups.map((g) => [g.id, g]));
-  const target = result?.envelopes.find((e) => e.id === id);
-  const givers = result
-    ? result.envelopes.filter(
-        (e) => e.gaveCents > (before.get(e.id)?.gaveCents ?? 0),
-      )
-    : [];
-  const verdict = !result
-    ? null
-    : result.shortCents > view.shortCents
-      ? {
-          tone: "bg-danger-soft text-danger",
-          text: `No. It's ${money(result.shortCents - view.shortCents)} more than the flexible money left.`,
-        }
-      : givers.length
-        ? {
-            tone: "bg-warn-soft text-warn",
-            text: "Yes, but other envelopes give up money for it.",
-          }
-        : { tone: "bg-ok-soft text-ok", text: "Yes. It fits in the envelope." };
+function Summary({ view }: { view: EnvelopesView }) {
+  const rows: Array<{ tier: Tier; label: string }> = [
+    { tier: "ESSENTIAL", label: "Essentials" },
+    { tier: "PLANNED", label: "Planned" },
+    { tier: "FLEXIBLE", label: "Flexible" },
+  ];
   return (
     <Card>
-      <h2 className="text-base font-bold">Can I afford it?</h2>
-      <p className="mt-0.5 text-xs text-muted">
-        Nothing is saved. It shows what a purchase would do to this pay period.
-      </p>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <label className="block text-[13px] font-semibold">
-          Amount
-          <input
-            className={`${CONTROL} mt-1`}
-            inputMode="decimal"
-            placeholder="250"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value)}
-          />
-        </label>
-        <label className="block text-[13px] font-semibold">
-          From
-          <Select
-            className="mt-1"
-            value={id}
-            onChange={(e) => setId(e.target.value)}
-          >
-            {spendable.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </Select>
-        </label>
-      </div>
-      {result && verdict && target ? (
-        <div className="mt-3 text-sm">
-          <p className={`rounded-xl px-3 py-2 font-semibold ${verdict.tone}`}>
-            {verdict.text}
-          </p>
-          <ul className="mt-2 space-y-1">
-            <li className="flex justify-between gap-3">
-              <span>{target.name}</span>
-              <span className="tnum text-muted">
-                {money(before.get(id)?.leftCents ?? 0)} left →{" "}
-                {target.overCents > 0 ? (
-                  <b className="text-danger">{money(target.overCents)} over</b>
-                ) : (
-                  <b className="text-foreground">
-                    {money(target.leftCents)} left
-                  </b>
-                )}
-              </span>
-            </li>
-            {givers.map((g) => (
-              <li key={g.id} className="flex justify-between gap-3">
-                <span>{g.name} gives up</span>
-                <b className="tnum">
-                  {money(g.gaveCents - (before.get(g.id)?.gaveCents ?? 0))}
-                </b>
-              </li>
-            ))}
-            <li className="flex justify-between gap-3 border-t border-line pt-1.5 font-semibold">
-              <span>Flexible money left after</span>
+      <h2 className="text-base font-bold">Summary</h2>
+      <p className="mt-0.5 text-xs text-muted">What&rsquo;s left in every envelope, added up.</p>
+      <ul className="mt-3 divide-y divide-line text-sm">
+        {rows.map((r) => {
+          const t = view.byTier[r.tier];
+          return (
+            <li key={r.tier} className="flex justify-between gap-3 py-2">
+              <span>{r.label}</span>
               <span className="tnum">
-                {money(Math.max(0, result.flexibleLeftCents))}
+                <b>{money(t.leftCents)}</b> left
+                {t.overCents > 0 ? <span className="ml-2 text-danger">{money(t.overCents)} over</span> : null}
               </span>
             </li>
-            <li className="flex justify-between gap-3 text-xs text-muted">
-              <span>Bills, essentials, debt payment</span>
-              <span>unchanged</span>
-            </li>
-          </ul>
-        </div>
-      ) : null}
+          );
+        })}
+        {view.allOverCents > 0 ? (
+          <li className="flex justify-between gap-3 py-2 text-danger">
+            <span>Over, with nothing left to cover it</span>
+            <b className="tnum">{money(view.allOverCents)}</b>
+          </li>
+        ) : null}
+        <li className="flex justify-between gap-3 py-2 font-semibold">
+          <span>{view.allLeftCents < 0 ? "Over in total" : "Left in total"}</span>
+          <span className={`tnum ${view.allLeftCents < 0 ? "text-danger" : ""}`}>{money(Math.abs(view.allLeftCents))}</span>
+        </li>
+      </ul>
     </Card>
   );
 }
 
 function Limits({ view }: { view: EnvelopesView }) {
-  const editable = view.groups.filter((g) => g.id !== "other");
+  const editable = view.groups.filter((g) => g.id !== "other" && g.id !== "extra");
   const [manual, setManual] = useState<Record<string, string>>(() =>
     Object.fromEntries(
       editable
@@ -304,11 +232,11 @@ function Limits({ view }: { view: EnvelopesView }) {
         incomeCents: view.incomeCents,
         billsCents: view.billsCents,
         debtCents: view.debt.perPeriodCents,
-        groups: view.groups.map((g) => ({
+        groups: view.groups.filter((g) => g.id !== "extra").map((g) => ({
           id: g.id,
           tier: g.tier,
           averageCents: g.averageCents,
-          manualCents: g.id === "other" ? null : parsed(g.id),
+          manualCents: g.id === "other" || g.id === "extra" ? null : parsed(g.id),
         })),
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -446,14 +374,14 @@ export function Envelopes({ view }: { view: EnvelopesView }) {
     {
       label: "Bills",
       cents: view.billsCents,
-      note: "Each payday sets aside an equal share of the plan's bills",
+      note: view.basis === "due" ? `Bills due by ${day(p.next)}` : "A share of the plan's bills",
     },
     {
       label: "Essentials",
       cents: view.essentialCents,
       note: "Food, fuel, medical and the like",
     },
-    { label: "Planned", cents: view.plannedCents, note: "Giving and save-ups" },
+    { label: "Planned", cents: view.plannedCents, note: "Giving, sports and other planned spending" },
     {
       label: "Debt payoff",
       cents: d.perPeriodCents,
@@ -464,7 +392,7 @@ export function Envelopes({ view }: { view: EnvelopesView }) {
             : "Set by you"
           : d.doneOn === null
             ? `${money(d.balanceCents)} owed${d.name ? ` on ${d.name}` : ""}. Nothing is going to it yet.`
-            : `${money(d.balanceCents)} owed${d.name ? ` on ${d.name}` : ""} · clears ${monthYear(d.doneOn)} at this rate`,
+            : `${money(d.balanceCents)} owed${d.name ? ` on ${d.name}` : ""}${d.source === "minimum" ? " · about the minimum payment" : ""} · clears ${monthYear(d.doneOn)} at this rate`,
     },
     {
       label: "Flexible",
@@ -474,21 +402,32 @@ export function Envelopes({ view }: { view: EnvelopesView }) {
   ];
   return (
     <section className="space-y-4" aria-label="Spending envelopes">
+      {p.byPayday || p.view === "month" ? (
+        <nav aria-label="Envelope period" className="inline-flex gap-1 rounded-xl bg-neutral-soft p-1 text-sm">
+          {[
+            { v: "period", label: "This pay period" },
+            { v: "month", label: "This month" },
+          ].map((o) => (
+            <Link
+              key={o.v}
+              href={o.v === "period" ? "/insights" : "/insights?view=month"}
+              aria-current={p.view === o.v ? "page" : undefined}
+              className={`rounded-lg px-3 py-1.5 font-semibold ${p.view === o.v ? "bg-surface shadow-card ring-1 ring-line" : "text-muted hover:text-foreground"}`}
+            >
+              {o.label}
+            </Link>
+          ))}
+        </nav>
+      ) : null}
       <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
         <div className="space-y-4">
           <div className={`rounded-2xl p-5 ${tone}`}>
-            <p className="text-[13px] font-medium opacity-90">
-              Flexible money left {until}
-            </p>
-            <p className="tnum font-heading mt-1 text-[40px] font-bold leading-none tracking-tight">
-              {money(Math.max(0, view.flexibleLeftCents))}
-            </p>
+            <p className="text-[13px] font-medium opacity-90">{view.allLeftCents < 0 ? "Over" : "Left to spend"} {until}</p>
+            <p className="tnum font-heading mt-1 text-[40px] font-bold leading-none tracking-tight">{money(Math.abs(view.allLeftCents))}</p>
             <p className="tnum mt-2 text-sm opacity-90">
-              {view.flexibleLeftCents > 0
-                ? `About ${money(view.perDayCents)} a day for ${p.daysLeft} more day${p.daysLeft === 1 ? "" : "s"}`
-                : view.shortCents > 0
-                  ? `${money(view.shortCents)} past what this pay period had`
-                  : "Nothing left to spend"}
+              {view.allLeftCents > 0
+                ? `About ${money(view.perDayCents)} a day for ${p.daysLeft} more day${p.daysLeft === 1 ? "" : "s"} · ${money(Math.max(0, view.flexibleLeftCents))} of it flexible`
+                : "Across every envelope"}
             </p>
           </div>
           {view.message ? (
@@ -509,7 +448,7 @@ export function Envelopes({ view }: { view: EnvelopesView }) {
         <Card>
           <div className="flex items-baseline justify-between gap-3">
             <h2 className="text-base font-bold">
-              Where each {p.byPayday ? "paycheck" : "month's pay"} goes
+              {p.view === "month" || !p.byPayday ? "This month's pay" : "This paycheck"}
             </h2>
             <span className="tnum text-sm text-muted">
               {money(view.incomeCents)} in
@@ -589,7 +528,7 @@ export function Envelopes({ view }: { view: EnvelopesView }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Afford view={view} />
+        <Summary view={view} />
         <Limits view={view} />
       </div>
     </section>

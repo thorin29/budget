@@ -5,7 +5,7 @@
 import { revalidatePath } from "next/cache";
 import { requireUser, UnauthorizedError } from "@/server/auth";
 import { NotFoundError, ValidationError } from "@/server/errors";
-import { deleteGroup, resetLimits, saveGroup, setCategoryGroup, setDebtPayment, setLimits } from "@/server/envelopes";
+import { deleteGroup, resetGroups, resetLimits, saveGroup, setCategoryGroup, setDebtPayment, setLimits } from "@/server/envelopes";
 
 export type EnvelopeState = { ok: true; message?: string } | { ok: false; message: string };
 
@@ -49,4 +49,8 @@ export async function deleteGroupAction(id: string): Promise<EnvelopeState> {
 
 export async function setCategoryGroupAction(categoryId: string, groupId: string | null): Promise<EnvelopeState> {
   return run(() => setCategoryGroup(String(categoryId), groupId ? String(groupId) : null));
+}
+
+export async function resetGroupsAction(): Promise<EnvelopeState> {
+  return run(() => resetGroups(), "Envelopes rebuilt from the suggested set.");
 }

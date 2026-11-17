@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     await requireDevice(request);
-    return ok(await getEnvelopes());
+    const view = new URL(request.url).searchParams.get("view") === "month" ? "month" : "period";
+    return ok(await getEnvelopes(view));
   } catch (error) {
     return fail(error);
   }

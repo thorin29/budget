@@ -317,8 +317,8 @@ function Suggestions({ items }: { items: Suggestion[] }) {
   );
 }
 
-export default async function InsightsPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
-  const { m } = await searchParams;
+export default async function InsightsPage({ searchParams }: { searchParams: Promise<{ m?: string; view?: string }> }) {
+  const { m, view } = await searchParams;
   const now = today();
   const match = /^(\d{4})-(\d{2})$/.exec(m ?? "");
   const asked = match ? { year: Number(match[1]), month: Number(match[2]) } : now;
@@ -331,7 +331,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
     payoffTrackers(),
   ]);
   const payoffs = isNow ? await listPayoffs().catch(() => [] as Payoff[]) : [];
-  const envelopes = isNow ? await getEnvelopes().catch((error) => (console.error("Envelopes:", error), null)) : null;
+  const envelopes = isNow ? await getEnvelopes(view === "month" ? "month" : "period").catch((error) => (console.error("Envelopes:", error), null)) : null;
   const prev = shift(picked.year, picked.month, -1);
   const next = shift(picked.year, picked.month, 1);
   const atNow = picked.year === now.year && picked.month === now.month;

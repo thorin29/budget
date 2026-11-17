@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assignLimits, carried, payoffDate, perPeriod, share, standing, whatIf, type EnvelopeIn, type LimitGroup } from "../envelopes";
+import { assignLimits, carried, payoffDate, perPeriod, share, standing, totals, whatIf, type EnvelopeIn, type LimitGroup } from "../envelopes";
 
 const g = (id: string, tier: LimitGroup["tier"], averageCents: number, manualCents: number | null = null): LimitGroup => ({ id, tier, averageCents, manualCents });
 
@@ -35,6 +35,8 @@ describe("assignLimits", () => {
     expect(r.limits.get("shop")).toBe(0);
     const none = assignLimits({ incomeCents: 300_000, billsCents: 230_000, debtCents: 30_000, groups });
     expect(none.flexibleCents).toBe(0);
+    // A pot below zero isn't counted again as a shortfall of the set limits.
+    expect(none.shortCents).toBe(0);
     expect(none.limits.get("fun")).toBe(0);
   });
 });
@@ -76,6 +78,14 @@ describe("share", () => {
     expect(r.flexibleLeftCents).toBe(share(base).flexibleLeftCents - 25_000);
   });
 
+  it("sums what's left across every envelope, less what nothing covered", () => {
+    const t = totals(share([env("food", "ESSENTIAL", 90_000, 40_000), env("out", "FLEXIBLE", 0, 30_000), env("fun", "FLEXIBLE", 10_000, 0)]));
+    expect(t.overCents).toBe(20_000);
+    expect(t.leftCents).toBe(50_000 - 20_000);
+    expect(t.byTier.ESSENTIAL.leftCents).toBe(50_000);
+    expect(t.byTier.FLEXIBLE).toEqual({ leftCents: 0, overCents: 30_000 });
+  });
+
   it("names the standing", () => {
     expect(standing(share(base), 140_000)).toBe("ok");
     expect(standing(share([env("fun", "FLEXIBLE", 50_000, 45_000)]), 50_000)).toBe("low");
@@ -109,20 +119,27 @@ import { defaultGroupFor } from "../envelope-defaults";
 
 describe("default groups", () => {
   it("places common category names", () => {
-    expect(defaultGroupFor("Groceries")).toBe("Food at home");
-    expect(defaultGroupFor("Target & Walmart")).toBe("Food at home");
+    expect(defaultGroupFor("Groceries")).toBe("Groceries & household");
+    expect(defaultGroupFor("Target & Walmart")).toBe("Groceries & household");
+    expect(defaultGroupFor("Household")).toBe("Groceries & household");
     expect(defaultGroupFor("Fast food")).toBe("Eating out");
     expect(defaultGroupFor("Coffee & treats")).toBe("Eating out");
-    expect(defaultGroupFor("Fuel")).toBe("Getting around");
+    expect(defaultGroupFor("Fuel")).toBe("Vehicles");
+    expect(defaultGroupFor("Auto")).toBe("Vehicles");
     expect(defaultGroupFor("Medical")).toBe("Health");
-    expect(defaultGroupFor("Lessons & activities")).toBe("School & kids");
+    expect(defaultGroupFor("Lessons & activities")).toBe("School & lessons");
     expect(defaultGroupFor("Church activities")).toBe("Giving");
-    expect(defaultGroupFor("Gifts & occasions")).toBe("Occasions & trips");
+    expect(defaultGroupFor("Gifts & occasions")).toBe("Gifts & trips");
     expect(defaultGroupFor("Outdoors & sports")).toBe("Fun");
+    expect(defaultGroupFor("Fitness")).toBe("Fitness");
+    expect(defaultGroupFor("Subscriptions")).toBe("Subscriptions");
     expect(defaultGroupFor("Home")).toBe("Shopping");
-    expect(defaultGroupFor("Housing")).toBe("Home & bills");
-    expect(defaultGroupFor("Sports fees")).toBe("Sports seasons");
-    expect(defaultGroupFor("Fees")).toBe("Home & bills");
+    expect(defaultGroupFor("Home repair")).toBe("Home upkeep");
+    expect(defaultGroupFor("Housing")).toBe("Paid as bills");
+    expect(defaultGroupFor("Interest")).toBe("Fees & interest");
+    expect(defaultGroupFor("Sports fees")).toBe("Sports");
+    expect(defaultGroupFor("Hockey")).toBe("Sports");
+    expect(defaultGroupFor("Fees")).toBe("Fees & interest");
     expect(defaultGroupFor("Brightwater")).toBeNull();
   });
 });

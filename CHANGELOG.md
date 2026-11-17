@@ -3,6 +3,39 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.41.0]
+
+Run the migration (restart the container): it adds transaction splits and a "Paid as bills" kind of envelope.
+
+### Added
+- **Amazon orders.** Settings → Bank sync → Amazon orders reads Amazon's Order History.csv, matches
+  each order (by shipment, then whole order) to its card charge, and splits the charge into the
+  categories of the items in it: groceries, household, health, clothing, electronics and so on.
+  Only the needed columns leave the browser; item names are stored encrypted. Envelopes and Insights
+  count split charges by their parts. A newer file adds to what's there; "Remove all Amazon splits"
+  undoes it.
+- Envelopes: **This pay period / This month** toggle.
+- Envelopes: a **Summary** (left and over per kind, and in total) in place of "Can I afford it?".
+- Envelope kind **Paid as bills**: categories paid through the plan's bills (so step 1 already counts
+  them) that the envelopes should skip, such as an investment bill paid in several transfers.
+- Set up envelopes: **Start over with the suggested envelopes**.
+
+### Changed
+- The headline is everything left across all envelopes, less any overage nothing covered; the
+  flexible part is shown under it.
+- Bills and income come from what's due in this period (before the next payday, or this month), not
+  a share of the year, so a tight paycheck shows as tight. Without a plan, a share of recent deposits.
+- Flexible money no envelope needs ("Not in an envelope") now covers overages before anything is
+  reported as over.
+- With no plan payment toward a 0% card, the debt step holds back about the minimum (1% of the
+  balance a month) instead of nothing.
+- Suggested envelopes: Paid as bills, Fees & interest, Groceries & household, Vehicles, Health,
+  School & lessons, Home upkeep, Pets, Giving, Sports, Saving & investing, Eating out, Clothing,
+  Shopping, Subscriptions, Fitness, Gifts & trips, Fun. None set money aside (save-ups) by default.
+
+### Fixed
+- The shortfall when bills, essentials and planned spending exceed income was counted twice.
+
 ## [0.40.0]
 
 Run the migration (`npm run migrate`, or restart the container): it adds category groups.
