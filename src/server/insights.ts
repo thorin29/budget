@@ -21,6 +21,8 @@ export interface MonthTotal {
   year: number;
   month: number;
   everydayCents: number;
+  /** Of the everyday spending, what went on credit cards. */
+  onCardsCents: number;
   billsCents: number;
   inCents: number;
   /** Money in less everyday spending and bills. */
@@ -121,7 +123,7 @@ export async function getInsights(year: number, month: number, monthsBack = 12, 
   const weekFrom = Date.parse(`${today}T00:00:00Z`) - 6 * 86_400_000;
   let weekCents = 0;
   const totals = new Map<number, MonthTotal>();
-  for (let n = first; n <= end; n++) totals.set(n, { ...fromYm(n), everydayCents: 0, billsCents: 0, inCents: 0, netCents: 0 });
+  for (let n = first; n <= end; n++) totals.set(n, { ...fromYm(n), everydayCents: 0, onCardsCents: 0, billsCents: 0, inCents: 0, netCents: 0 });
   // Everyday spending per month per category.
   const byCategory = new Map<number, Map<string, { name: string; cents: number }>>();
   const merchants = new Map<string, { merchant: string; cents: number; count: number }>();
@@ -158,7 +160,10 @@ export async function getInsights(year: number, month: number, monthsBack = 12, 
     total.everydayCents += everyday;
     // Same-day comparison, capped at each month's own length.
     if (isCurrent && r.postedOn.getUTCDate() <= todayDay) byNow.set(n, (byNow.get(n) ?? 0) + everyday);
-    if (r.account.type === "CREDIT_CARD") onCards.set(n, (onCards.get(n) ?? 0) + everyday);
+    if (r.account.type === "CREDIT_CARD") {
+      onCards.set(n, (onCards.get(n) ?? 0) + everyday);
+      total.onCardsCents += everyday;
+    }
     if (isCurrent && r.postedOn.getTime() >= weekFrom) weekCents += everyday;
     const key = r.categoryId ?? "";
     const cats = byCategory.get(n) ?? new Map();

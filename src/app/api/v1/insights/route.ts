@@ -3,6 +3,7 @@ import { getInsights, getSuggestions } from "@/server/insights";
 import { getUpcoming } from "@/server/yearly";
 import { payoffTrackers } from "@/server/card-payments";
 import { getMonthView } from "@/server/month";
+import { getAllowance } from "@/server/allowance";
 import { fail, ok } from "@/server/http";
 
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ export async function GET(request: Request) {
       payoffTrackers(),
       atNow ? getMonthView(y, m).catch(() => null) : Promise.resolve(null),
     ]);
+    const limit = atNow ? await getAllowance().catch(() => null) : null;
     return ok({
       year: i.year,
       month: i.month,
@@ -38,6 +40,8 @@ export async function GET(request: Request) {
       categories: i.categories.slice(0, 12).map((c) => ({ id: c.id, name: c.name, cents: c.cents, averageCents: c.averageCents, lastYearCents: c.lastYearCents })),
       uncategorizedCount: i.uncategorized.count,
       pace: i.pace,
+      /** The month in progress: the most everyday spending can be each month and keep within the plan. */
+      limit,
       /** What the bills account has left after this month's bills and paychecks (Second half remaining). */
       leftAfterBillsCents: view?.transferAfterSecondCents ?? null,
       weekCents: i.weekCents,

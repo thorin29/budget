@@ -3,6 +3,17 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.33.0]
+
+### Added
+- Spending limit on Insights: the most everyday spending (cards and debit together) can be each
+  month and keep within the plan: typical income less fixed bills less the 0% payoff payments,
+  each averaged over the next 12 months (so yearly bills and three-paycheck months count for their
+  share). Card payments aren't counted as bills, since they pay for that spending; the card shows
+  which bills it treated as card payments. Shows how far over or under the last three months ran,
+  how much of it went on cards, and this month's spending against the limit with what's left per
+  week. With no income in the plan, recent deposits stand in. Also in `GET /api/v1/insights`.
+
 ## [0.32.0]
 
 ### Added
