@@ -568,3 +568,11 @@ entry has an Undo that also blocks that charge for the bill.
   offer gets equal payments over the due dates left before it ends.
 - **Labeled history** applies a file's categories as if the person set them,
   and learns a merchant only when every row of it carries the same label.
+
+## Cards as a stack (0.27)
+
+Cards are drawn as a wallet-style stack with the summary on top. Colors are
+plain presets the person picks to match their cards; no issuer artwork, logos
+or marks are drawn, and none are tied to an issuer in the code. What to pay
+this cycle is each card's suggested payment: the statement on cards that charge
+interest, the equal monthly payment on a 0% balance.

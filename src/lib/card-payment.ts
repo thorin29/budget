@@ -89,7 +89,7 @@ export function cardStatus(input: CardInput): CardStatus {
   const statementCents = Math.max(0, owedNowCents + netAfter);
   const paidSinceCents = after.filter((t) => t.amountCents > 0).reduce((s, t) => s + t.amountCents, 0);
   const dueCents = Math.max(0, statementCents - paidSinceCents);
-  const newChargesCents = -after.filter((t) => t.amountCents < 0).reduce((s, t) => s + t.amountCents, 0);
+  const newChargesCents = Math.abs(after.filter((t) => t.amountCents < 0).reduce((s, t) => s + t.amountCents, 0));
 
   let paymentsLeft: number | null = null;
   let monthlyCents: number | null = null;

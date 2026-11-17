@@ -3,6 +3,7 @@
 import { useActionState, useState, useTransition } from "react";
 import { Button, ErrorBanner, Select } from "@/components/ui";
 import { formatCents } from "@/lib/money";
+import { CARD_COLORS } from "@/lib/card-colors";
 import {
   connectBankAction,
   deleteBankDataAction,
@@ -434,7 +435,7 @@ export function CombinedImporter() {
  * button answers in place: solid green as it saves, easing to a light green
  * "Saved", and back to "Save" once anything changes.
  */
-export function CardTerms({ id, closeDay, dueDay, promoEndsOn }: { id: string; closeDay: number | null; dueDay: number | null; promoEndsOn: string | null }) {
+export function CardTerms({ id, closeDay, dueDay, promoEndsOn, color }: { id: string; closeDay: number | null; dueDay: number | null; promoEndsOn: string | null; color?: string | null }) {
   const [pending, start] = useTransition();
   const [look, setLook] = useState<"idle" | "flash" | "saved">("idle");
   const [error, setError] = useState<string | null>(null);
@@ -454,7 +455,7 @@ export function CardTerms({ id, closeDay, dueDay, promoEndsOn }: { id: string; c
       onChange={reset}
       action={(form) =>
         start(async () => {
-          const r = await setCardTermsAction(id, String(form.get("closeDay") ?? ""), String(form.get("dueDay") ?? ""), String(form.get("promoEndsOn") ?? ""));
+          const r = await setCardTermsAction(id, String(form.get("closeDay") ?? ""), String(form.get("dueDay") ?? ""), String(form.get("promoEndsOn") ?? ""), String(form.get("color") ?? ""));
           if (!r.ok) {
             setLook("idle");
             setError(r.message);
@@ -476,6 +477,17 @@ export function CardTerms({ id, closeDay, dueDay, promoEndsOn }: { id: string; c
       <label className="flex flex-col gap-1">
         <span className="text-muted">0% offer ends</span>
         <input name="promoEndsOn" type="date" defaultValue={promoEndsOn ?? ""} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm" />
+      </label>
+      <label className="flex flex-col gap-1">
+        <span className="text-muted">Card color</span>
+        <select name="color" defaultValue={color ?? ""} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm">
+          <option value="">Graphite</option>
+          {CARD_COLORS.filter((c) => c.id !== "graphite").map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.label}
+            </option>
+          ))}
+        </select>
       </label>
       <button
         type="submit"

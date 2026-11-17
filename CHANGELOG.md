@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.27.0]
+
+### Changed
+- Cards are a stack on This month: an All cards summary on top (owed now, what to pay this cycle,
+  next due date), then each card in its own color with what's owed, what to pay and by when, and
+  either what's built up since the statement or how many 0% payments are left. Tap, swipe or use
+  the arrows to send the top card to the back; List shows them side by side.
+- "To pay this cycle" counts the monthly payoff on a 0% balance, not the whole balance.
+
+### Added
+- A color for each card (Accounts page), from plain presets. Migration `0015`.
+
 ## [0.26.0]
 
 ### Changed

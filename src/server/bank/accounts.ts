@@ -37,6 +37,7 @@ export interface BankAccountView {
   paymentDueDay: number | null;
   /** YYYY-MM-DD. */
   promoEndsOn: string | null;
+  cardColor: string | null;
 }
 
 type Row = {
@@ -54,6 +55,7 @@ type Row = {
   statementCloseDay?: number | null;
   paymentDueDay?: number | null;
   promoEndsOn?: Date | null;
+  cardColor?: string | null;
 };
 
 /** Re-guesses every type the person hasn't set. Cheap; runs after each sync and on the Accounts page. */
@@ -119,6 +121,7 @@ export async function listBankAccounts(): Promise<BankAccountView[]> {
         statementCloseDay: a.statementCloseDay ?? null,
         paymentDueDay: a.paymentDueDay ?? null,
         promoEndsOn: a.promoEndsOn ? a.promoEndsOn.toISOString().slice(0, 10) : null,
+        cardColor: a.cardColor ?? null,
       };
     });
 }

@@ -1,4 +1,5 @@
 import { cardOverview } from "@/server/card-payments";
+import { CardDeck } from "../../card-deck";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -255,7 +256,7 @@ export default async function MonthPage({
               value={formatCents(cards.totalOwedCents)}
               detail={
                 cards.nextDue
-                  ? `owed now · ${formatCents(cards.dueOnStatementsCents)} due on statements · next ${shortDate(cards.nextDue)}`
+                  ? `owed now · ${formatCents(cards.payThisCycleCents)} to pay this cycle · next due ${shortDate(cards.nextDue)}`
                   : "owed now across your cards"
               }
             />
@@ -289,72 +290,29 @@ export default async function MonthPage({
               footer={{ paidCents: paidOf(billRows), budgetedCents: budgetOf(billRows) }}
             />
             {cards && cards.rows.length ? (
-              <section id="cards" className="scroll-mt-6 rounded-2xl border border-line bg-surface shadow-card">
-                <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-5">
-                  <h2 className="text-base font-bold">Cards</h2>
-                  <Link href="/accounts" className="text-xs font-semibold text-accent-text hover:underline">
-                    Closing and due days
-                  </Link>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="mt-3 w-full min-w-[640px] text-sm">
-                    <thead>
-                      <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                        <th className="px-5 py-2 font-semibold">Card</th>
-                        <th className="px-3 py-2 text-right font-semibold">Owed now</th>
-                        <th className="px-3 py-2 text-right font-semibold">Statement due</th>
-                        <th className="px-3 py-2 text-right font-semibold">New since statement</th>
-                        <th className="px-5 py-2 text-right font-semibold">Pay</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-line">
-                      {cards.rows.map((r) => {
-                        const c = r.status;
-                        const days = c ? daysUntil(c.nextDue) : null;
-                        return (
-                          <tr key={r.id} className="align-top">
-                            <td className="px-5 py-3">
-                              <span className="block font-semibold">{r.name}</span>
-                              <span className="block text-xs text-muted">{r.institution ?? ""}</span>
-                            </td>
-                            <td className="tnum px-3 py-3 text-right">{formatCents(r.owedNowCents)}</td>
-                            <td className="tnum px-3 py-3 text-right">
-                              {c ? (
-                                <>
-                                  <span className="block">{c.dueCents ? formatCents(c.dueCents) : "Paid"}</span>
-                                  <span className="block text-xs text-muted">
-                                    by {shortDate(c.nextDue)}
-                                    {days !== null && days >= 0 ? ` · ${days}d` : ""}
-                                  </span>
-                                </>
-                              ) : (
-                                <span className="text-xs text-muted">Add its days</span>
-                              )}
-                            </td>
-                            <td className="tnum px-3 py-3 text-right">{c ? formatCents(c.newChargesCents) : "—"}</td>
-                            <td className="tnum px-5 py-3 text-right">
-                              {c ? (
-                                <>
-                                  <span className="block font-semibold">{c.plan === "paid" ? "—" : formatCents(c.suggestedCents)}</span>
-                                  <span className="block text-xs text-muted">
-                                    {c.plan === "payoff" && c.paymentsLeft !== null
-                                      ? `0% ends ${longDate(c.promoEndsOn!)} · ${c.paymentsLeft} left`
-                                      : c.plan === "statement"
-                                        ? "in full, no interest"
-                                        : "nothing due"}
-                                  </span>
-                                </>
-                              ) : (
-                                "—"
-                              )}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
-              </section>
+              <CardDeck
+                summary={{ totalOwedCents: cards.totalOwedCents, payThisCycleCents: cards.payThisCycleCents, nextDue: cards.nextDue }}
+                cards={cards.rows.map((r) => ({
+                  id: r.id,
+                  name: r.name,
+                  institution: r.institution,
+                  lastDigits: r.lastDigits,
+                  color: r.color,
+                  owedNowCents: r.owedNowCents,
+                  status: r.status
+                    ? {
+                        nextDue: r.status.nextDue,
+                        dueCents: r.status.dueCents,
+                        statementCents: r.status.statementCents,
+                        suggestedCents: r.status.suggestedCents,
+                        newChargesCents: r.status.newChargesCents,
+                        plan: r.status.plan,
+                        paymentsLeft: r.status.paymentsLeft,
+                        promoEndsOn: r.status.promoEndsOn,
+                      }
+                    : null,
+                }))}
+              />
             ) : null}
           </div>
 

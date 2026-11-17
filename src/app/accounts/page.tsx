@@ -35,7 +35,7 @@ function Row({ a }: { a: BankAccountView }) {
       </span>
       {a.type === "CREDIT_CARD" && !a.hidden ? (
         <span className="basis-full">
-          <CardTerms id={a.id} closeDay={a.statementCloseDay} dueDay={a.paymentDueDay} promoEndsOn={a.promoEndsOn} />
+          <CardTerms id={a.id} closeDay={a.statementCloseDay} dueDay={a.paymentDueDay} promoEndsOn={a.promoEndsOn} color={a.cardColor} />
         </span>
       ) : null}
     </li>

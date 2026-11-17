@@ -5,6 +5,7 @@ import { toCents } from "@/lib/money";
 import { displayAccountName } from "@/lib/account-type";
 import { cardStatus, lastCloseDate, type CardStatus } from "@/lib/card-payment";
 import { NotFoundError, ValidationError } from "./errors";
+import { CARD_COLORS } from "@/lib/card-colors";
 
 const DAY = 86_400_000;
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -56,7 +57,7 @@ export async function listCardPayments(today = localToday()): Promise<CardPaymen
   return out.sort((a, b) => a.nextDue.localeCompare(b.nextDue));
 }
 
-export async function setCardTerms(id: string, input: { closeDay: number | null; dueDay: number | null; promoEndsOn: string | null }): Promise<void> {
+export async function setCardTerms(id: string, input: { closeDay: number | null; dueDay: number | null; promoEndsOn: string | null; color?: string | null }): Promise<void> {
   const card = await prisma.bankAccount.findUnique({ where: { id }, select: { type: true } });
   if (!card) throw new NotFoundError("Card");
   const day = (n: number | null, field: string) => {
@@ -65,12 +66,14 @@ export async function setCardTerms(id: string, input: { closeDay: number | null;
     return n;
   };
   if (input.promoEndsOn && !/^\d{4}-\d{2}-\d{2}$/.test(input.promoEndsOn)) throw new ValidationError({ promoEndsOn: ["Use a date"] });
+  if (input.color && !CARD_COLORS.some((c) => c.id === input.color)) throw new ValidationError({ color: ["Unknown color"] });
   await prisma.bankAccount.update({
     where: { id },
     data: {
       statementCloseDay: day(input.closeDay, "closeDay"),
       paymentDueDay: day(input.dueDay, "dueDay"),
       promoEndsOn: input.promoEndsOn ? new Date(`${input.promoEndsOn}T00:00:00Z`) : null,
+      ...(input.color === undefined ? {} : { cardColor: input.color || null }),
     },
   });
 }
@@ -82,12 +85,16 @@ export interface CardRow {
   owedNowCents: number;
   /** Null until the card's closing and due days are set. */
   status: CardPayment | null;
+  /** A preset id from src/lib/card-colors.ts. */
+  color: string | null;
+  /** The last digits the feed shows in the account name, if any. */
+  lastDigits: string | null;
 }
 
 export interface CardOverview {
   totalOwedCents: number;
-  /** Left to pay on statements, across cards with their days set. */
-  dueOnStatementsCents: number;
+  /** What to pay this cycle across cards with their days set: full statements, and the monthly payoff on 0% balances. */
+  payThisCycleCents: number;
   nextDue: string | null;
   rows: CardRow[];
 }
@@ -97,8 +104,8 @@ export async function cardOverview(today = localToday()): Promise<CardOverview> 
   const [cards, payments] = await Promise.all([
     prisma.bankAccount.findMany({
       where: { type: "CREDIT_CARD", hidden: false },
-      select: { id: true, name: true, institution: true, balance: true, statementCloseDay: true, paymentDueDay: true },
-    }) as Promise<Array<{ id: string; name: string; institution: string | null; balance: { toString(): string } | null; statementCloseDay: number | null; paymentDueDay: number | null }>>,
+      select: { id: true, name: true, institution: true, balance: true, statementCloseDay: true, paymentDueDay: true, cardColor: true },
+    }) as Promise<Array<{ id: string; name: string; institution: string | null; balance: { toString(): string } | null; statementCloseDay: number | null; paymentDueDay: number | null; cardColor: string | null }>>,
     listCardPayments(today),
   ]);
   const byId = new Map(payments.map((p) => [p.id, p]));
@@ -109,6 +116,8 @@ export async function cardOverview(today = localToday()): Promise<CardOverview> 
       institution: c.institution,
       owedNowCents: Math.max(0, c.balance === null ? 0 : -toCents(c.balance)),
       status: byId.get(c.id) ?? null,
+      color: c.cardColor,
+      lastDigits: /(\d{4})\)?\s*$/.exec(c.name)?.[1] ?? null,
     }))
     // A paid-off card with no days set has nothing to say.
     .filter((r) => r.owedNowCents > 0 || r.status)
@@ -116,7 +125,7 @@ export async function cardOverview(today = localToday()): Promise<CardOverview> 
   const due = payments.filter((p) => p.suggestedCents > 0);
   return {
     totalOwedCents: rows.reduce((s, r) => s + r.owedNowCents, 0),
-    dueOnStatementsCents: payments.reduce((s, p) => s + p.dueCents, 0),
+    payThisCycleCents: payments.reduce((s, p) => s + p.suggestedCents, 0),
     nextDue: due.length ? due.map((p) => p.nextDue).sort()[0] : null,
     rows,
   };
