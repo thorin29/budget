@@ -33,6 +33,8 @@ export interface CategorySpend {
   cents: number;
   /** Average of the three months before. */
   averageCents: number;
+  /** The same month a year before, when there's history for it. */
+  lastYearCents: number | null;
 }
 
 export interface ManagedLedger {
@@ -55,6 +57,8 @@ export interface Pace {
   usualMonthCents: number;
   /** So far, plus what a usual month spends from here to the end. */
   projectedCents: number;
+  /** Of what's still to come this month, the part a usual month puts on cards (paid next month). */
+  restOnCardsCents: number;
 }
 
 export interface Insights {
@@ -71,6 +75,10 @@ export interface Insights {
   managed: ManagedLedger[];
   /** Only for the month in progress, with at least one month before it. */
   pace: Pace | null;
+  /** The same month a year before, when there's history for it. */
+  lastYear: { everydayCents: number; billsCents: number; inCents: number } | null;
+  /** Month in progress: everyday spending over the last seven days. */
+  weekCents: number | null;
 }
 
 type Row = {
@@ -86,7 +94,7 @@ type Row = {
 const ym = (year: number, month: number) => year * 12 + (month - 1);
 const fromYm = (n: number) => ({ year: Math.floor(n / 12), month: (n % 12) + 1 });
 
-export async function getInsights(year: number, month: number, monthsBack = 6): Promise<Insights> {
+export async function getInsights(year: number, month: number, monthsBack = 12, withLastYear = true): Promise<Insights> {
   const end = ym(year, month);
   const first = end - (monthsBack - 1);
   const start = fromYm(first);
@@ -109,6 +117,9 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
   const isCurrent = Number(today.slice(0, 4)) === year && Number(today.slice(5, 7)) === month;
   const todayDay = Number(today.slice(8, 10));
   const byNow = new Map<number, number>();
+  const onCards = new Map<number, number>();
+  const weekFrom = Date.parse(`${today}T00:00:00Z`) - 6 * 86_400_000;
+  let weekCents = 0;
   const totals = new Map<number, MonthTotal>();
   for (let n = first; n <= end; n++) totals.set(n, { ...fromYm(n), everydayCents: 0, billsCents: 0, inCents: 0, netCents: 0 });
   // Everyday spending per month per category.
@@ -147,6 +158,8 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
     total.everydayCents += everyday;
     // Same-day comparison, capped at each month's own length.
     if (isCurrent && r.postedOn.getUTCDate() <= todayDay) byNow.set(n, (byNow.get(n) ?? 0) + everyday);
+    if (r.account.type === "CREDIT_CARD") onCards.set(n, (onCards.get(n) ?? 0) + everyday);
+    if (isCurrent && r.postedOn.getTime() >= weekFrom) weekCents += everyday;
     const key = r.categoryId ?? "";
     const cats = byCategory.get(n) ?? new Map();
     const c = cats.get(key) ?? { name: r.category?.name ?? "Uncategorized", cents: 0 };
@@ -177,6 +190,7 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
     name,
     cents: byCategory.get(end)?.get(key)?.cents ?? 0,
     averageCents: prior.length ? Math.round(prior.reduce((s, n) => s + (byCategory.get(n)?.get(key)?.cents ?? 0), 0) / prior.length) : 0,
+    lastYearCents: null as number | null,
   }))
     .filter((c) => c.cents > 0 || c.averageCents > 0)
     .sort((a, b) => b.cents - a.cents || b.averageCents - a.averageCents);
@@ -201,6 +215,17 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
     managed.push({ id: c.id, name: c.name, heldCents: sum._sum.amount ? toCents(sum._sum.amount) : 0, monthInCents: m.in, monthOutCents: m.out });
   }
 
+  // The same month a year before, for comparison: only when history reaches that far.
+  let lastYear: Insights["lastYear"] = null;
+  if (withLastYear) {
+    const ly = await getInsights(year - 1, month, 1, false);
+    if (ly.hasData) {
+      lastYear = { everydayCents: ly.current.everydayCents, billsCents: ly.current.billsCents, inCents: ly.current.inCents };
+      const byId = new Map(ly.categories.map((c) => [c.id ?? "", c.cents]));
+      for (const c of categories) c.lastYearCents = byId.get(c.id ?? "") ?? 0;
+    }
+  }
+
   const months = [...totals.values()];
   const current = totals.get(end)!;
   const avgOf = prior.map((n) => totals.get(n)!.everydayCents);
@@ -209,6 +234,7 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
   if (isCurrent && prior.length) {
     const usualMonthCents = avg(avgOf);
     const usualByNowCents = avg(prior.map((n) => byNow.get(n) ?? 0));
+    const cardShare = avgOf.reduce((a, b) => a + b, 0) ? prior.reduce((a, n) => a + (onCards.get(n) ?? 0), 0) / avgOf.reduce((a, b) => a + b, 0) : 0;
     pace = {
       day: todayDay,
       daysInMonth: new Date(Date.UTC(year, month, 0)).getUTCDate(),
@@ -216,6 +242,7 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
       usualByNowCents,
       usualMonthCents,
       projectedCents: current.everydayCents + Math.max(0, usualMonthCents - usualByNowCents),
+      restOnCardsCents: Math.round(Math.max(0, usualMonthCents - usualByNowCents) * cardShare),
     };
   }
   return {
@@ -231,6 +258,8 @@ export async function getInsights(year: number, month: number, monthsBack = 6): 
     changes,
     managed,
     pace,
+    lastYear,
+    weekCents: isCurrent ? weekCents : null,
   };
 }
 
@@ -275,8 +304,10 @@ export async function getSuggestions(today = new Date()): Promise<Suggestion[]> 
     if (cents >= 0 && !refund) continue;
     const spend = -cents;
     if (r.categoryId && r.category) {
-      const c = categories.get(r.categoryId) ?? { id: r.categoryId, name: r.category.name, monthly: zeros() };
+      const c = categories.get(r.categoryId) ?? { id: r.categoryId, name: r.category.name, monthly: zeros(), top: Array.from({ length: 6 }, () => null) };
       c.monthly[i] += spend;
+      const top = c.top![i];
+      if (spend > 0 && (!top || spend > top.cents)) c.top![i] = { merchant: r.merchant.trim() || r.description, cents: spend };
       categories.set(r.categoryId, c);
     }
     if (spend > 0 && r.merchant.trim()) {
@@ -299,5 +330,20 @@ export async function getSuggestions(today = new Date()): Promise<Suggestion[]> 
     interest,
     fees,
     promos,
+    firstMonth: await firstMonthIndex(first),
+    labels: Array.from({ length: 6 }, (_, i) => {
+      const m = fromYm(first + i);
+      return new Date(Date.UTC(m.year, m.month - 1, 1)).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+    }),
   });
+}
+
+/** Which of the six months from `first` the bank history begins in (0 when it reaches back further). */
+async function firstMonthIndex(first: number): Promise<number> {
+  const oldest = (await prisma.bankTransaction.findFirst({ orderBy: { postedOn: "asc" }, select: { postedOn: true } })) as { postedOn: Date } | null;
+  if (!oldest) return 0;
+  const n = ym(oldest.postedOn.getUTCFullYear(), oldest.postedOn.getUTCMonth() + 1);
+  // A month the history starts partway through counts as unknown too.
+  const firstFull = oldest.postedOn.getUTCDate() > 3 ? n + 1 : n;
+  return Math.max(0, Math.min(6, firstFull - first));
 }

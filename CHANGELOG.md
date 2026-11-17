@@ -3,6 +3,28 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.32.0]
+
+### Added
+- Insights charts: everyday spending by month (the month in progress shows what's still to come
+  at a usual pace), and in minus out over 12 months. Months before the bank history starts are
+  left off.
+- What's left: next to the pace, what the bills account has after this month's bills and
+  paychecks, how much everyday spending is still to come (and how much of it lands on cards, paid
+  next month), and the last seven days.
+- 0% payoff: each 0% balance with how much is paid down, what's left, the payments that clear it
+  by the offer's end, and whether it's on track.
+- The same month last year, by category and in total, when the history reaches back that far.
+- Tap a category for its own page: twelve months of totals, this month's merchants against their
+  usual, and the charges. Also `GET /api/v1/insights/category`.
+- `GET /api/v1/insights` carries everything the web page shows (phone app 0.8).
+
+### Changed
+- Suggestions say what was actually spent: "Dining: about $310 a month lately, up from $200",
+  with each month's amount and a small chart. One big month is now a "spike" ("Hockey: $3,800 in
+  Oct", with the largest charge) instead of a rise. Months before the history starts no longer
+  count as $0.
+
 ## [0.31.0]
 
 ### Added

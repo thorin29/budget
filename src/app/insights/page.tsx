@@ -3,6 +3,8 @@ import Link from "next/link";
 import { getInsights, getSuggestions, type CategorySpend, type MonthTotal, type Pace } from "@/server/insights";
 import type { Suggestion } from "@/lib/insight-suggestions";
 import { getUpcoming } from "@/server/yearly";
+import { payoffTrackers, type PayoffTracker } from "@/server/card-payments";
+import { getMonthView } from "@/server/month";
 import { ComingUpRow } from "./coming-up";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, PageHeading, StatCard, buttonClass } from "@/components/ui";
@@ -34,12 +36,12 @@ function versus(cents: number, average: number): string {
 }
 
 /** Horizontal bars: this month's amount, with a tick at the three-month average. */
-function CategoryBars({ rows, uncategorizedHref }: { rows: CategorySpend[]; uncategorizedHref: string }) {
+function CategoryBars({ rows, period, lastYearLabel }: { rows: CategorySpend[]; period: string; lastYearLabel: string | null }) {
   const max = Math.max(1, ...rows.map((r) => Math.max(r.cents, r.averageCents)));
   return (
     <ul className="space-y-3">
       {rows.map((r) => {
-        const href = r.id ? `/transactions?category=${r.id}` : uncategorizedHref;
+        const href = `/insights/category/${r.id ?? "none"}?m=${period}`;
         const tip = `${r.name}: ${money(r.cents)} this month · ${money(r.averageCents)} average`;
         return (
           <li key={r.id ?? "none"}>
@@ -49,6 +51,11 @@ function CategoryBars({ rows, uncategorizedHref }: { rows: CategorySpend[]; unca
                 <span className="tnum shrink-0">
                   <span className="font-semibold">{money(r.cents)}</span>
                   <span className="ml-2 text-xs text-muted">avg {whole(r.averageCents)}</span>
+                  {lastYearLabel && r.lastYearCents !== null ? (
+                    <span className="ml-2 text-xs text-muted">
+                      {lastYearLabel} {whole(r.lastYearCents)}
+                    </span>
+                  ) : null}
                 </span>
               </span>
               <span className="relative mt-1.5 block h-2 rounded-full bg-neutral-soft">
@@ -121,6 +128,7 @@ function NetChart({ months, selected }: { months: MonthTotal[]; selected: number
 
 const MARK: Record<Suggestion["kind"], { glyph: string; tone: string }> = {
   rising: { glyph: "▲", tone: "text-warn" },
+  spike: { glyph: "◆", tone: "text-warn" },
   interest: { glyph: "%", tone: "text-danger" },
   fees: { glyph: "!", tone: "text-danger" },
   trim: { glyph: "✂", tone: "text-accent-text" },
@@ -130,8 +138,83 @@ const MARK: Record<Suggestion["kind"], { glyph: string; tone: string }> = {
   payoff: { glyph: "◎", tone: "text-ok" },
 };
 
+const longDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+
+/** Each 0% balance: how much is paid down, and whether the payments keep it on schedule. */
+function PayoffCard({ rows }: { rows: PayoffTracker[] }) {
+  return (
+    <Card>
+      <h2 className="text-base font-bold">0% payoff</h2>
+      <ul className="mt-3 space-y-5">
+        {rows.map((r) => {
+          const share = r.startCents ? Math.min(1, (r.paidCents ?? 0) / r.startCents) : null;
+          return (
+            <li key={r.id} className="text-sm">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <span className="font-semibold">{r.name}</span>
+                <span className={`text-xs font-semibold ${r.onTrack ? "text-ok" : "text-warn"}`}>{r.onTrack ? "On track" : "Behind plan"}</span>
+              </div>
+              {share !== null ? (
+                <div className="relative mt-2 h-3 rounded-full bg-neutral-soft" role="img" aria-label={`${Math.round(share * 100)}% paid down`}>
+                  <div className="absolute inset-y-0 left-0 rounded-full bg-ok" style={{ width: `${share * 100}%` }} />
+                </div>
+              ) : null}
+              <p className="mt-2 text-xs text-muted">
+                {r.startCents !== null ? (
+                  <>
+                    <span className="font-semibold text-foreground">{whole(r.paidCents ?? 0)}</span> of {whole(r.startCents)} paid down ·{" "}
+                  </>
+                ) : null}
+                {whole(r.balanceCents)} left · {r.paymentsLeft} payment{r.paymentsLeft === 1 ? "" : "s"} of {whole(r.monthlyCents)} clear it by {longDate(r.endsOn)}
+                {!r.onTrack && r.planMonthlyCents ? ` (the plan was ${whole(r.planMonthlyCents)} a month)` : ""}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+    </Card>
+  );
+}
+
+/** Everyday spending by month; the month in progress shows what's still to come at a usual pace. */
+function EverydayChart({ months, selected, pace }: { months: MonthTotal[]; selected: number; pace: Pace | null }) {
+  const last = months[months.length - 1];
+  const rest = pace ? Math.max(0, pace.projectedCents - pace.soFarCents) : 0;
+  const max = Math.max(1, ...months.map((m) => m.everydayCents + (m === last ? rest : 0)));
+  return (
+    <div role="img" aria-label="Everyday spending by month">
+      <div className="flex h-40 items-end gap-2">
+        {months.map((m) => {
+          const isSelected = m.year * 12 + m.month === selected;
+          const extra = m === last ? rest : 0;
+          return (
+            <div key={`${m.year}-${m.month}`} className="flex h-full flex-1 flex-col justify-end" title={`${monthLabel(m.year, m.month)}: ${money(m.everydayCents)}${extra ? `, about ${whole(extra)} more to come` : ""}`}>
+              {extra ? <span className="mx-auto w-full max-w-11 rounded-t border border-dashed border-accent/60 bg-accent/10" style={{ height: `${(extra / max) * 100}%` }} /> : null}
+              <span
+                className={`mx-auto w-full max-w-11 ${extra ? "" : "rounded-t"} bg-accent`}
+                style={{ height: `max(${(m.everydayCents / max) * 100}%, ${m.everydayCents ? 2 : 0}px)`, opacity: isSelected ? 1 : 0.55 }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-2 flex gap-2 text-center">
+        {months.map((m) => {
+          const isSelected = m.year * 12 + m.month === selected;
+          return (
+            <div key={`${m.year}-${m.month}`} className="flex-1">
+              <span className={`block text-xs ${isSelected ? "font-semibold text-foreground" : "text-muted"}`}>{monthLabel(m.year, m.month, "short")}</span>
+              <span className="tnum block text-[11px] text-muted">{whole(m.everydayCents)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 /** The month in progress against a usual month by the same day. */
-function PaceCard({ pace }: { pace: Pace }) {
+function PaceCard({ pace, leftAfterBillsCents, weekCents }: { pace: Pace; leftAfterBillsCents: number | null; weekCents: number | null }) {
   const scale = Math.max(pace.projectedCents, pace.usualMonthCents, 1);
   const pct = (cents: number) => `${Math.min(100, (cents / scale) * 100).toFixed(1)}%`;
   const diff = pace.projectedCents - pace.usualMonthCents;
@@ -159,7 +242,48 @@ function PaceCard({ pace }: { pace: Pace }) {
         </span>
         <span>Usual month {whole(pace.usualMonthCents)}</span>
       </div>
+      <div className="mt-4 grid gap-3 border-t border-line pt-3 text-sm sm:grid-cols-3">
+        {leftAfterBillsCents !== null ? (
+          <p>
+            <span className="block text-xs text-muted">Left after this month&rsquo;s bills</span>
+            <span className={`tnum font-bold ${leftAfterBillsCents < 0 ? "text-danger" : ""}`}>{whole(leftAfterBillsCents)}</span>
+            <span className="block text-xs text-muted">in the bills account, once bills and paychecks land</span>
+          </p>
+        ) : null}
+        <p>
+          <span className="block text-xs text-muted">Still to come this month</span>
+          <span className="tnum font-bold">{whole(pace.projectedCents - pace.soFarCents)}</span>
+          <span className="block text-xs text-muted">
+            everyday spending at a usual pace{pace.restOnCardsCents > 0 ? `, about ${whole(pace.restOnCardsCents)} of it on cards (paid next month)` : ""}
+          </span>
+        </p>
+        {weekCents !== null ? (
+          <p>
+            <span className="block text-xs text-muted">Last 7 days</span>
+            <span className="tnum font-bold">{whole(weekCents)}</span>
+            <span className="block text-xs text-muted">everyday spending</span>
+          </p>
+        ) : null}
+      </div>
     </Card>
+  );
+}
+
+/** What was actually spent each month, as small labeled bars. */
+function MiniMonths({ months }: { months: Array<{ label: string; cents: number }> }) {
+  const max = Math.max(1, ...months.map((m) => m.cents));
+  return (
+    <span className="mt-2 flex items-end gap-1.5" role="img" aria-label={months.map((m) => `${m.label} ${whole(m.cents)}`).join(", ")}>
+      {months.map((m, i) => (
+        <span key={`${m.label}-${i}`} className="flex w-9 flex-col items-center gap-0.5">
+          <span className="tnum text-[10px] text-muted">{whole(m.cents)}</span>
+          <span className="flex h-8 w-full items-end">
+            <span className={`w-full rounded-t ${i >= months.length - 3 ? "bg-accent" : "bg-accent/35"}`} style={{ height: `max(${(m.cents / max) * 100}%, ${m.cents ? 2 : 0}px)` }} />
+          </span>
+          <span className="text-[10px] text-muted">{m.label}</span>
+        </span>
+      ))}
+    </span>
   );
 }
 
@@ -187,6 +311,7 @@ function Suggestions({ items }: { items: Suggestion[] }) {
             <span className="min-w-0">
               <span className="block font-semibold">{x.title}</span>
               <span className="mt-0.5 block text-xs text-muted">{x.detail}</span>
+              {x.months?.length ? <MiniMonths months={x.months} /> : null}
               {x.items?.length ? (
                 <span className="mt-2 flex flex-wrap gap-1.5">
                   {x.items.map((i) => (
@@ -201,7 +326,7 @@ function Suggestions({ items }: { items: Suggestion[] }) {
                 </span>
               ) : null}
               {x.categoryId ? (
-                <Link href={`/transactions?category=${x.categoryId}`} className="mt-1.5 inline-block text-xs font-semibold text-accent-text hover:underline">
+                <Link href={`/insights/category/${x.categoryId}`} className="mt-1.5 inline-block text-xs font-semibold text-accent-text hover:underline">
                   See the charges
                 </Link>
               ) : null}
@@ -219,11 +344,21 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   const match = /^(\d{4})-(\d{2})$/.exec(m ?? "");
   const asked = match ? { year: Number(match[1]), month: Number(match[2]) } : now;
   const picked = asked.month >= 1 && asked.month <= 12 && asked.year * 12 + asked.month <= now.year * 12 + now.month ? asked : now;
-  const [data, suggestions, upcoming] = await Promise.all([getInsights(picked.year, picked.month), getSuggestions(), getUpcoming()]);
+  const isNow = picked.year === now.year && picked.month === now.month;
+  const [data, suggestions, upcoming, payoff, view] = await Promise.all([
+    getInsights(picked.year, picked.month),
+    getSuggestions(),
+    getUpcoming(),
+    payoffTrackers(),
+    isNow ? getMonthView(picked.year, picked.month).catch(() => null) : Promise.resolve(null),
+  ]);
   const prev = shift(picked.year, picked.month, -1);
   const next = shift(picked.year, picked.month, 1);
   const atNow = picked.year === now.year && picked.month === now.month;
   const { current } = data;
+  // Months before the bank history starts aren't $0 months; leave them off the charts.
+  const firstShown = Math.max(0, data.months.findIndex((x) => x.everydayCents || x.billsCents || x.inCents));
+  const chartMonths = data.months.slice(firstShown);
   const twelveIn = data.months.reduce((s, x) => s + x.netCents, 0);
 
   return (
@@ -260,7 +395,12 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <StatCard label="Everyday spending" value={money(current.everydayCents)} detail={versus(current.everydayCents, data.everydayAverageCents)} tone="hero" />
+            <StatCard
+              label="Everyday spending"
+              value={money(current.everydayCents)}
+              detail={`${versus(current.everydayCents, data.everydayAverageCents)}${data.lastYear ? ` · ${whole(data.lastYear.everydayCents)} in ${monthLabel(picked.year - 1, picked.month, "short")} ${picked.year - 1}` : ""}`}
+              tone="hero"
+            />
             <StatCard label="Bills paid" value={money(current.billsCents)} detail="Charges confirmed as bill payments" />
             <StatCard label="Money in" value={money(current.inCents)} detail="Deposits to checking and savings" />
             <StatCard
@@ -271,7 +411,8 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
             />
           </div>
 
-          {data.pace ? <PaceCard pace={data.pace} /> : null}
+          {data.pace ? <PaceCard pace={data.pace} leftAfterBillsCents={view?.transferAfterSecondCents ?? null} weekCents={data.weekCents} /> : null}
+          {payoff.length ? <PayoffCard rows={payoff} /> : null}
           {upcoming.length ? (
             <Card>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -291,10 +432,10 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
             <Card>
               <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
                 <h2 className="text-base font-bold">Where it went</h2>
-                <span className="text-xs text-muted">Everyday spending · tick marks the 3-month average</span>
+                <span className="text-xs text-muted">Everyday spending · tick marks the 3-month average · tap one for its charges</span>
               </div>
               {data.categories.length ? (
-                <CategoryBars rows={data.categories} uncategorizedHref="/transactions?category=none" />
+                <CategoryBars rows={data.categories} period={param(picked)} lastYearLabel={data.lastYear ? monthLabel(picked.year - 1, picked.month, "short") + " '" + String(picked.year - 1).slice(2) : null} />
               ) : (
                 <p className="text-sm text-muted">No everyday spending this month.</p>
               )}
@@ -359,13 +500,21 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
 
           <Card>
             <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-base font-bold">Everyday spending, by month</h2>
+              <span className="text-xs text-muted">The dashed part is what a usual month still spends from here</span>
+            </div>
+            <EverydayChart months={chartMonths} selected={picked.year * 12 + picked.month} pace={data.pace} />
+          </Card>
+
+          <Card>
+            <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-base font-bold">In minus out, by month</h2>
               <span className="text-xs text-muted">
-                Over these {data.months.length} months, money {twelveIn >= 0 ? "in ran" : "out ran"}{" "}
+                Over these {chartMonths.length} months, money {twelveIn >= 0 ? "in ran" : "out ran"}{" "}
                 <span className="font-semibold text-foreground">{whole(Math.abs(twelveIn))}</span> ahead
               </span>
             </div>
-            <NetChart months={data.months} selected={picked.year * 12 + picked.month} />
+            <NetChart months={chartMonths} selected={picked.year * 12 + picked.month} />
           </Card>
         </>
       )}

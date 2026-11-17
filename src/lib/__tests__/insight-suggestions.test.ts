@@ -11,10 +11,35 @@ describe("buildSuggestions", () => {
       categories: [{ id: "d", name: "Dining", monthly: [20_000, 21_000, 19_000, 30_000, 32_000, 31_000] }],
     });
     const rising = out.find((s) => s.kind === "rising");
-    expect(rising?.title).toBe("Dining is up $110 a month");
+    expect(rising?.title).toBe("Dining: about $310 a month lately, up from $200");
     expect(rising?.monthlyCents).toBe(11_000);
     // A rising category isn't also offered as a trim.
     expect(out.some((s) => s.kind === "trim" && s.categoryId === "d")).toBe(false);
+  });
+
+  it("doesn't count months before the history starts as $0", () => {
+    const out = buildSuggestions({
+      ...base,
+      firstMonth: 1,
+      categories: [{ id: "s", name: "Shopping", monthly: [0, 12_900, 12_900, 12_900, 12_900, 12_900] }],
+    });
+    expect(out.some((s) => s.kind === "rising")).toBe(false);
+  });
+
+  it("calls one big month a spike, not a rise, and says what it was", () => {
+    const out = buildSuggestions({
+      ...base,
+      labels: ["Jun", "Jul", "Aug", "Sep", "Oct", "Nov"],
+      categories: [{
+        id: "h", name: "Hockey", monthly: [18_000, 20_000, 17_000, 19_000, 380_000, 21_000],
+        top: [null, null, null, null, { merchant: "Gear Shop", cents: 320_000 }, null],
+      }],
+    });
+    expect(out.some((s) => s.kind === "rising")).toBe(false);
+    const spike = out.find((s) => s.kind === "spike");
+    expect(spike?.title).toBe("Hockey: $3,800 in Oct");
+    expect(spike?.detail).toBe("One big month; the others ran about $190 a month. The largest charge was Gear Shop for $3,200.00.");
+    expect(spike?.months?.map((m) => m.cents)).toEqual([18_000, 20_000, 17_000, 19_000, 380_000, 21_000]);
   });
 
   it("offers a trim on large flexible categories only", () => {

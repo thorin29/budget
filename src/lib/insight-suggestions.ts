@@ -13,6 +13,8 @@ export interface CategorySeries {
   name: string;
   /** Everyday spending per complete month, oldest first. */
   monthly: number[];
+  /** The largest single charge in each month, oldest first. */
+  top?: Array<{ merchant: string; cents: number } | null>;
 }
 
 export interface MerchantSeries {
@@ -39,9 +41,13 @@ export interface SuggestionInput {
   /** Late, annual, overdraft and similar fees per complete month, oldest first. */
   fees: number[];
   promos: PromoPlan[];
+  /** Short month names for the complete months, oldest first ("Jun"…"Nov"). */
+  labels?: string[];
+  /** Index of the first complete month the bank history covers; earlier months count as unknown, not $0. */
+  firstMonth?: number;
 }
 
-export type SuggestionKind = "rising" | "trim" | "repeating" | "new-repeat" | "price-up" | "interest" | "fees" | "payoff";
+export type SuggestionKind = "rising" | "spike" | "trim" | "repeating" | "new-repeat" | "price-up" | "interest" | "fees" | "payoff";
 
 export interface Suggestion {
   kind: SuggestionKind;
@@ -52,6 +58,8 @@ export interface Suggestion {
   /** Items behind the suggestion (repeating charges), largest first. */
   items?: Array<{ name: string; cents: number; /** The amount before, for a price that went up. */ fromCents?: number }>;
   categoryId?: string;
+  /** What was actually spent each complete month, oldest first, for a category suggestion. */
+  months?: Array<{ label: string; cents: number }>;
 }
 
 /** Categories people can usually turn down without missing a bill. */
@@ -82,21 +90,56 @@ export function buildSuggestions(input: SuggestionInput): Suggestion[] {
   const months = Math.max(input.interest.length, ...input.categories.map((c) => c.monthly.length), 0);
   if (months < 3) return out;
 
-  // Rising: the last three months against the three before.
+  const labels = input.labels ?? [];
+  const label = (i: number, length: number) => labels[labels.length - length + i] ?? `month ${i + 1}`;
+  // Months before the history starts are unknown, not $0, so they're left out.
+  const series = (c: CategorySeries) =>
+    c.monthly.map((cents, i) => ({ label: label(i, c.monthly.length), cents })).slice(Math.max(0, (input.firstMonth ?? 0) - (months - c.monthly.length)));
+  const list = (xs: Array<{ label: string; cents: number }>) =>
+    xs.length <= 1 ? xs.map((x) => `${dollars(x.cents)} in ${x.label}`).join("") : `${xs.slice(0, -1).map((x) => `${dollars(x.cents)} in ${x.label}`).join(", ")} and ${dollars(xs[xs.length - 1].cents)} in ${xs[xs.length - 1].label}`;
+
+  // Rising: the last three months against the three before, and not just one
+  // big month (that's a spike, below).
   const rising = new Set<string>();
   if (months >= 6) {
-    for (const c of input.categories) {
-      const recent = avg(c.monthly.slice(-3));
-      const before = avg(c.monthly.slice(-6, -3));
+    const known = (xs: number[]) => xs.slice(Math.max(0, (input.firstMonth ?? 0) - (months - xs.length)));
+  for (const c of input.categories) {
+      const last3 = c.monthly.slice(-3);
+      const recent = avg(last3);
+      const beforeMonths = known(c.monthly).slice(0, -3).slice(-3);
+      if (beforeMonths.length < 2) continue;
+      const before = avg(beforeMonths);
       const delta = recent - before;
-      if (delta >= Math.max(4_000, before * 0.2) && recent >= 7_500) {
+      const high = last3.filter((x) => x >= Math.max(before * 1.2, before + 2_000)).length;
+      const recentMonths = series(c).slice(-3);
+      if (delta >= Math.max(4_000, before * 0.2) && recent >= 7_500 && high >= 2) {
         rising.add(c.id);
         out.push({
           kind: "rising",
-          title: `${c.name} is up ${dollars(delta)} a month`,
-          detail: `About ${dollars(recent)} a month over the last three months, up from ${dollars(before)}. Getting back to ${dollars(before)} would keep about ${dollars(delta * 12)} a year.`,
+          title: `${c.name}: about ${dollars(recent)} a month lately, up from ${dollars(before)}`,
+          detail: `Spent ${list(recentMonths)}, against about ${dollars(before)} a month before that. Getting back there would keep about ${dollars(delta * 12)} a year.`,
           monthlyCents: Math.round(delta),
           categoryId: c.id,
+          months: series(c),
+        });
+        continue;
+      }
+      // Spike: one month far above the rest.
+      const others = [...beforeMonths, ...last3];
+      const peakIndex = last3.indexOf(Math.max(...last3));
+      const peak = last3[peakIndex];
+      const typical = avg(others.filter((_, i) => i !== others.length - 3 + peakIndex));
+      if (peak >= 15_000 && peak >= Math.max(typical * 2.5, typical + 15_000)) {
+        const at = recentMonths[peakIndex];
+        const top = c.top?.[c.monthly.length - 3 + peakIndex];
+        rising.add(c.id);
+        out.push({
+          kind: "spike",
+          title: `${c.name}: ${dollars(peak)} in ${at.label}`,
+          detail: `One big month; the others ran about ${dollars(typical)} a month.${top ? ` The largest charge was ${top.merchant} for ${money(top.cents)}.` : ""}`,
+          monthlyCents: 0,
+          categoryId: c.id,
+          months: series(c),
         });
       }
     }
@@ -114,9 +157,10 @@ export function buildSuggestions(input: SuggestionInput): Suggestion[] {
     out.push({
       kind: "trim",
       title: `Trim ${c.name} by 15%`,
-      detail: `${c.name} runs about ${dollars(recent)} a month. Spending 15% less would keep about ${dollars(keep)} a month, ${dollars(keep * 12)} a year.`,
+      detail: `${c.name} ran ${list(series(c).slice(-3))}, about ${dollars(recent)} a month. Spending 15% less would keep about ${dollars(keep)} a month, ${dollars(keep * 12)} a year.`,
       monthlyCents: keep,
       categoryId: c.id,
+      months: series(c),
     });
   }
 
@@ -220,7 +264,7 @@ export function buildSuggestions(input: SuggestionInput): Suggestion[] {
     });
   }
 
-  const order: SuggestionKind[] = ["rising", "interest", "fees", "trim", "price-up", "new-repeat", "repeating", "payoff"];
+  const order: SuggestionKind[] = ["rising", "spike", "interest", "fees", "trim", "price-up", "new-repeat", "repeating", "payoff"];
   return out.sort((a, b) => b.monthlyCents - a.monthlyCents || order.indexOf(a.kind) - order.indexOf(b.kind));
 }
 

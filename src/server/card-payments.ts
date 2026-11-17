@@ -133,3 +133,56 @@ export async function cardOverview(today = localToday()): Promise<CardOverview> 
     rows,
   };
 }
+
+export interface PayoffTracker {
+  id: string;
+  name: string;
+  /** The balance moved onto the card (its largest transfer in), when the feed shows it. */
+  startCents: number | null;
+  startOn: string | null;
+  balanceCents: number;
+  /** How much of the starting balance is paid down. */
+  paidCents: number | null;
+  endsOn: string;
+  paymentsLeft: number;
+  /** What each payment needs to be now to clear it in time. */
+  monthlyCents: number;
+  /** What each payment needed to be at the start, for comparison. */
+  planMonthlyCents: number | null;
+  onTrack: boolean;
+}
+
+/** Cards on a 0% offer: how far along the payoff is, and whether it's on schedule. */
+export async function payoffTrackers(today = localToday()): Promise<PayoffTracker[]> {
+  const { dueDatesThrough, dueAfter } = await import("@/lib/card-payment");
+  const cards = (await listCardPayments(today)).filter((c) => c.promoEndsOn && c.paymentsLeft && c.monthlyCents);
+  const out: PayoffTracker[] = [];
+  for (const c of cards) {
+    const ends = new Date(`${c.promoEndsOn}T00:00:00Z`);
+    const moved = (await prisma.bankTransaction.findFirst({
+      where: { accountId: c.id, kind: "TRANSFER", amount: { lt: 0 }, postedOn: { gte: new Date(ends.getTime() - 24 * 31 * DAY), lte: new Date(`${today}T00:00:00Z`) } },
+      orderBy: { amount: "asc" },
+      select: { postedOn: true, amount: true },
+    })) as { postedOn: Date; amount: { toString(): string } } | null;
+    const startCents = moved && -toCents(moved.amount) >= 50_000 ? -toCents(moved.amount) : null;
+    const startOn = startCents && moved ? iso(moved.postedOn) : null;
+    const dueDay = Number(c.nextDue.slice(8, 10));
+    const totalPayments = startOn ? dueDatesThrough(dueAfter(startOn, dueDay), c.promoEndsOn!, dueDay) : 0;
+    const planMonthlyCents = startCents && totalPayments ? Math.ceil(startCents / totalPayments) : null;
+    out.push({
+      id: c.id,
+      name: c.name,
+      startCents,
+      startOn,
+      balanceCents: c.owedNowCents,
+      paidCents: startCents === null ? null : Math.max(0, startCents - c.owedNowCents),
+      endsOn: c.promoEndsOn!,
+      paymentsLeft: c.paymentsLeft!,
+      monthlyCents: c.monthlyCents!,
+      planMonthlyCents,
+      // No payment has come due yet: nothing to be behind on.
+      onTrack: planMonthlyCents === null || c.paymentsLeft! >= totalPayments || c.monthlyCents! <= planMonthlyCents + 100,
+    });
+  }
+  return out;
+}
