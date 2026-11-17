@@ -54,3 +54,12 @@ export async function setCategoryGroupAction(categoryId: string, groupId: string
 export async function resetGroupsAction(): Promise<EnvelopeState> {
   return run(() => resetGroups(), "Budgets rebuilt from the suggested set.");
 }
+
+export async function addChargeAsBillAction(transactionId: string, name?: string): Promise<EnvelopeState> {
+  const { addChargeAsBill } = await import("@/server/bill-from-charge");
+  let made = "";
+  const state = await run(async () => {
+    made = (await addChargeAsBill(String(transactionId), name ? String(name) : undefined)).name;
+  });
+  return state.ok ? { ok: true, message: `Added ${made} as a monthly bill. Change it on Bills & income if anything's off.` } : state;
+}

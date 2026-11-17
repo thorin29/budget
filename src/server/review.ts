@@ -125,11 +125,11 @@ export async function getReview(): Promise<Review> {
   const matchable: MatchTxn[] = keyed
     .filter((k) => SPENDING_TYPES.includes(k.row.account.type) || (k.cents > 0 && k.row.account.type === "SAVINGS"))
     .filter((k) => Date.now() - k.row.postedOn.getTime() < 75 * DAY)
-    .map((k) => ({ id: k.row.id, postedOn: iso(k.row.postedOn), amountCents: k.cents, merchant: k.row.merchant, description: k.row.description, merchantKey: k.key }));
+    .map((k) => ({ id: k.row.id, postedOn: iso(k.row.postedOn), amountCents: k.cents, merchant: k.row.merchant, description: k.row.description, merchantKey: k.key, category: k.row.category?.name ?? null }));
 
   const matchBills: MatchBill[] = bills.map((b) => ({
     lineItemId: b.lineItemId, year: b.year, month: b.month, name: b.name, kind: b.kind, dueDay: b.dueDay, budgetedCents: b.budgetedCents,
-    overdue: b.carriedFrom !== null,
+    overdue: b.carriedFrom !== null, category: b.categoryName,
   }));
   // Every open month per bill, so a confirmed payment can go to another one.
   const openMonths = new Map<string, Array<{ year: number; month: number }>>();
@@ -153,7 +153,7 @@ export async function getReview(): Promise<Review> {
       lineItemId: s.lineItemId, year: s.year, month: s.month, billName: b.name, kind: b.kind, budgetedCents: b.budgetedCents, dueDay: b.dueDay,
       txnId: s.txnId, amountCents: Math.abs(t.cents), postedOn: iso(t.row.postedOn), merchant: t.row.merchant, description: t.row.description,
       account: t.row.account.nickname || displayAccountName(t.row.account.name), confidence: s.confidence, known: s.reason === "confirmed before",
-      reason: s.reason === "confirmed before" ? "Same place as before" : s.reason === "name" ? "Name matches" : "Exact amount",
+      reason: s.reason === "confirmed before" ? "Same place as before" : s.reason === "name" ? "Name matches" : s.reason === "category" ? "Same category" : "Exact amount",
       openMonths: (openMonths.get(s.lineItemId) ?? []).sort((x, y) => x.year * 12 + x.month - (y.year * 12 + y.month)),
     };
   });

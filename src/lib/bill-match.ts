@@ -22,6 +22,8 @@ export interface MatchBill {
   budgetedCents: number;
   /** An unpaid month carried from before; it can be paid any time after. */
   overdue?: boolean;
+  /** The bill's category name, to match charges in the same category. */
+  category?: string | null;
 }
 
 export interface MatchTxn {
@@ -33,6 +35,8 @@ export interface MatchTxn {
   merchant: string;
   description: string;
   merchantKey: string;
+  /** The charge's category name. */
+  category?: string | null;
 }
 
 export interface Suggestion {
@@ -41,7 +45,7 @@ export interface Suggestion {
   month: number;
   txnId: string;
   confidence: "high" | "medium";
-  reason: "confirmed before" | "name" | "exact amount";
+  reason: "confirmed before" | "name" | "category" | "exact amount";
 }
 
 const STOP = new Set(["the", "and", "for", "bill", "payment", "pymt", "pmt", "autopay", "online", "monthly", "inc", "llc", "co", "corp"]);
@@ -68,6 +72,11 @@ export const WINDOW_BEFORE = 12;
 export const WINDOW_AFTER = 12;
 /** How long after its due day an overdue bill can still be matched. */
 export const WINDOW_OVERDUE = 45;
+
+/** Both in the same category, by name (case aside). */
+function sameCategory(a: string | null | undefined, b: string | null | undefined): boolean {
+  return !!a && !!b && a.trim().toLowerCase() === b.trim().toLowerCase();
+}
 
 export function suggestMatches(
   bills: MatchBill[],
@@ -102,6 +111,7 @@ export function suggestMatches(
       let reason: Suggestion["reason"] | null = null;
       if (known) [score, reason] = [100, "confirmed before"];
       else if (named) [score, reason] = [70, "name"];
+      else if (sameCategory(bill.category, t.category)) [score, reason] = [50, "category"];
       else if (exact && bill.budgetedCents >= 1_500) [score, reason] = [40, "exact amount"];
       if (!reason) continue;
       if (exact) score += 10;

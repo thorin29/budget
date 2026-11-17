@@ -116,9 +116,38 @@ type Txn = {
 
 const amount = (e: { skipped: boolean; actualCents: number | null; budgetedCents: number }) => (e.skipped ? 0 : (e.actualCents ?? e.budgetedCents));
 
-function dueIso(year: number, month: number, dueDay: number | null): string {
+export function dueIso(year: number, month: number, dueDay: number | null): string {
   const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
   return iso(new Date(Date.UTC(year, month - 1, Math.min(last, Math.max(1, dueDay ?? 1)))));
+}
+
+export type BillItem = { id: string; name: string; kind: string; paysCardId: string | null; paysCardLocked: boolean; paidFromSurplus: boolean };
+export type CardRow = { id: string; name: string; nickname: string | null; institution: string | null; promoEndsOn: Date | null };
+
+/**
+ * Which bills pay a card: card payments aren't bills (the card's spending is
+ * counted as it happens), except the 0% card's payment, which is the debt payment.
+ */
+export function billTypes(items: BillItem[], cards: CardRow[], today: string) {
+  const byItem = new Map(items.map((i) => [i.id, i]));
+  const cardNames = cards.map((c) => ({ id: c.id, names: [c.nickname ?? "", c.name, c.institution ?? ""] }));
+  const promoCards = new Set(cards.filter((c) => c.promoEndsOn && iso(c.promoEndsOn) >= today).map((c) => c.id));
+  const paysCard = (id: string): string | null | undefined => {
+    const i = byItem.get(id);
+    if (!i) return undefined;
+    if (i.paysCardId) return i.paysCardId;
+    if (!i.paysCardLocked && i.kind === "BILL") return cardByName(i.name, cardNames);
+    return undefined;
+  };
+  const isCardPayment = (id: string) => {
+    const i = byItem.get(id);
+    return !!i && (i.kind === "SETTLEMENT" || i.paidFromSurplus || !!paysCard(id));
+  };
+  const isDebt = (id: string) => {
+    const card = paysCard(id);
+    return !!card && promoCards.has(card);
+  };
+  return { isCardPayment, isDebt };
 }
 
 export async function getMonthPlan(year?: number, month?: number): Promise<MonthPlanView> {
@@ -164,26 +193,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     payoffTrackers(today).catch(() => []),
   ]);
 
-  // ---- which bills pay a card: card payments aren't bills (the card's spending is
-  // counted as it happens), except the 0% card's payment, which is the debt payment.
-  const byItem = new Map(items.map((i) => [i.id, i]));
-  const cardNames = cards.map((c) => ({ id: c.id, names: [c.nickname ?? "", c.name, c.institution ?? ""] }));
-  const promoCards = new Set(cards.filter((c) => c.promoEndsOn && iso(c.promoEndsOn) >= today).map((c) => c.id));
-  const paysCard = (id: string): string | null | undefined => {
-    const i = byItem.get(id);
-    if (!i) return undefined;
-    if (i.paysCardId) return i.paysCardId;
-    if (!i.paysCardLocked && i.kind === "BILL") return cardByName(i.name, cardNames);
-    return undefined;
-  };
-  const isCardPayment = (id: string) => {
-    const i = byItem.get(id);
-    return !!i && (i.kind === "SETTLEMENT" || i.paidFromSurplus || !!paysCard(id));
-  };
-  const isDebt = (id: string) => {
-    const card = paysCard(id);
-    return !!card && promoCards.has(card);
-  };
+  const { isCardPayment, isDebt } = billTypes(items, cards, today);
 
   // ---- money in
   const income = view.income

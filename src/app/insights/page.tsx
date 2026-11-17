@@ -7,6 +7,8 @@ import { payoffTrackers, type PayoffTracker } from "@/server/card-payments";
 import { listPayoffs, type Payoff } from "@/server/payoff";
 import { getMonthPlan } from "@/server/month-plan";
 import { MonthPlan } from "./month-plan";
+import { getCashTiming } from "@/server/cash-timing";
+import { CashTimingCard } from "./cash-timing";
 import { ComingUpRow } from "./coming-up";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, PageHeading, StatCard, buttonClass } from "@/components/ui";
@@ -332,6 +334,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   ]);
   const payoffs = isNow ? await listPayoffs().catch(() => [] as Payoff[]) : [];
   const plan = await getMonthPlan(picked.year, picked.month).catch((error: unknown) => (console.error("Month plan:", error), null));
+  const cash = plan && !plan.closed ? await getCashTiming(plan.debt.cents).catch((error: unknown) => (console.error("Cash timing:", error), null)) : null;
   const prev = shift(picked.year, picked.month, -1);
   const next = shift(picked.year, picked.month, 1);
   const atNow = picked.year === now.year && picked.month === now.month;
@@ -365,6 +368,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
       </div>
 
       {plan ? <MonthPlan plan={plan} /> : null}
+      {cash ? <CashTimingCard cash={cash} /> : null}
 
       <h2 className="pt-2 font-heading text-xl font-bold tracking-tight">Looking back</h2>
 

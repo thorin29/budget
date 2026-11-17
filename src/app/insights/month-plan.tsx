@@ -11,7 +11,7 @@ import { useMemo, useState, useTransition, type ReactNode } from "react";
 import type { MonthPlanView, PlanGroup, PlanTxn } from "@/server/month-plan";
 import { monthPlan, whatIf, type MonthPlanIn } from "@/lib/month-plan";
 import { Button, Card, CONTROL, Select } from "@/components/ui";
-import { resetLimitsAction, setLimitsAction, type EnvelopeState } from "./envelope-actions";
+import { addChargeAsBillAction, resetLimitsAction, setLimitsAction, type EnvelopeState } from "./envelope-actions";
 
 const money = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(Math.round(cents / 100)).toLocaleString("en-US")}`;
 const exact = (cents: number) =>
@@ -40,17 +40,36 @@ function planInput(plan: MonthPlanView): MonthPlanIn {
   };
 }
 
-function Txns({ rows }: { rows: PlanTxn[] }) {
+/** A charge's "Make it a bill": a monthly bill from this charge, tied to its merchant. */
+function MakeBill({ id }: { id: string }) {
+  const [state, setState] = useState<EnvelopeState | null>(null);
+  const [pending, start] = useTransition();
+  if (state?.ok) return <span className="shrink-0 text-ok">Added</span>;
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      title={state && !state.ok ? state.message : "A monthly bill from this charge's usual amount and day; later charges from here are recorded for it"}
+      className={`shrink-0 font-semibold hover:underline ${state && !state.ok ? "text-danger" : "text-accent-text"}`}
+      onClick={() => start(async () => setState(await addChargeAsBillAction(id)))}
+    >
+      {pending ? "Adding…" : state && !state.ok ? "Couldn't add" : "Make it a bill"}
+    </button>
+  );
+}
+
+function Txns({ rows, bills = true }: { rows: PlanTxn[]; bills?: boolean }) {
   if (!rows.length) return <p className="text-xs text-muted">Nothing yet.</p>;
   return (
     <ul className="divide-y divide-line text-xs">
       {rows.map((t, i) => (
-        <li key={`${t.id}:${i}`} className="flex justify-between gap-3 py-1">
-          <span className="min-w-0 truncate">
+        <li key={`${t.id}:${i}`} className="flex items-baseline justify-between gap-3 py-1">
+          <span className="min-w-0 flex-1 truncate">
             <span className="tnum text-muted">{day(t.date)}</span> {t.name}
             {t.pending ? <span className="text-muted"> · pending</span> : null}
             {t.split ? <span className="text-muted"> · part of an order</span> : null}
           </span>
+          {bills && t.cents > 0 && !t.split && !t.pending ? <MakeBill id={t.id} /> : null}
           <span className="tnum shrink-0">{exact(t.cents)}</span>
         </li>
       ))}

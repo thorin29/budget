@@ -135,6 +135,11 @@ export function LineItemForm({
   );
   const [dueDay, setDueDay] = useState<string>(defaults.dueDay ? String(defaults.dueDay) : "");
   const [payoffMode, setPayoffMode] = useState(defaults.payoffMode);
+  // A bill is paid from checking or charged to a card; nothing else to say about cards.
+  const [paidOn, setPaidOn] = useState<"checking" | "card">(defaults.chargedToId ? "card" : "checking");
+  // A bill the bank already treats as a card payment keeps that until it's made a card payoff.
+  const [notCard, setNotCard] = useState(false);
+  const billPaysCard = defaults.paysCard !== "auto" && defaults.paysCard !== "none" ? defaults.paysCard : defaults.paysCardLearned ? "auto" : "none";
 
   const isIncome = kind === "INCOME";
   const needsAnchor = ["QUARTERLY", "SEMI_ANNUAL", "ANNUAL", "ONE_OFF"].includes(scheduleKind);
@@ -184,9 +189,9 @@ export function LineItemForm({
           />
           <span className="mt-1.5 block text-xs text-muted">
             {kind === "SETTLEMENT"
-              ? "A balance you pay off — the amount changes month to month."
+              ? "Paying off a credit card. What was bought on it already counts as spending, so the payment isn't counted as a bill."
               : kind === "BILL"
-                ? "A known recurring obligation."
+                ? "Something you pay on a schedule: rent, insurance, a membership, a yearly fee."
                 : "Money in."}
           </span>
         </div>
@@ -317,7 +322,50 @@ export function LineItemForm({
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={isIncome ? "Paid into" : "Paid from"} error={state.issues?.paidFromId}>
+          {kind === "BILL" ? (
+            <div className="sm:col-span-2">
+              <span className="mb-1.5 block text-[13px] font-semibold">How is it paid?</span>
+              <Segmented
+                name="paidOn"
+                value={paidOn}
+                onChange={(v) => setPaidOn(v as "checking" | "card")}
+                options={[
+                  { value: "checking", label: "From checking" },
+                  ...(cards.length ? [{ value: "card", label: "On a card" }] : []),
+                ]}
+              />
+            </div>
+          ) : null}
+
+          {kind === "BILL" && paidOn === "card" ? (
+            <Field label="Which card" hint="Paying the card itself is its own card payoff." error={state.issues?.chargedToId}>
+              <Select name="chargedToId" defaultValue={defaults.chargedToId ?? cards[0]?.id ?? ""}>
+                {cards.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
+
+          {kind === "SETTLEMENT" && cards.length > 0 ? (
+            <Field label="Which card" hint="Payments reaching it are recorded here on their own, whatever the amount." error={state.issues?.paysCard}>
+              <Select name="paysCard" defaultValue={defaults.paysCard === "none" ? "auto" : defaults.paysCard}>
+                <option value="auto">Work it out from the bank</option>
+                {cards.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+          ) : null}
+
+          <Field
+            label={isIncome ? "Paid into" : kind === "BILL" && paidOn === "card" ? "The card is paid from" : "Paid from"}
+            error={state.issues?.paidFromId}
+          >
             <Select name="paidFromId" defaultValue={defaults.paidFromId ?? ""}>
               <option value="">—</option>
               {accounts.map((a) => (
@@ -356,26 +404,12 @@ export function LineItemForm({
             </Field>
           ) : null}
 
-          {!isIncome && cards.length > 0 ? (
-            <Field
-              label="Charged to"
-              hint="Reporting only — it does not change what must be in the bank."
-              error={state.issues?.chargedToId}
-            >
-              <Select name="chargedToId" defaultValue={defaults.chargedToId ?? ""}>
-                <option value="">—</option>
-                {cards.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </Select>
-            </Field>
-          ) : null}
         </div>
 
-        <div>
-          <span className="mb-1.5 block text-[13px] font-semibold">Half of the month</span>
+        <details className="rounded-xl border border-line p-4">
+          <summary className="cursor-pointer text-[13px] font-semibold">Half of the month</summary>
+          <span className="mt-1 block text-xs text-muted">Which half of the month view it shows in. Following the due day is right almost always.</span>
+          <div className="mt-2">
           <Segmented
             name="periodAssignment"
             defaultValue={defaults.periodAssignment}
@@ -385,9 +419,10 @@ export function LineItemForm({
               { value: "SECOND", label: "Second" },
             ]}
           />
-        </div>
+          </div>
+        </details>
 
-        {!isIncome ? (
+        {kind === "SETTLEMENT" ? (
           <Switch
             name="paidFromSurplus"
             defaultChecked={defaults.paidFromSurplus}
@@ -409,26 +444,18 @@ export function LineItemForm({
           </Field>
         ) : null}
 
-        {!isIncome && cards.length > 0 ? (
-          <Field
-            label="Pays a card"
-            hint={
-              defaults.paysCard === "auto" && defaults.paysCardLearned
-                ? `Worked out from the bank: ${defaults.paysCardLearned}. Payments reaching it are recorded here on their own.`
-                : "For a card payment: payments reaching that card are recorded here on their own, whatever the amount."
-            }
-            error={state.issues?.paysCard}
-          >
-            <Select name="paysCard" defaultValue={defaults.paysCard}>
-              <option value="auto">Work it out from the bank</option>
-              <option value="none">Not a card payment</option>
-              {cards.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </Select>
-          </Field>
+        {kind === "BILL" ? <input type="hidden" name="paysCard" value={notCard ? "none" : billPaysCard} /> : null}
+        {kind === "BILL" && billPaysCard !== "none" ? (
+          <div className="rounded-xl bg-warn-soft px-3.5 py-2.5 text-xs text-warn">
+            <p>
+              Payments for this reach a card{defaults.paysCardLearned ? ` (${defaults.paysCardLearned})` : ""}, so it&rsquo;s treated as paying that card. If
+              that&rsquo;s right, choose Card payoff above.
+            </p>
+            <label className="mt-2 flex items-center gap-2 font-semibold">
+              <input type="checkbox" checked={notCard} onChange={(e) => setNotCard(e.target.checked)} />
+              It&rsquo;s not a card payment; it&rsquo;s a bill
+            </label>
+          </div>
         ) : null}
 
         <Switch

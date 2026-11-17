@@ -3,6 +3,27 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.44.0]
+
+### Added
+- **Will checking cover it?** on Insights: checking day by day through the rest of this month and next.
+  Paydays add their pay; every bill paid from checking and each card's payment in full (this
+  statement, then what's been charged since) come out on their due dates, and the 0% card's monthly
+  payment on its own. A chart of the balance, the lowest point, and a warning ahead of any day it
+  would go below zero. Each paycheck lists the whole payments due before the next one.
+  `GET /api/v1/cash` for the phone.
+- **Make it a bill** on a charge (in the plan's transactions and in bill-category charges): a monthly
+  bill from that merchant's usual amount and day, tied to the merchant, with this charge recorded as
+  this month's payment. `POST /api/v1/bills/from-charge`.
+- Bills match charges in the **same category** too, so a bill whose name shares nothing with the
+  merchant (and whose amount varies) is still offered on Review.
+
+### Changed
+- **Simpler bill form.** A bill asks only how it's paid: from checking, or on a card (and which). A card
+  payoff asks which card and where it's paid from; "paid from what's left over" belongs to card
+  payoffs only. A bill the bank treats as a card payment says so, with a box to say it isn't.
+  "Half of the month" is tucked away.
+
 ## [0.43.0]
 
 Run the migrations (restart the container). Then, on Insights → Set up budgets, press **Start over

@@ -35,6 +35,23 @@ describe("suggestMatches", () => {
     expect(s[0]?.reason).toBe("confirmed before");
   });
 
+  it("matches a charge in the bill's category when the names share nothing and the amount varies", () => {
+    const s = suggestMatches(
+      [bill({ lineItemId: "health", name: "Health insurance", dueDay: 5, budgetedCents: 50_000, category: "Insurance" })],
+      [txn({ postedOn: "2026-11-02", amountCents: -51_000, merchant: "Neighborly Care Sharing", description: "NEIGHBORLY CARE", merchantKey: "k-care", category: "Insurance" })],
+      new Map(),
+      new Set(),
+    );
+    expect(s[0]).toMatchObject({ lineItemId: "health", reason: "category" });
+    const other = suggestMatches(
+      [bill({ lineItemId: "health", name: "Health insurance", dueDay: 5, budgetedCents: 50_000, category: "Insurance" })],
+      [txn({ postedOn: "2026-11-02", amountCents: -51_000, merchant: "Neighborly Care Sharing", description: "NEIGHBORLY CARE", merchantKey: "k-care", category: "Shopping" })],
+      new Map(),
+      new Set(),
+    );
+    expect(other).toEqual([]);
+  });
+
   it("offers an exact amount alone as a medium match", () => {
     const s = suggestMatches([bill({ name: "Car loan", budgetedCents: 68_940 })], [txn({ amountCents: -68_940, merchant: "Transfer", description: "XFER OUT 0005" })], new Map(), new Set());
     expect(s[0]).toMatchObject({ confidence: "medium", reason: "exact amount" });
