@@ -109,6 +109,8 @@ export interface MonthView {
   billsBalanceFromBank: boolean;
   /** The last good bank sync, when bank sync is connected. */
   bankSyncedAt: string | null;
+  /** When the bridge last got the bills account from the bank (its balance date). */
+  billsBankDataAt: string | null;
   billsAccountId: string | null;
   billsAccountName: string | null;
   /** Balance less the first half's remaining. */
@@ -217,10 +219,10 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   ];
   const [linkedBank, connection] = (await Promise.all([
     settings.billsAccountId
-      ? prisma.bankAccount.findFirst({ where: { linkedAccountId: settings.billsAccountId, hidden: false }, select: { id: true } })
+      ? prisma.bankAccount.findFirst({ where: { linkedAccountId: settings.billsAccountId, hidden: false }, select: { id: true, balanceDate: true } })
       : null,
     prisma.bankConnection.findUnique({ where: { id: "default" }, select: { lastSuccessAt: true } }),
-  ])) as [{ id: string } | null, { lastSuccessAt: Date | null } | null];
+  ])) as [{ id: string; balanceDate: Date | null } | null, { lastSuccessAt: Date | null } | null];
 
   const planMap = new Map(
     plans.map((p) => [
@@ -440,6 +442,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     billsBalanceAsOf: balance ? balance.asOf.toISOString() : null,
     billsBalanceFromBank: linkedBank !== null,
     bankSyncedAt: connection?.lastSuccessAt ? connection.lastSuccessAt.toISOString() : null,
+    billsBankDataAt: linkedBank?.balanceDate ? linkedBank.balanceDate.toISOString() : null,
     billsAccountId: settings.billsAccountId,
     billsAccountName: settings.billsAccountId
       ? (accountName.get(settings.billsAccountId) ?? null)

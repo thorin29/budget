@@ -3,6 +3,13 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.39.2]
+
+### Added
+- Settings → Bank sync lists "Bank data as of" for each account: when the bridge last got it from
+  the bank (SimpleFIN's balance date), flagged when over a day old.
+- The month view carries `billsBankDataAt`, the bills account's bank data date, for the phone.
+
 ## [0.39.1]
 
 ### Fixed

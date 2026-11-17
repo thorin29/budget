@@ -615,6 +615,31 @@ async function Bank() {
               </ul>
             </div>
           ) : null}
+          {accounts.some((a) => !a.hidden && !a.dormant) ? (
+            <div className="mt-4">
+              <h4 className="text-sm font-semibold">Bank data as of</h4>
+              <p className="mt-0.5 max-w-prose text-xs text-muted">
+                When the bridge last got each account from the bank. A sync here only picks up what the bridge already
+                has; the bridge itself checks each bank about once a day.
+              </p>
+              <ul className="mt-2 divide-y divide-line rounded-xl border border-line text-sm">
+                {accounts
+                  .filter((a) => !a.hidden && !a.dormant)
+                  .map((a) => {
+                    const stale = a.balanceDate ? Date.now() - a.balanceDate.getTime() > 36 * 3_600_000 : true;
+                    return (
+                      <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2">
+                        <span className="min-w-0 truncate">{a.institution ? `${a.institution} · ${a.displayName}` : a.displayName}</span>
+                        <span className={`text-xs ${stale ? "font-semibold text-warn" : "text-muted"}`}>
+                          {a.balanceDate ? stamp.format(a.balanceDate) : "not yet"}
+                          {stale && a.balanceDate ? " · over a day old" : ""}
+                        </span>
+                      </li>
+                    );
+                  })}
+              </ul>
+            </div>
+          ) : null}
           <div className="mt-4">
             <SyncControls />
           </div>
