@@ -125,14 +125,16 @@ model Category {
 /// Where an envelope stands in line for each pay period's income. Bills come
 /// first and are the plan's line items, not a tier here.
 enum EnvelopeTier {
-  /// Food, fuel, medical: protected; an overage draws on flexible money.
+  /// Needed every month (groceries, fuel). Guardrail kept back from safe to spend.
   ESSENTIAL
-  /// Giving, and save-ups for costs that come in lumps.
+  /// No longer used; read as UNPLANNED. Kept because Postgres can't drop an enum value.
   PLANNED
-  /// Wants. One shared pot: an envelope that runs over takes from the others.
+  /// Extras. Each guardrail's room is never more than what's safe to spend.
   FLEXIBLE
-  /// Paid through the plan's bills (step 1); the envelopes skip this spending.
+  /// Paid through the bills; spending in these categories isn't everyday spending.
   BILLS
+  /// Irregular costs (repairs, vet, medical). No guardrail and never averaged; they come out of the month when they happen.
+  UNPLANNED
 }
 
 /// A spending envelope: a group of categories with one limit per pay period.
@@ -142,7 +144,7 @@ model CategoryGroup {
   name      String       @unique
   tier      EnvelopeTier @default(FLEXIBLE)
   sortOrder Int          @default(0)
-  /// Per pay period, set by the person; null means automatic (from usual spending).
+  /// The month's guardrail, set by the person; null means automatic (usual spending, fitted to the month).
   limitCents        Int?
   /// Keeps what isn't spent, building toward a cost that comes in a lump.
   saveUp            Boolean   @default(false)

@@ -8,7 +8,8 @@
  *     set the day themselves.
  *  3. Records a payment on its own when the charge comes from a merchant
  *     already tied to the bill, around the due day, in the usual amount range
- *     (bills like utilities vary). Undo is on the Review page; a charge from a
+ *     (bills like utilities vary); or when it's the bill's amount to the cent
+ *     (at least $100), which also ties the merchant to the bill. Undo is on the Review page; a charge from a
  *     merchant it doesn't know yet still waits there for a Confirm.
  *  4. Card-payment bills: payments reaching the card are recorded for the
  *     month they pay, whatever the amount (src/server/card-bills.ts).
@@ -98,7 +99,10 @@ export async function learnDueDays(): Promise<number> {
 /** 3. Exact matches are recorded on their own. */
 export async function recordExactMatches(): Promise<number> {
   const { looksPaid } = await getReview();
-  const known = looksPaid.filter((s) => s.known);
+  const { isPeerPayment } = await import("@/lib/category-guess");
+  const sure = (s: (typeof looksPaid)[number]) =>
+    s.known || (s.kind !== "INCOME" && knownMatch({ knownMerchant: false, amountCents: s.amountCents, budgetedCents: s.budgetedCents, peerPayment: isPeerPayment(s.merchant) }));
+  const known = looksPaid.filter(sure);
   if (!known.length) return 0;
   const items = new Map(
     ((await prisma.lineItem.findMany({ where: { id: { in: known.map((k) => k.lineItemId) } }, select: { id: true, autoRecord: true } })) as Array<{ id: string; autoRecord: boolean }>).map((i) => [i.id, i]),
@@ -106,7 +110,6 @@ export async function recordExactMatches(): Promise<number> {
   let recorded = 0;
   for (const s of known) {
     if (!items.get(s.lineItemId)?.autoRecord) continue;
-    if (!knownMatch({ knownMerchant: s.known })) continue;
     await recordActual(s.lineItemId, s.year, s.month, s.amountCents, undefined, new Date(`${s.postedOn}T00:00:00Z`));
     await prisma.actualEntry.update({ where: { lineItemId_year_month: { lineItemId: s.lineItemId, year: s.year, month: s.month } }, data: { source: "auto" } });
     await linkActual(s.lineItemId, s.year, s.month, s.txnId, s.merchant);

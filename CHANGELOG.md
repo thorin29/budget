@@ -3,6 +3,45 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.43.0]
+
+Run the migrations (restart the container). Then, on Insights → Set up budgets, press **Start over
+with the suggested budgets** once, so the budgets match the new kinds. Delete these files if you copy
+the release over an older tree (they are emptied here): `src/lib/envelopes.ts`,
+`src/lib/__tests__/envelopes.test.ts`, `src/app/insights/envelopes.tsx`,
+`src/app/insights/plan-charts.tsx`, `src/app/api/v1/envelopes/route.ts`.
+
+### Changed
+- **The spending plan is monthly.** One pool per calendar month: money in, less every bill due that
+  month (whole, paid or not, plus unpaid ones carried from before) and the 0% debt payment. Pay
+  periods no longer slice the budget.
+- **Safe to spend** is the headline: what's left in the pool after everything spent and the essentials
+  still to come. An extra's room is never more than safe to spend, so an overspend anywhere (an
+  essential, a repair, another extra) shrinks every extra, even ones with no spending.
+- **Guardrails, not money.** Budgets have a monthly guardrail; nothing carries over, and save-ups are
+  gone. Automatic extras are scaled down together to fit the pool, and the gap is shown when usual
+  spending is bigger.
+- **Kinds of budget:** paid as bills, essential, extra and the new **unplanned** (irregular costs such as
+  repairs, the vet, medical, lessons and sports fees: no guardrail, never averaged). Planned is gone.
+  Giving and saving are paid as bills. Fuel is its own essential.
+- The debt payment is **monthly**: the bill for the 0% card, what was paid, or an amount you set. The
+  monthly payment that clears the balance before the offer ends is shown.
+- "Everything else" is now **Needs a budget**, and spending without a category shows under
+  **Needs sorting**; both count against the month.
+
+### Added
+- **How it adds up:** money in, bills, debt payment, pool, spent, left, essentials still to come and
+  safe to spend, each opening to its items (bills with paid, due and overdue).
+- Every budget opens to its categories and each category to its transactions.
+- **Can we afford it?** with several purchases at once, showing the new safe to spend and which extras
+  lose room.
+- Earlier months on Insights show their plan too.
+- A bank payment that is a bill's amount to the cent (at least $100) records the bill on its own.
+- `GET /api/v1/plan?month=YYYY-MM` for the phone. `GET /api/v1/envelopes` is gone.
+
+### Removed
+- The pay-period view, payday plan card and its charts (cash timing returns as its own check).
+
 ## [0.42.0]
 
 ### Added

@@ -5,8 +5,8 @@ import type { Suggestion } from "@/lib/insight-suggestions";
 import { getUpcoming } from "@/server/yearly";
 import { payoffTrackers, type PayoffTracker } from "@/server/card-payments";
 import { listPayoffs, type Payoff } from "@/server/payoff";
-import { getEnvelopes } from "@/server/envelopes";
-import { Envelopes } from "./envelopes";
+import { getMonthPlan } from "@/server/month-plan";
+import { MonthPlan } from "./month-plan";
 import { ComingUpRow } from "./coming-up";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, PageHeading, StatCard, buttonClass } from "@/components/ui";
@@ -117,9 +117,9 @@ function NetChart({ months, selected }: { months: MonthTotal[]; selected: number
         {months.map((m) => {
           const isSelected = m.year * 12 + m.month === selected;
           return (
-            <div key={`${m.year}-${m.month}`} className="flex-1">
-              <span className={`block text-xs ${isSelected ? "font-semibold text-foreground" : "text-muted"}`}>{monthLabel(m.year, m.month, "short")}</span>
-              <span className="tnum block text-[11px] text-muted">{whole(m.netCents)}</span>
+            <div key={`${m.year}-${m.month}`} className="min-w-0 flex-1">
+              <span className={`block truncate text-xs ${isSelected ? "font-semibold text-foreground" : "text-muted"}`}>{monthLabel(m.year, m.month, "short")}</span>
+              <span className="tnum hidden truncate text-[11px] text-muted sm:block">{whole(m.netCents)}</span>
             </div>
           );
         })}
@@ -238,9 +238,9 @@ function EverydayChart({ months, selected, pace }: { months: MonthTotal[]; selec
         {months.map((m) => {
           const isSelected = m.year * 12 + m.month === selected;
           return (
-            <div key={`${m.year}-${m.month}`} className="flex-1">
-              <span className={`block text-xs ${isSelected ? "font-semibold text-foreground" : "text-muted"}`}>{monthLabel(m.year, m.month, "short")}</span>
-              <span className="tnum block text-[11px] text-muted">{whole(m.everydayCents)}</span>
+            <div key={`${m.year}-${m.month}`} className="min-w-0 flex-1">
+              <span className={`block truncate text-xs ${isSelected ? "font-semibold text-foreground" : "text-muted"}`}>{monthLabel(m.year, m.month, "short")}</span>
+              <span className="tnum hidden truncate text-[11px] text-muted sm:block">{whole(m.everydayCents)}</span>
             </div>
           );
         })}
@@ -317,8 +317,8 @@ function Suggestions({ items }: { items: Suggestion[] }) {
   );
 }
 
-export default async function InsightsPage({ searchParams }: { searchParams: Promise<{ m?: string; view?: string }> }) {
-  const { m, view } = await searchParams;
+export default async function InsightsPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
+  const { m } = await searchParams;
   const now = today();
   const match = /^(\d{4})-(\d{2})$/.exec(m ?? "");
   const asked = match ? { year: Number(match[1]), month: Number(match[2]) } : now;
@@ -331,7 +331,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
     payoffTrackers(),
   ]);
   const payoffs = isNow ? await listPayoffs().catch(() => [] as Payoff[]) : [];
-  const envelopes = isNow ? await getEnvelopes(view === "month" ? "month" : "period").catch((error) => (console.error("Envelopes:", error), null)) : null;
+  const plan = await getMonthPlan(picked.year, picked.month).catch((error: unknown) => (console.error("Month plan:", error), null));
   const prev = shift(picked.year, picked.month, -1);
   const next = shift(picked.year, picked.month, 1);
   const atNow = picked.year === now.year && picked.month === now.month;
@@ -344,15 +344,11 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   return (
     <div className="space-y-6">
       <InsightsTabs active="spending" />
-      <PageHeading
-        title="Insights"
-        description="This pay period's spending plan first, then where the money went. Transfers between your accounts and money managed for others are left out."
-      />
-
-      {envelopes ? <Envelopes view={envelopes} /> : null}
-
-      <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-        <h2 className="font-heading text-xl font-bold tracking-tight">Looking back</h2>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <PageHeading
+          title="Insights"
+          description="The month's spending plan first, then where the money went. Transfers between your accounts and money managed for others are left out."
+        />
         <div className="flex items-center gap-1 rounded-xl border border-line bg-surface p-1 text-sm">
           <Link href={`/insights?m=${param(prev)}`} className="rounded-lg px-2.5 py-1 text-muted hover:bg-neutral-soft">
             ‹ {monthLabel(prev.year, prev.month, "short")}
@@ -367,6 +363,10 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
           )}
         </div>
       </div>
+
+      {plan ? <MonthPlan plan={plan} /> : null}
+
+      <h2 className="pt-2 font-heading text-xl font-bold tracking-tight">Looking back</h2>
 
       {!data.hasData ? (
         <EmptyState>

@@ -99,10 +99,13 @@ export function shouldMoveDueDay(current: number | null, learned: number | null)
 
 /**
  * Sure enough to record without asking: the charge comes from a merchant
- * already tied to the bill. The amount only has to be in the usual range
- * (60–140% of the plan, checked by the matcher), because bills like
- * utilities change every month.
+ * already tied to the bill (the amount only has to be in the usual range,
+ * 60–140% of the plan, checked by the matcher, because bills like utilities
+ * change every month), or it is the bill's amount to the cent, at least $100,
+ * and not a payment app (which carries unrelated payments).
  */
-export function knownMatch(input: { knownMerchant: boolean }): boolean {
-  return input.knownMerchant;
+export function knownMatch(input: { knownMerchant: boolean; amountCents?: number; budgetedCents?: number; peerPayment?: boolean }): boolean {
+  if (input.knownMerchant) return true;
+  const { amountCents, budgetedCents } = input;
+  return !input.peerPayment && amountCents !== undefined && budgetedCents !== undefined && budgetedCents >= 10_000 && Math.abs(amountCents) === budgetedCents;
 }

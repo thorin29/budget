@@ -1,6 +1,6 @@
 "use server";
 
-/** Envelope actions: limits, the debt payment, and how categories are grouped. Each checks its caller first. */
+/** Budget actions: guardrails, the debt payment, and how categories are grouped. Each checks its caller first. */
 
 import { revalidatePath } from "next/cache";
 import { requireUser, UnauthorizedError } from "@/server/auth";
@@ -28,23 +28,23 @@ async function run(work: () => Promise<unknown>, message?: string): Promise<Enve
 }
 
 export async function setLimitsAction(limits: Record<string, number | null>): Promise<EnvelopeState> {
-  return run(() => setLimits(limits), "Limits saved.");
+  return run(() => setLimits(limits), "Guardrails saved.");
 }
 
 export async function resetLimitsAction(): Promise<EnvelopeState> {
-  return run(() => resetLimits(), "Limits are automatic again.");
+  return run(() => resetLimits(), "Guardrails are automatic again.");
 }
 
 export async function setDebtPaymentAction(cents: number | null): Promise<EnvelopeState> {
   return run(() => setDebtPayment(cents), "Saved.");
 }
 
-export async function saveGroupAction(input: { id?: string; name: string; tier: string; saveUp: boolean; saveUpTargetCents: number | null }): Promise<EnvelopeState> {
+export async function saveGroupAction(input: { id?: string; name: string; tier: string }): Promise<EnvelopeState> {
   return run(() => saveGroup(input), "Saved.");
 }
 
 export async function deleteGroupAction(id: string): Promise<EnvelopeState> {
-  return run(() => deleteGroup(String(id)), "Removed. Its categories moved to Everything else.");
+  return run(() => deleteGroup(String(id)), "Removed. Its categories need a budget again.");
 }
 
 export async function setCategoryGroupAction(categoryId: string, groupId: string | null): Promise<EnvelopeState> {

@@ -55,4 +55,10 @@ describe("knownMatch", () => {
     expect(knownMatch({ knownMerchant: true })).toBe(true);
     expect(knownMatch({ knownMerchant: false })).toBe(false);
   });
+  it("records an exact-to-the-cent payment of a larger bill from a new merchant", () => {
+    expect(knownMatch({ knownMerchant: false, amountCents: 105_000, budgetedCents: 105_000 })).toBe(true);
+    expect(knownMatch({ knownMerchant: false, amountCents: 101_000, budgetedCents: 105_000 })).toBe(false);
+    expect(knownMatch({ knownMerchant: false, amountCents: 5_000, budgetedCents: 5_000 })).toBe(false);
+    expect(knownMatch({ knownMerchant: false, amountCents: 105_000, budgetedCents: 105_000, peerPayment: true })).toBe(false);
+  });
 });

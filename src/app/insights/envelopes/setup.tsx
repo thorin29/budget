@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import type { EnvelopeSetup } from "@/server/envelopes";
-import type { GroupTier as Tier } from "@/lib/envelopes";
+type Tier = "ESSENTIAL" | "FLEXIBLE" | "UNPLANNED" | "BILLS";
 import { Button, Card, CONTROL, Select } from "@/components/ui";
 import {
   deleteGroupAction,
@@ -15,8 +15,8 @@ import {
 
 const TIERS: Array<{ value: Tier; label: string }> = [
   { value: "ESSENTIAL", label: "Essential" },
-  { value: "PLANNED", label: "Planned" },
-  { value: "FLEXIBLE", label: "Flexible" },
+  { value: "FLEXIBLE", label: "Extra" },
+  { value: "UNPLANNED", label: "Unplanned" },
   { value: "BILLS", label: "Paid as bills" },
 ];
 const dollars = (cents: number | null) =>
@@ -39,15 +39,9 @@ function GroupCard({
   onDone: (s: EnvelopeState) => void;
 }) {
   const [name, setName] = useState(group.name);
-  const [tier, setTier] = useState<Tier>(group.tier);
-  const [saveUp, setSaveUp] = useState(group.saveUp);
-  const [target, setTarget] = useState(dollars(group.saveUpTargetCents));
+  const [tier, setTier] = useState<Tier>(group.tier as Tier);
   const [pending, start] = useTransition();
-  const changed =
-    name !== group.name ||
-    tier !== group.tier ||
-    saveUp !== group.saveUp ||
-    target !== dollars(group.saveUpTargetCents);
+  const changed = name !== group.name || tier !== group.tier;
   return (
     <Card>
       <div className="grid gap-2 sm:grid-cols-[1fr_9rem]">
@@ -69,26 +63,6 @@ function GroupCard({
           ))}
         </Select>
       </div>
-      <label className="mt-2 flex flex-wrap items-center gap-2 text-sm">
-        <input
-          type="checkbox"
-          checked={saveUp}
-          onChange={(e) => setSaveUp(e.target.checked)}
-        />
-        Save-up: keeps what isn&rsquo;t spent, for a cost that comes in a lump
-        {saveUp ? (
-          <span className="w-28">
-            <input
-              aria-label="Target"
-              className={CONTROL}
-              inputMode="decimal"
-              placeholder="target $"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-            />
-          </span>
-        ) : null}
-      </label>
       <ul className="mt-3 space-y-1.5">
         {group.categories.length ? (
           group.categories.map((c) => (
@@ -118,7 +92,7 @@ function GroupCard({
                       {g.name}
                     </option>
                   ))}
-                  <option value="">Everything else</option>
+                  <option value="">Needs a budget</option>
                 </Select>
               </span>
             </li>
@@ -138,8 +112,6 @@ function GroupCard({
                   id: group.id,
                   name,
                   tier,
-                  saveUp,
-                  saveUpTargetCents: saveUp ? toCents(target) : null,
                 }),
               ),
             )
@@ -170,8 +142,7 @@ export function EnvelopeSetupForm({
   debt: {
     cents: number;
     automatic: boolean;
-    neededCents: number | null;
-    byPayday: boolean;
+    targetCents: number | null;
   };
 }) {
   const [state, setState] = useState<EnvelopeState | null>(null);
@@ -181,7 +152,6 @@ export function EnvelopeSetupForm({
   );
   const [newName, setNewName] = useState("");
   const [newTier, setNewTier] = useState<Tier>("FLEXIBLE");
-  const each = debt.byPayday ? "payday" : "month";
   return (
     <div className="space-y-4">
       {state?.message ? (
@@ -193,12 +163,12 @@ export function EnvelopeSetupForm({
       ) : null}
 
       <Card>
-        <h2 className="text-base font-bold">Debt payment each {each}</h2>
+        <h2 className="text-base font-bold">0% debt payment each month</h2>
         <p className="mt-0.5 max-w-prose text-xs text-muted">
-          Set aside before any flexible spending. Leave it empty to use the
-          plan&rsquo;s payments (${dollars(debt.cents) || "0"} now).
-          {debt.neededCents
-            ? ` Clearing the 0% balance in time takes $${dollars(debt.neededCents)} each ${each}.`
+          Comes off the top with the bills. Leave it empty to use the bill for
+          that card (${dollars(debt.cents) || "0"} this month).
+          {debt.targetCents
+            ? ` Clearing the balance before the offer ends takes $${dollars(debt.targetCents)} a month.`
             : ""}
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -230,8 +200,8 @@ export function EnvelopeSetupForm({
         <Card>
           <h2 className="text-base font-bold">Not in a budget yet</h2>
           <p className="mt-0.5 text-xs text-muted">
-            These count under Everything else, a flexible budget, until you
-            place them.
+            Their spending counts against the month, with no guardrail, until
+            you place them.
           </p>
           <ul className="mt-3 space-y-1.5">
             {setup.ungrouped.map((c) => (
@@ -256,7 +226,7 @@ export function EnvelopeSetupForm({
                       )
                     }
                   >
-                    <option value="">Everything else</option>
+                    <option value="">Needs a budget</option>
                     {setup.groups.map((g) => (
                       <option key={g.id} value={g.id}>
                         {g.name}
@@ -273,7 +243,7 @@ export function EnvelopeSetupForm({
       <div className="grid gap-4 lg:grid-cols-2">
         {setup.groups.map((g) => (
           <GroupCard
-            key={`${g.id}:${g.name}:${g.tier}:${g.saveUp}:${g.saveUpTargetCents}:${g.categories.length}`}
+            key={`${g.id}:${g.name}:${g.tier}:${g.categories.length}`}
             group={g}
             groups={setup.groups}
             onDone={setState}
@@ -284,11 +254,12 @@ export function EnvelopeSetupForm({
       <Card>
         <h2 className="text-base font-bold">Kinds of budget</h2>
         <ul className="mt-2 space-y-1 text-sm text-muted">
-          <li><b className="text-foreground">Essential</b>: protected; what isn&rsquo;t used stays for a later pay period.</li>
-          <li><b className="text-foreground">Planned</b>: giving and other spending you plan for.</li>
-          <li><b className="text-foreground">Flexible</b>: one shared pot; a budget that runs over takes from the others.</li>
-          <li><b className="text-foreground">Paid as bills</b>: these categories are paid through the plan&rsquo;s bills, so the budgets skip them.</li>
+          <li><b className="text-foreground">Essential</b>: needed every month (groceries, fuel). What its guardrail hasn&rsquo;t spent yet is held back from safe to spend.</li>
+          <li><b className="text-foreground">Extra</b>: everything you could say no to. Each one&rsquo;s room is never more than what&rsquo;s safe to spend.</li>
+          <li><b className="text-foreground">Unplanned</b>: irregular costs like repairs, the vet or lessons. No guardrail and never averaged; they come out of the month they happen. Known ones can be scheduled as a bill in their month.</li>
+          <li><b className="text-foreground">Paid as bills</b>: these categories are paid through the bills, so they aren&rsquo;t everyday spending.</li>
         </ul>
+        <p className="mt-2 text-xs text-muted">Guardrails aren&rsquo;t money: what one doesn&rsquo;t spend isn&rsquo;t something to use up, and nothing carries over.</p>
         <div className="mt-3">
           <Button
             type="button"
@@ -336,8 +307,6 @@ export function EnvelopeSetupForm({
                 const r = await saveGroupAction({
                   name: newName,
                   tier: newTier,
-                  saveUp: false,
-                  saveUpTargetCents: null,
                 });
                 if (r.ok) setNewName("");
                 setState(r);
