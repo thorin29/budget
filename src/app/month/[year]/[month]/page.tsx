@@ -1,5 +1,5 @@
 import { cardOverview } from "@/server/card-payments";
-import { CardDeck } from "../../card-deck";
+import { CardDeck, CardTable, type DeckCard } from "../../card-deck";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
@@ -79,6 +79,26 @@ export default async function MonthPage({
   const isCurrent = year === now.getFullYear() && month === now.getMonth() + 1;
 
   const cards = isCurrent ? await cardOverview(today) : null;
+  const deckCards: DeckCard[] = (cards?.rows ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    institution: r.institution,
+    lastDigits: r.lastDigits,
+    color: r.color,
+    owedNowCents: r.owedNowCents,
+    status: r.status
+      ? {
+          nextDue: r.status.nextDue,
+          dueCents: r.status.dueCents,
+          statementCents: r.status.statementCents,
+          suggestedCents: r.status.suggestedCents,
+          newChargesCents: r.status.newChargesCents,
+          plan: r.status.plan,
+          paymentsLeft: r.status.paymentsLeft,
+          promoEndsOn: r.status.promoEndsOn,
+        }
+      : null,
+  }));
   const daysUntil = (iso: string) => Math.round((Date.parse(`${iso}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86_400_000);
   const longDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
@@ -206,7 +226,7 @@ export default async function MonthPage({
       </header>
 
       {/* ------------------------------------------------ summary cards */}
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className={`mt-6 grid gap-4 sm:grid-cols-2 ${deckCards.length ? "xl:grid-cols-[repeat(3,minmax(0,1fr))_minmax(330px,1.25fr)]" : "xl:grid-cols-4"}`}>
         {view.billsAccountId === null ? (
           <div className="rounded-2xl border border-dashed border-line-strong bg-surface p-5 text-sm">
             <p className="font-semibold">Pick a bills account</p>
@@ -248,19 +268,11 @@ export default async function MonthPage({
           detail={`${formatCents(view.totalRemainingCents)} still owed this month`}
         />
 
-        {cards && cards.rows.length ? (
-          <a href="#cards" className="block rounded-2xl outline-offset-4 transition hover:brightness-105">
-            <StatCard
-              tone="hero"
-              label="Cards"
-              value={formatCents(cards.totalOwedCents)}
-              detail={
-                cards.nextDue
-                  ? `owed now · ${formatCents(cards.payThisCycleCents)} to pay this cycle · next due ${shortDate(cards.nextDue)}`
-                  : "owed now across your cards"
-              }
-            />
-          </a>
+        {cards && deckCards.length ? (
+          <CardDeck
+            summary={{ totalOwedCents: cards.totalOwedCents, payThisCycleCents: cards.payThisCycleCents, nextDue: cards.nextDue }}
+            cards={deckCards}
+          />
         ) : (
           <StatCard
             tone="hero"
@@ -289,31 +301,7 @@ export default async function MonthPage({
               sections={sections}
               footer={{ paidCents: paidOf(billRows), budgetedCents: budgetOf(billRows) }}
             />
-            {cards && cards.rows.length ? (
-              <CardDeck
-                summary={{ totalOwedCents: cards.totalOwedCents, payThisCycleCents: cards.payThisCycleCents, nextDue: cards.nextDue }}
-                cards={cards.rows.map((r) => ({
-                  id: r.id,
-                  name: r.name,
-                  institution: r.institution,
-                  lastDigits: r.lastDigits,
-                  color: r.color,
-                  owedNowCents: r.owedNowCents,
-                  status: r.status
-                    ? {
-                        nextDue: r.status.nextDue,
-                        dueCents: r.status.dueCents,
-                        statementCents: r.status.statementCents,
-                        suggestedCents: r.status.suggestedCents,
-                        newChargesCents: r.status.newChargesCents,
-                        plan: r.status.plan,
-                        paymentsLeft: r.status.paymentsLeft,
-                        promoEndsOn: r.status.promoEndsOn,
-                      }
-                    : null,
-                }))}
-              />
-            ) : null}
+            {cards && deckCards.length ? <CardTable cards={deckCards} /> : null}
           </div>
 
           <aside className="space-y-4 xl:sticky xl:top-7">

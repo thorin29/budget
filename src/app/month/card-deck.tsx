@@ -1,9 +1,17 @@
 "use client";
 
 /**
- * Cards as a stack, like a wallet: a summary card on top, then each card in the
- * color the person picked. Tap the top card, use the arrows or ← →, or swipe,
- * and the top card moves to the back. A List view shows them side by side.
+ * Cards, two ways:
+ *
+ *  - CardDeck: a wallet-style stack for the top of the month. The summary card
+ *    sits in front and the rest fan out to the side, each in the color the
+ *    person picked. Tap, swipe or press ← → and the front card slides out and
+ *    tucks in at the back.
+ *  - CardTable: every card side by side, for the bottom of the month.
+ *
+ * Each face leads with what to pay this cycle, then the running tally: the
+ * whole balance, the part on the current statement, and what has built up
+ * since it closed (headed for the next one).
  */
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -39,251 +47,257 @@ export interface DeckSummary {
 const faceName = (name: string) => name.replace(/[\s\-–]*\(?\.{0,3}\d{3,4}\)?\s*$/, "").trim() || name;
 const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 const long = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+const money = (cents: number) => formatCents(cents);
+const whole = (cents: number) => formatCents(Math.round(cents / 100) * 100).replace(/\.00$/, "");
 
-function payLine(c: DeckCard): string {
-  const s = c.status;
-  if (!s) return "Add its closing and due days on Accounts";
-  if (s.plan === "paid") return `Statement covered · next due ${short(s.nextDue)}`;
-  return `Pay ${formatCents(s.suggestedCents)} by ${short(s.nextDue)}`;
-}
-
-function note(c: DeckCard): string | null {
-  const s = c.status;
-  if (!s) return null;
-  if (s.plan === "payoff" && s.promoEndsOn && s.paymentsLeft !== null) return `0% ends ${long(s.promoEndsOn)} · ${s.paymentsLeft} payments left`;
-  return `New since statement ${formatCents(s.newChargesCents)}`;
-}
-
-/** A generic chip, drawn so the face reads as a card. */
-function Chip({ dark }: { dark: boolean }) {
+/** Balance = on the statement + since the statement (less any payments already made). */
+function Tally({ items, soft }: { items: Array<[string, number | null]>; soft: string }) {
   return (
-    <span
-      aria-hidden
-      className={`block h-7 w-10 rounded-md border ${dark ? "border-black/20 bg-black/10" : "border-white/30 bg-white/20"}`}
-      style={{ backgroundImage: "linear-gradient(90deg, transparent 45%, currentColor 45%, currentColor 55%, transparent 55%)", opacity: 0.6 }}
-    />
+    <div className="grid grid-cols-3 gap-2">
+      {items.map(([label, cents]) => (
+        <span key={label} className="min-w-0">
+          <span className={`block truncate text-[10px] uppercase tracking-wide ${soft}`}>{label}</span>
+          <span className="tnum block truncate text-xs font-semibold">{cents === null ? "—" : whole(cents)}</span>
+        </span>
+      ))}
+    </div>
   );
 }
 
-function Face({ card, summary, count }: { card: DeckCard | null; summary: DeckSummary; count: number }) {
-  if (!card) {
-    return (
-      <div className="flex h-full flex-col justify-between bg-hero p-5 text-hero-text">
-        <div className="flex items-start justify-between">
-          <span className="text-sm font-semibold">All cards</span>
-          <span className="text-xs text-hero-muted">{count} {count === 1 ? "card" : "cards"}</span>
-        </div>
-        <div>
-          <p className="text-xs text-hero-muted">Owed now</p>
-          <p className="tnum text-[28px] font-bold leading-tight">{formatCents(summary.totalOwedCents)}</p>
-        </div>
-        <div className="flex items-end justify-between gap-3 text-sm">
-          <span>
-            <span className="block text-xs text-hero-muted">Pay this cycle</span>
-            <span className="tnum font-semibold">{formatCents(summary.payThisCycleCents)}</span>
-          </span>
-          {summary.nextDue ? (
-            <span className="text-right">
-              <span className="block text-xs text-hero-muted">Next due</span>
-              <span className="font-semibold">{short(summary.nextDue)}</span>
-            </span>
-          ) : null}
-        </div>
+function SummaryFace({ summary, cards }: { summary: DeckSummary; cards: DeckCard[] }) {
+  const onStatements = cards.reduce((s, c) => s + (c.status?.dueCents ?? 0), 0);
+  const since = cards.reduce((s, c) => s + (c.status?.newChargesCents ?? 0), 0);
+  return (
+    <div className="flex h-full flex-col justify-between bg-hero p-4 text-hero-text">
+      <div className="flex items-start justify-between gap-2">
+        <span className="text-sm font-semibold">All cards</span>
+        <span className="text-[11px] text-hero-muted">{cards.length} {cards.length === 1 ? "card" : "cards"}</span>
       </div>
-    );
-  }
+      <div>
+        <p className="text-[11px] text-hero-muted">To pay this cycle{summary.nextDue ? ` · next ${short(summary.nextDue)}` : ""}</p>
+        <p className="tnum text-[26px] font-bold leading-tight">{money(summary.payThisCycleCents)}</p>
+      </div>
+      <Tally soft="text-hero-muted" items={[["Balance", summary.totalOwedCents], ["Statements", onStatements], ["New", since]]} />
+    </div>
+  );
+}
+
+function CardFace({ card }: { card: DeckCard }) {
   const color = cardColor(card.color);
   const dark = color.ink === "dark";
   const ink = dark ? "text-[#15181d]" : "text-white";
   const soft = dark ? "text-black/60" : "text-white/70";
+  const s = card.status;
+  const lead = !s
+    ? { label: "Balance", cents: card.owedNowCents }
+    : s.plan === "paid"
+      ? { label: `Nothing due · next ${short(s.nextDue)}`, cents: 0 }
+      : { label: `${s.plan === "payoff" ? "Payoff payment" : "Pay"} by ${short(s.nextDue)}`, cents: s.suggestedCents };
   return (
-    <div className={`flex h-full flex-col justify-between p-5 ${ink}`} style={{ background: color.background }}>
-      <div className="flex items-start justify-between gap-3">
-        <span className="min-w-0 truncate text-base font-semibold tracking-wide">{faceName(card.name)}</span>
-        <span className={`shrink-0 text-xs ${soft}`}>{card.institution ?? ""}</span>
+    <div className={`flex h-full flex-col justify-between p-4 ${ink}`} style={{ background: color.background }}>
+      <div className="flex items-start justify-between gap-2">
+        <span className="min-w-0 truncate text-sm font-semibold tracking-wide">{faceName(card.name)}</span>
+        {card.lastDigits ? <span className={`tnum shrink-0 text-[11px] ${soft}`}>•••• {card.lastDigits}</span> : null}
       </div>
-      <div className="flex items-end justify-between gap-3">
+      <div>
+        <p className={`truncate text-[11px] ${soft}`}>{lead.label}</p>
+        <p className="tnum text-[26px] font-bold leading-tight">{money(lead.cents)}</p>
+      </div>
+      {s ? (
         <div>
-          <p className={`text-xs ${soft}`}>Owed now</p>
-          <p className="tnum text-[28px] font-bold leading-tight">{formatCents(card.owedNowCents)}</p>
+          <Tally soft={soft} items={[["Balance", card.owedNowCents], ["Statement", s.dueCents], ["New", s.newChargesCents]]} />
+          {s.plan === "payoff" && s.promoEndsOn && s.paymentsLeft !== null ? (
+            <p className={`mt-1 truncate text-[10px] ${soft}`}>0% until {long(s.promoEndsOn)} · {s.paymentsLeft} payments left</p>
+          ) : null}
         </div>
-        <Chip dark={dark} />
-      </div>
-      <div className="flex items-end justify-between gap-3">
-        <span className="min-w-0">
-          <span className="block truncate text-sm font-semibold">{payLine(card)}</span>
-          {note(card) ? <span className={`block truncate text-xs ${soft}`}>{note(card)}</span> : null}
-        </span>
-        {card.lastDigits ? <span className={`tnum shrink-0 text-xs ${soft}`}>•••• {card.lastDigits}</span> : null}
-      </div>
+      ) : (
+        <p className={`text-[11px] ${soft}`}>Add its closing and due days on Accounts</p>
+      )}
     </div>
   );
 }
+
+/** How far each card behind the front one sits to the side. */
+const FAN = 16;
+const EASE = "cubic-bezier(0.22, 0.9, 0.24, 1)";
 
 export function CardDeck({ cards, summary }: { cards: DeckCard[]; summary: DeckSummary }) {
   // Position 0 is the summary; 1..n are the cards.
   const total = cards.length + 1;
   const [order, setOrder] = useState(() => Array.from({ length: total }, (_, i) => i));
-  const [leaving, setLeaving] = useState(false);
-  const [view, setView] = useState<"stack" | "list">("stack");
+  const [phase, setPhase] = useState<"rest" | "out" | "in">("rest");
+  const [direction, setDirection] = useState<1 | -1>(1);
   const start = useRef<number | null>(null);
+  const busy = phase !== "rest";
 
+  useEffect(() => setOrder(Array.from({ length: total }, (_, i) => i)), [total]);
+
+  /** The front card slides out, then tucks in at the back while the others step forward. */
   const next = useCallback(() => {
-    if (leaving) return;
-    setLeaving(true);
+    if (busy || total < 2) return;
+    setDirection(1);
+    setPhase("out");
     setTimeout(() => {
       setOrder((o) => [...o.slice(1), o[0]]);
-      setLeaving(false);
-    }, 220);
-  }, [leaving]);
-  const prev = useCallback(() => setOrder((o) => [o[o.length - 1], ...o.slice(0, -1)]), []);
+      setPhase("in");
+      setTimeout(() => setPhase("rest"), 380);
+    }, 230);
+  }, [busy, total]);
 
-  useEffect(() => {
-    setOrder(Array.from({ length: total }, (_, i) => i));
-  }, [total]);
+  /** The back card slides out and comes round to the front. */
+  const prev = useCallback(() => {
+    if (busy || total < 2) return;
+    setDirection(-1);
+    setOrder((o) => [o[o.length - 1], ...o.slice(0, -1)]);
+    setPhase("out");
+    setTimeout(() => {
+      setPhase("in");
+      setTimeout(() => setPhase("rest"), 380);
+    }, 30);
+  }, [busy, total]);
 
-  const top = order[0];
+  const front = order[0];
+  const behind = Math.min(total - 1, 3);
 
   return (
-    <section id="cards" className="scroll-mt-6 rounded-2xl border border-line bg-surface p-5 shadow-card">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold">Cards</h2>
-        <div className="flex items-center gap-1 rounded-lg bg-neutral-soft p-0.5 text-xs font-semibold">
-          {(["stack", "list"] as const).map((v) => (
-            <button
-              key={v}
-              type="button"
-              onClick={() => setView(v)}
-              className={`rounded-md px-2.5 py-1 ${view === v ? "bg-surface text-foreground shadow-card" : "text-muted"}`}
+    <div className="flex flex-col gap-2">
+      <div
+        id="card-stack"
+        role="group"
+        aria-roledescription="card stack"
+        aria-label="Cards: tap, swipe or use the arrow keys to flip through"
+        tabIndex={0}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") {
+            e.preventDefault();
+            next();
+          } else if (e.key === "ArrowLeft") {
+            e.preventDefault();
+            prev();
+          }
+        }}
+        onPointerDown={(e) => (start.current = e.clientX)}
+        onPointerUp={(e) => {
+          const dx = start.current === null ? 0 : e.clientX - start.current;
+          start.current = null;
+          if (dx > 40) prev();
+          else next();
+        }}
+        className="relative cursor-pointer select-none rounded-2xl outline-offset-4 touch-pan-y"
+        style={{ marginRight: `${behind * FAN}px` }}
+      >
+        <div style={{ aspectRatio: "1.586" }} />
+        {order.map((cardIndex, depth) => {
+          const card = cardIndex === 0 ? null : cards[cardIndex - 1];
+          // The card leaving the front swings out beside the stack before it goes to the back.
+          const leaving = phase === "out" && direction === 1 && depth === 0;
+          const arriving = phase === "out" && direction === -1 && depth === 0;
+          const x = leaving || arriving ? 70 : 0;
+          const transform =
+            leaving || arriving
+              ? `translateX(${x}%) rotate(${direction * 5}deg)`
+              : `translateX(${Math.min(depth, 3) * FAN}px) scale(${1 - Math.min(depth, 3) * 0.035})`;
+          return (
+            <div
+              key={cardIndex}
+              aria-hidden={depth !== 0}
+              className="absolute inset-0 origin-left overflow-hidden rounded-2xl shadow-[0_8px_22px_-10px_rgba(0,0,0,0.5)]"
+              style={{
+                transform,
+                opacity: depth > 3 ? 0 : 1,
+                zIndex: total - depth,
+                transition: arriving ? "none" : `transform 380ms ${EASE}, opacity 380ms ${EASE}`,
+              }}
             >
-              {v === "stack" ? "Stack" : "List"}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {view === "stack" ? (
-        <div className="mt-4 flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:gap-8">
-          <div
-            role="group"
-            aria-roledescription="card stack"
-            aria-label="Cards"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "ArrowRight" || e.key === " " || e.key === "Enter") {
-                e.preventDefault();
-                next();
-              } else if (e.key === "ArrowLeft") {
-                e.preventDefault();
-                prev();
-              }
-            }}
-            onPointerDown={(e) => (start.current = e.clientX)}
-            onPointerUp={(e) => {
-              const dx = start.current === null ? 0 : e.clientX - start.current;
-              start.current = null;
-              if (dx < -40) next();
-              else if (dx > 40) prev();
-              else next();
-            }}
-            className="relative w-full max-w-[340px] cursor-pointer select-none rounded-2xl outline-offset-4 touch-pan-y"
-            style={{ aspectRatio: "1.586", marginBottom: `${Math.min(total - 1, 3) * 10}px` }}
-          >
-            {order
-              .map((cardIndex, depth) => ({ cardIndex, depth }))
-              .reverse()
-              .map(({ cardIndex, depth }) => {
-                const card = cardIndex === 0 ? null : cards[cardIndex - 1];
-                const lifting = depth === 0 && leaving;
-                const shown = depth <= 3;
-                return (
-                  <div
-                    key={cardIndex}
-                    aria-hidden={depth !== 0}
-                    className="absolute inset-0 overflow-hidden rounded-2xl shadow-[0_10px_24px_-12px_rgba(0,0,0,0.45)] transition-[transform,opacity] duration-200 ease-out"
-                    style={{
-                      transform: lifting
-                        ? "translateY(-18px) rotate(-3deg) scale(1.02)"
-                        : `translateY(${depth * 10}px) scale(${1 - depth * 0.04})`,
-                      opacity: lifting ? 0 : shown ? 1 : 0,
-                      zIndex: total - depth,
-                    }}
-                  >
-                    <Face card={card} summary={summary} count={cards.length} />
-                  </div>
-                );
-              })}
-          </div>
-
-          <div className="w-full min-w-0 flex-1 text-sm">
-            <div className="flex items-center gap-2">
-              <button type="button" onClick={prev} aria-label="Previous card" className="rounded-lg border border-line px-2.5 py-1 hover:bg-neutral-soft">
-                ‹
-              </button>
-              <button type="button" onClick={next} aria-label="Next card" className="rounded-lg border border-line px-2.5 py-1 hover:bg-neutral-soft">
-                ›
-              </button>
-              <span className="ml-1 flex gap-1.5" aria-hidden>
-                {Array.from({ length: total }, (_, i) => (
-                  <span key={i} className={`h-1.5 w-1.5 rounded-full ${i === top ? "bg-accent" : "bg-line-strong"}`} />
-                ))}
-              </span>
+              {card ? <CardFace card={card} /> : <SummaryFace summary={summary} cards={cards} />}
             </div>
-            <p className="mt-3 text-xs text-muted">
-              Tap the card, swipe, or use ← → to flip through. Pick each card&rsquo;s color on the Accounts page.
-            </p>
-            {top !== 0 && cards[top - 1]?.status ? (
-              <dl className="mt-3 grid grid-cols-2 gap-x-4 gap-y-2">
-                <dt className="text-muted">Statement</dt>
-                <dd className="tnum text-right">{formatCents(cards[top - 1].status!.statementCents)}</dd>
-                <dt className="text-muted">Left to pay on it</dt>
-                <dd className="tnum text-right">{formatCents(cards[top - 1].status!.dueCents)}</dd>
-                <dt className="text-muted">New since statement</dt>
-                <dd className="tnum text-right">{formatCents(cards[top - 1].status!.newChargesCents)}</dd>
-              </dl>
-            ) : null}
-          </div>
-        </div>
-      ) : (
-        <div className="mt-3 overflow-x-auto">
-          <table className="w-full min-w-[600px] text-sm">
-            <thead>
-              <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted">
-                <th className="py-2 pr-3 font-semibold">Card</th>
-                <th className="px-3 py-2 text-right font-semibold">Owed now</th>
-                <th className="px-3 py-2 text-right font-semibold">Statement left</th>
-                <th className="px-3 py-2 text-right font-semibold">New since</th>
-                <th className="py-2 pl-3 text-right font-semibold">Pay</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line">
-              {cards.map((c) => (
+          );
+        })}
+      </div>
+      <div className="flex items-center justify-center gap-1.5" aria-hidden>
+        {Array.from({ length: total }, (_, i) => (
+          <span key={i} className={`h-1.5 rounded-full transition-all duration-300 ${i === front ? "w-4 bg-accent" : "w-1.5 bg-line-strong"}`} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export function CardTable({ cards }: { cards: DeckCard[] }) {
+  return (
+    <section id="cards" className="scroll-mt-6 rounded-2xl border border-line bg-surface shadow-card">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-5">
+        <h2 className="text-base font-bold">Cards</h2>
+        <a href="/accounts" className="text-xs font-semibold text-accent-text hover:underline">
+          Days and colors
+        </a>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="mt-3 w-full min-w-[640px] text-sm">
+          <thead>
+            <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted">
+              <th className="px-5 py-2 font-semibold">Card</th>
+              <th className="px-3 py-2 text-right font-semibold">Balance</th>
+              <th className="px-3 py-2 text-right font-semibold">On statement</th>
+              <th className="px-3 py-2 text-right font-semibold">Since statement</th>
+              <th className="px-5 py-2 text-right font-semibold">Pay this cycle</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-line">
+            {cards.map((c) => {
+              const s = c.status;
+              return (
                 <tr key={c.id} className="align-top">
-                  <td className="py-2.5 pr-3">
+                  <td className="px-5 py-3">
                     <span className="flex items-center gap-2 font-semibold">
-                      <span aria-hidden className="h-3 w-5 rounded-sm" style={{ background: cardColor(c.color).background }} />
+                      <span aria-hidden className="h-3.5 w-5 shrink-0 rounded-[3px]" style={{ background: cardColor(c.color).background }} />
                       {faceName(c.name)}
                     </span>
+                    <span className="block pl-7 text-xs text-muted">{c.institution ?? ""}</span>
                   </td>
-                  <td className="tnum px-3 py-2.5 text-right">{formatCents(c.owedNowCents)}</td>
-                  <td className="tnum px-3 py-2.5 text-right">{c.status ? formatCents(c.status.dueCents) : "—"}</td>
-                  <td className="tnum px-3 py-2.5 text-right">{c.status ? formatCents(c.status.newChargesCents) : "—"}</td>
-                  <td className="tnum py-2.5 pl-3 text-right">
-                    {c.status && c.status.plan !== "paid" ? (
+                  <td className="tnum px-3 py-3 text-right">{money(c.owedNowCents)}</td>
+                  <td className="tnum px-3 py-3 text-right">
+                    {s ? (
                       <>
-                        <span className="block font-semibold">{formatCents(c.status.suggestedCents)}</span>
-                        <span className="block text-xs text-muted">by {short(c.status.nextDue)}</span>
+                        <span className="block">{money(s.dueCents)}</span>
+                        <span className="block text-xs text-muted">due {short(s.nextDue)}</span>
+                      </>
+                    ) : (
+                      <span className="text-xs text-muted">Add its days</span>
+                    )}
+                  </td>
+                  <td className="tnum px-3 py-3 text-right">
+                    {s ? (
+                      <>
+                        <span className="block">{money(s.newChargesCents)}</span>
+                        <span className="block text-xs text-muted">next statement</span>
+                      </>
+                    ) : (
+                      "—"
+                    )}
+                  </td>
+                  <td className="tnum px-5 py-3 text-right">
+                    {s ? (
+                      <>
+                        <span className="block font-semibold">{s.plan === "paid" ? "—" : money(s.suggestedCents)}</span>
+                        <span className="block text-xs text-muted">
+                          {s.plan === "payoff" && s.paymentsLeft !== null
+                            ? `0% payoff · ${s.paymentsLeft} left`
+                            : s.plan === "statement"
+                              ? "in full, no interest"
+                              : "nothing due"}
+                        </span>
                       </>
                     ) : (
                       "—"
                     )}
                   </td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

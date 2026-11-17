@@ -3,6 +3,16 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.27.1]
+
+### Changed
+- The card stack sits top right on This month, fanned out to the side so each card's color shows,
+  and the table is back at the bottom. The front card slides out and tucks in at the back with a
+  smoother motion.
+- Each card leads with what to pay this cycle, then a running tally: the balance, what's on the
+  current statement, and what's new since it closed. The summary card does the same across all
+  cards.
+
 ## [0.27.0]
 
 ### Changed
