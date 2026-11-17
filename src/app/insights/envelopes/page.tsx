@@ -12,8 +12,8 @@ export default async function EnvelopeSetupPage() {
     <div className="space-y-6">
       <InsightsTabs active="spending" />
       <PageHeading
-        title="Set up envelopes"
-        description="An envelope is a group of categories with one limit. Essentials are protected, planned spending is set aside, and flexible envelopes share one pot."
+        title="Set up the spending plan"
+        description="A budget is a group of categories with one limit. Essentials are protected, planned spending is set aside, and flexible budgets share one pot."
         action={
           <Link href="/insights" className="text-sm font-semibold text-accent-text hover:underline">
             ‹ Back to Insights

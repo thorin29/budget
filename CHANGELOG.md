@@ -3,6 +3,24 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.42.0]
+
+### Added
+- **Payday plan** on Insights: with what's in checking now, the debt payment, the bills to hold until
+  the next payday (listed), what to send each card (statements first, then balances, soonest due
+  first) and whether that pays it to zero, and what stays in checking until payday. The phone gets
+  a notification on payday morning with the plan, and one when the money left runs out.
+- **Charts:** left to spend through the pay period against an even pace; paying off the 0% balance
+  (history and where it heads at this payment, against the offer's end); money in against money out
+  for each recent pay period.
+- The headline is a **donut** of what's left by kind (essentials, planned, flexible, and any
+  overage), with each kind and what it covers in words.
+
+### Changed
+- "Envelopes" are now the **spending plan**, and each line is a **budget**.
+- Categories named Debt or Payment start in Paid as bills.
+- The summary card is replaced by the donut.
+
 ## [0.41.0]
 
 Run the migration (restart the container): it adds transaction splits and a "Paid as bills" kind of envelope.

@@ -52,5 +52,5 @@ export async function setCategoryGroupAction(categoryId: string, groupId: string
 }
 
 export async function resetGroupsAction(): Promise<EnvelopeState> {
-  return run(() => resetGroups(), "Envelopes rebuilt from the suggested set.");
+  return run(() => resetGroups(), "Budgets rebuilt from the suggested set.");
 }

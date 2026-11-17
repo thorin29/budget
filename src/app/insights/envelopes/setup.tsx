@@ -52,7 +52,7 @@ function GroupCard({
     <Card>
       <div className="grid gap-2 sm:grid-cols-[1fr_9rem]">
         <input
-          aria-label="Envelope name"
+          aria-label="Budget name"
           className={CONTROL}
           value={name}
           onChange={(e) => setName(e.target.value)}
@@ -99,7 +99,7 @@ function GroupCard({
               <span className="min-w-0 flex-1 truncate">{c.name}</span>
               <span className="w-44 shrink-0">
                 <Select
-                  aria-label={`Envelope for ${c.name}`}
+                  aria-label={`Budget for ${c.name}`}
                   value={group.id}
                   disabled={pending}
                   onChange={(e) =>
@@ -228,9 +228,9 @@ export function EnvelopeSetupForm({
 
       {setup.ungrouped.length ? (
         <Card>
-          <h2 className="text-base font-bold">Not in an envelope yet</h2>
+          <h2 className="text-base font-bold">Not in a budget yet</h2>
           <p className="mt-0.5 text-xs text-muted">
-            These count under Everything else, a flexible envelope, until you
+            These count under Everything else, a flexible budget, until you
             place them.
           </p>
           <ul className="mt-3 space-y-1.5">
@@ -242,7 +242,7 @@ export function EnvelopeSetupForm({
                 <span className="min-w-0 flex-1 truncate">{c.name}</span>
                 <span className="w-44 shrink-0">
                   <Select
-                    aria-label={`Envelope for ${c.name}`}
+                    aria-label={`Budget for ${c.name}`}
                     value=""
                     disabled={pending}
                     onChange={(e) =>
@@ -282,12 +282,12 @@ export function EnvelopeSetupForm({
       </div>
 
       <Card>
-        <h2 className="text-base font-bold">Kinds of envelope</h2>
+        <h2 className="text-base font-bold">Kinds of budget</h2>
         <ul className="mt-2 space-y-1 text-sm text-muted">
           <li><b className="text-foreground">Essential</b>: protected; what isn&rsquo;t used stays for a later pay period.</li>
           <li><b className="text-foreground">Planned</b>: giving and other spending you plan for.</li>
-          <li><b className="text-foreground">Flexible</b>: one shared pot; an envelope that runs over takes from the others.</li>
-          <li><b className="text-foreground">Paid as bills</b>: these categories are paid through the plan&rsquo;s bills, so the envelopes skip them.</li>
+          <li><b className="text-foreground">Flexible</b>: one shared pot; a budget that runs over takes from the others.</li>
+          <li><b className="text-foreground">Paid as bills</b>: these categories are paid through the plan&rsquo;s bills, so the budgets skip them.</li>
         </ul>
         <div className="mt-3">
           <Button
@@ -295,20 +295,20 @@ export function EnvelopeSetupForm({
             variant="quiet"
             disabled={pending}
             onClick={() => {
-              if (window.confirm("Remove every envelope and make the suggested set again from your categories? Limits you set are cleared.")) start(async () => setState(await resetGroupsAction()));
+              if (window.confirm("Remove every budget and make the suggested set again from your categories? Limits you set are cleared.")) start(async () => setState(await resetGroupsAction()));
             }}
           >
-            Start over with the suggested envelopes
+            Start over with the suggested budgets
           </Button>
         </div>
       </Card>
 
       <Card>
-        <h2 className="text-base font-bold">Add an envelope</h2>
+        <h2 className="text-base font-bold">Add a budget</h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="w-56">
             <input
-              aria-label="New envelope name"
+              aria-label="New budget name"
               className={CONTROL}
               placeholder="Name"
               value={newName}

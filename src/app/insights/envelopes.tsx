@@ -16,6 +16,7 @@ import {
   setLimitsAction,
   type EnvelopeState,
 } from "./envelope-actions";
+import { DebtChart, HistoryBars, LeftDonut, LeftPaceChart, PaydayPlanCard } from "./plan-charts";
 
 const money = (cents: number) =>
   `${cents < 0 ? "−" : ""}$${Math.abs(Math.round(cents / 100)).toLocaleString("en-US")}`;
@@ -36,7 +37,7 @@ const monthYear = (iso: string) =>
 const TIER_TITLE: Record<Tier, { title: string; note: string }> = {
   ESSENTIAL: {
     title: "Essentials",
-    note: "Protected. What isn't used stays in the envelope for a later pay period.",
+    note: "Protected. What isn't used stays in the budget for a later pay period.",
   },
   PLANNED: {
     title: "Planned",
@@ -44,7 +45,7 @@ const TIER_TITLE: Record<Tier, { title: string; note: string }> = {
   },
   FLEXIBLE: {
     title: "Flexible",
-    note: "One shared pot. An envelope that runs over takes from the others.",
+    note: "One shared pot. A budget that runs over takes from the others.",
   },
 };
 
@@ -138,7 +139,7 @@ function EnvelopeRow({ e, daysShare }: { e: EnvelopeView; daysShare: number }) {
                 ? `${money(e.spentCents)} spent of ${money(have)}`
                 : [
                     e.gaveCents > 0
-                      ? `Gave ${money(e.gaveCents)} to cover another envelope`
+                      ? `Gave ${money(e.gaveCents)} to cover another budget`
                       : null,
                     carriedIn
                       ? `Includes ${money(carriedIn)} not used earlier`
@@ -168,44 +169,6 @@ function EnvelopeRow({ e, daysShare }: { e: EnvelopeView; daysShare: number }) {
         </ul>
       </details>
     </li>
-  );
-}
-
-function Summary({ view }: { view: EnvelopesView }) {
-  const rows: Array<{ tier: Tier; label: string }> = [
-    { tier: "ESSENTIAL", label: "Essentials" },
-    { tier: "PLANNED", label: "Planned" },
-    { tier: "FLEXIBLE", label: "Flexible" },
-  ];
-  return (
-    <Card>
-      <h2 className="text-base font-bold">Summary</h2>
-      <p className="mt-0.5 text-xs text-muted">What&rsquo;s left in every envelope, added up.</p>
-      <ul className="mt-3 divide-y divide-line text-sm">
-        {rows.map((r) => {
-          const t = view.byTier[r.tier];
-          return (
-            <li key={r.tier} className="flex justify-between gap-3 py-2">
-              <span>{r.label}</span>
-              <span className="tnum">
-                <b>{money(t.leftCents)}</b> left
-                {t.overCents > 0 ? <span className="ml-2 text-danger">{money(t.overCents)} over</span> : null}
-              </span>
-            </li>
-          );
-        })}
-        {view.allOverCents > 0 ? (
-          <li className="flex justify-between gap-3 py-2 text-danger">
-            <span>Over, with nothing left to cover it</span>
-            <b className="tnum">{money(view.allOverCents)}</b>
-          </li>
-        ) : null}
-        <li className="flex justify-between gap-3 py-2 font-semibold">
-          <span>{view.allLeftCents < 0 ? "Over in total" : "Left in total"}</span>
-          <span className={`tnum ${view.allLeftCents < 0 ? "text-danger" : ""}`}>{money(Math.abs(view.allLeftCents))}</span>
-        </li>
-      </ul>
-    </Card>
   );
 }
 
@@ -246,7 +209,7 @@ function Limits({ view }: { view: EnvelopesView }) {
     <Card>
       <h2 className="text-base font-bold">Change limits</h2>
       <p className="mt-0.5 max-w-prose text-xs text-muted">
-        Per pay period. Type a limit to set it. Essentials and planned envelopes
+        Per pay period. Type a limit to set it. Essentials and planned budgets
         left on automatic take their usual amount; flexible ones share whatever
         is left, so changing one moves the others.
       </p>
@@ -312,7 +275,7 @@ function Limits({ view }: { view: EnvelopesView }) {
       ) : preview.unassignedCents >= 100 ? (
         <p className="mt-2 text-xs text-muted">
           {money(preview.unassignedCents)} of the pot isn&rsquo;t needed by any
-          envelope. It&rsquo;s extra for debt.
+          budget. It&rsquo;s extra for debt.
         </p>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -362,12 +325,6 @@ export function Envelopes({ view }: { view: EnvelopesView }) {
   const until = p.byPayday
     ? `until payday, ${day(p.next, true)}`
     : `until ${day(p.next)}`;
-  const tone =
-    view.standing === "ok"
-      ? "bg-hero text-hero-text"
-      : view.standing === "low"
-        ? "bg-warn-soft text-warn"
-        : "bg-danger-soft text-danger";
   const d = view.debt;
   const late = d.endsOn && d.doneOn && d.doneOn > d.endsOn;
   const steps: Array<{ label: string; cents: number; note: string }> = [
@@ -397,13 +354,13 @@ export function Envelopes({ view }: { view: EnvelopesView }) {
     {
       label: "Flexible",
       cents: view.flexibleCents,
-      note: "What's left, shared by the flexible envelopes",
+      note: "What's left, shared by the flexible budgets",
     },
   ];
   return (
-    <section className="space-y-4" aria-label="Spending envelopes">
+    <section className="space-y-4" aria-label="Spending plan">
       {p.byPayday || p.view === "month" ? (
-        <nav aria-label="Envelope period" className="inline-flex gap-1 rounded-xl bg-neutral-soft p-1 text-sm">
+        <nav aria-label="Spending plan period" className="inline-flex gap-1 rounded-xl bg-neutral-soft p-1 text-sm">
           {[
             { v: "period", label: "This pay period" },
             { v: "month", label: "This month" },
@@ -421,15 +378,7 @@ export function Envelopes({ view }: { view: EnvelopesView }) {
       ) : null}
       <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr]">
         <div className="space-y-4">
-          <div className={`rounded-2xl p-5 ${tone}`}>
-            <p className="text-[13px] font-medium opacity-90">{view.allLeftCents < 0 ? "Over" : "Left to spend"} {until}</p>
-            <p className="tnum font-heading mt-1 text-[40px] font-bold leading-none tracking-tight">{money(Math.abs(view.allLeftCents))}</p>
-            <p className="tnum mt-2 text-sm opacity-90">
-              {view.allLeftCents > 0
-                ? `About ${money(view.perDayCents)} a day for ${p.daysLeft} more day${p.daysLeft === 1 ? "" : "s"} · ${money(Math.max(0, view.flexibleLeftCents))} of it flexible`
-                : "Across every envelope"}
-            </p>
-          </div>
+          <LeftDonut view={view} until={until} />
           {view.message ? (
             <p
               className={`rounded-xl px-3.5 py-2.5 text-sm ${view.standing === "ok" || view.standing === "low" ? "bg-warn-soft text-warn" : "bg-danger-soft text-danger"}`}
@@ -490,13 +439,18 @@ export function Envelopes({ view }: { view: EnvelopesView }) {
               href="/insights/envelopes"
               className="font-semibold text-accent-text hover:underline"
             >
-              Set up envelopes
+              Set up the spending plan
             </Link>
             {view.unplaced
-              ? ` · ${view.unplaced} categor${view.unplaced === 1 ? "y isn't" : "ies aren't"} in an envelope yet`
+              ? ` · ${view.unplaced} categor${view.unplaced === 1 ? "y isn't" : "ies aren't"} in a budget yet`
               : ""}
           </p>
         </Card>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <PaydayPlanCard view={view} />
+        <LeftPaceChart view={view} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">
@@ -528,9 +482,11 @@ export function Envelopes({ view }: { view: EnvelopesView }) {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">
-        <Summary view={view} />
-        <Limits view={view} />
+        <HistoryBars view={view} />
+        <DebtChart view={view} />
       </div>
+
+      <Limits view={view} />
     </section>
   );
 }

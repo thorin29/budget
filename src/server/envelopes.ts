@@ -17,6 +17,9 @@ import { PERIODS_PER_YEAR, assignLimits, carried, payoffDate, perPeriod, share, 
 import { DEFAULT_GROUPS, OTHER_GROUP, defaultGroupFor } from "@/lib/envelope-defaults";
 import { loadPlan } from "./allowance";
 import { getMonthView } from "./month";
+import { listCardPayments } from "./card-payments";
+import { getSettings } from "./settings";
+import { paydayPlan, type PaydayPlan } from "@/lib/payday-plan";
 import { loadPaydays } from "./pay-split";
 import { payoffTrackers } from "./card-payments";
 import { billCharge } from "./bill-merchants";
@@ -106,6 +109,15 @@ export interface EnvelopesView {
   groups: EnvelopeView[];
   /** Categories in no group, to place. */
   unplaced: number;
+  /** Charts. Spending each day of this period (every budget), and what the budgets had. */
+  daily: Array<{ date: string; spentCents: number }>;
+  hadCents: number;
+  /** The recent pay periods (or months): money in against money out. */
+  history: Array<{ from: string; to: string; inCents: number; outCents: number; current: boolean }>;
+  /** The 0% balance over time, and where it heads at this payment. */
+  debtChart: { points: Array<{ date: string; cents: number }>; projected: Array<{ date: string; cents: number }> } | null;
+  /** What to do with the paycheck now, when this is the pay period view. */
+  payday: (PaydayPlan & { isPayday: boolean; bills: Array<{ name: string; dueOn: string; cents: number }>; debtName: string | null; debtDueOn: string | null }) | null;
 }
 
 type GroupRow = { id: string; name: string; tier: GroupTier; sortOrder: number; limitCents: number | null; saveUp: boolean; saveUpTargetCents: number | null; saveUpSince: Date | null };
@@ -173,6 +185,8 @@ async function currentPeriod(today: string, monthOnly = false) {
   if (!monthOnly && frequency && past.length && future.length) {
     return {
       from: past[past.length - 1], next: future[0], prevFrom: past.length > 1 ? past[past.length - 2] : null,
+      /** Where the recent pay periods began, oldest first, ending with the current one. */
+      recent: past.slice(-8),
       perYear: PERIODS_PER_YEAR[frequency] as number, byPayday: true, view: "period" as const,
       /** Where each pay period since `since` began: `since`, then every payday after it up to the current period's. */
       boundaries: (since: string, from: string) => {
@@ -188,6 +202,7 @@ async function currentPeriod(today: string, monthOnly = false) {
   const first = (yy: number, mm: number) => iso(new Date(Date.UTC(yy, mm - 1, 1)));
   return {
     from: first(y, m), next: first(y, m + 1), prevFrom: first(y, m - 1), perYear: 12, byPayday: false, view: "month" as const,
+    recent: Array.from({ length: 6 }, (_, k) => first(y, m - 5 + k)),
     boundaries: (since: string, from: string) => {
       const out = [since];
       const a = new Date(`${since}T00:00:00Z`);
@@ -195,6 +210,68 @@ async function currentPeriod(today: string, monthOnly = false) {
       return out;
     },
   };
+}
+
+/** The payday plan with what's in checking now. */
+async function paydayFor(checkingCents: number, bills: Array<{ name: string; dueOn: string; cents: number }>, debtCents: number, today: string, isPayday: boolean): Promise<EnvelopesView["payday"]> {
+  const [cards, settings, colors] = await Promise.all([
+    listCardPayments(today),
+    getSettings(),
+    prisma.bankAccount.findMany({ where: { type: "CREDIT_CARD" }, select: { id: true, cardColor: true } }) as Promise<Array<{ id: string; cardColor: string | null }>>,
+  ]);
+  const color = new Map(colors.map((c) => [c.id, c.cardColor]));
+  const promo = cards.filter((c) => c.promoEndsOn && c.promoEndsOn >= today);
+  const plan = paydayPlan({
+    checkingCents,
+    bills,
+    debtCents,
+    cards: cards
+      .filter((c) => !(c.promoEndsOn && c.promoEndsOn >= today))
+      .map((c) => ({ id: c.id, name: c.name, color: color.get(c.id) ?? null, dueOn: c.nextDue, statementCents: c.dueCents, owedCents: c.owedNowCents })),
+    cushionCents: settings.bufferCents,
+  });
+  return { ...plan, isPayday, bills, debtName: promo[0]?.name ?? null, debtDueOn: promo[0]?.nextDue ?? null };
+}
+
+function dayList(from: string, to: string): string[] {
+  const out: string[] = [];
+  for (let t = at(from); t < at(to); t += DAY) out.push(iso(new Date(t)));
+  return out;
+}
+
+/** The 0% balance week by week since it began (from the card's transactions), and where it heads. */
+async function debtChart(
+  trackers: Array<{ id: string; balanceCents: number; startOn: string | null; endsOn: string }>,
+  perPeriodCents: number,
+  periodDays: number,
+  today: string,
+): Promise<EnvelopesView["debtChart"]> {
+  if (!trackers.length) return null;
+  const ids = trackers.map((t) => t.id);
+  const start = trackers.map((t) => t.startOn).filter((d): d is string => !!d).sort()[0] ?? iso(new Date(at(today) - 90 * DAY));
+  const rows = (await prisma.bankTransaction.findMany({
+    where: { accountId: { in: ids }, postedOn: { gte: new Date(`${start}T00:00:00Z`) }, pending: false },
+    select: { postedOn: true, amount: true },
+  })) as Array<{ postedOn: Date; amount: { toString(): string } }>;
+  const balance = trackers.reduce((s, t) => s + t.balanceCents, 0);
+  // Walk back from today's balance: owed before a charge was less, before a payment more.
+  const points: Array<{ date: string; cents: number }> = [];
+  for (let t = at(today); t >= at(start); t -= 7 * DAY) {
+    const d = iso(new Date(t));
+    const after = rows.filter((r) => iso(r.postedOn) > d).reduce((s, r) => s + toCents(r.amount), 0);
+    points.unshift({ date: d, cents: Math.max(0, balance + after) });
+  }
+  if (points[0]?.date !== start) points.unshift({ date: start, cents: Math.max(0, balance + rows.filter((r) => iso(r.postedOn) >= start).reduce((s, r) => s + toCents(r.amount), 0)) });
+  const projected: Array<{ date: string; cents: number }> = [{ date: today, cents: balance }];
+  const ends = trackers.map((t) => t.endsOn).sort()[0];
+  let owed = balance;
+  for (let t = at(today) + periodDays * DAY; owed > 0 && perPeriodCents > 0 && projected.length < 400; t += periodDays * DAY) {
+    owed = Math.max(0, owed - perPeriodCents);
+    const d = iso(new Date(t));
+    projected.push({ date: d, cents: owed });
+    if (d > ends && projected.length > 2 && iso(new Date(t)) > iso(new Date(at(ends) + 365 * DAY))) break;
+  }
+  return { points, projected };
 }
 
 export async function getEnvelopes(view: "period" | "month" = "period"): Promise<EnvelopesView> {
@@ -252,6 +329,8 @@ export async function getEnvelopes(view: "period" | "month" = "period"): Promise
   const deposits = new Map<number, number>();
   let firstMonth: number | null = null;
   const ymn = (d: Date) => d.getUTCFullYear() * 12 + d.getUTCMonth();
+  const hist = period.recent.map(() => ({ in: 0, out: 0 }));
+  const dailyMap = new Map<string, number>();
   for (const t of txns) {
     if (t.category?.managedForOthers) continue;
     const spending = SPENDING_TYPES.includes(t.account.type);
@@ -264,6 +343,21 @@ export async function getEnvelopes(view: "period" | "month" = "period"): Promise
       if (refund && !isBill(t)) everyday = -cents;
       else if (!refund && (spending || t.account.type === "SAVINGS") && !t.pending && t.postedOn < monthStart && t.postedOn >= windowStart) {
         deposits.set(ymn(t.postedOn), (deposits.get(ymn(t.postedOn)) ?? 0) + cents);
+      }
+    }
+    // Money in and out per recent period, for the history chart.
+    {
+      const d = iso(t.postedOn);
+      const i = period.recent.length ? period.recent.findLastIndex((b: string) => d >= b) : -1;
+      if (i >= 0 && !t.pending) {
+        const h = hist[i];
+        if (cents < 0 && spending) h.out += -cents;
+        else if (cents > 0 && spending && t.account.type === "CREDIT_CARD") h.out -= cents;
+        else if (cents > 0 && (spending || t.account.type === "SAVINGS")) {
+          const refund = t.categoryId !== null && !isIncomeCategory(t.category?.name);
+          if (refund) h.out -= cents;
+          else h.in += cents;
+        }
       }
     }
     if (!everyday) continue;
@@ -285,6 +379,7 @@ export async function getEnvelopes(view: "period" | "month" = "period"): Promise
       if (firstMonth === null || n < firstMonth) firstMonth = n;
     }
     if (day >= period.from && day <= today) {
+      dailyMap.set(day, (dailyMap.get(day) ?? 0) + everydayPart);
       const g = now.get(group) ?? new Map<string, number>();
       g.set(categoryId ?? "", (g.get(categoryId ?? "") ?? 0) + everydayPart);
       now.set(group, g);
@@ -314,6 +409,8 @@ export async function getEnvelopes(view: "period" | "month" = "period"): Promise
   let incomeCents = perPeriod(a.incomeCents, period.perYear);
   let billsCents = perPeriod(a.fixedBillsCents, period.perYear);
   let basis: "due" | "average" = "average";
+  const unpaid: Array<{ name: string; dueOn: string; cents: number }> = [];
+  let checkingCents: number | null = null;
   if (plan?.rows.length && a.incomeSource === "plan") {
     const cardPayment = new Map(plan.rows.map((r) => [r.lineItemId, r.cardPayment]));
     const months: Array<{ y: number; m: number }> = [];
@@ -322,8 +419,10 @@ export async function getEnvelopes(view: "period" | "month" = "period"): Promise
     }
     let dueIncome = 0;
     let dueBills = 0;
+    unpaid.length = 0;
     for (const { y: yy, m: mm } of months) {
       const v = await getMonthView(yy, mm);
+      if (yy === y && mm === m) checkingCents = v.billsBalanceCents;
       const last = new Date(Date.UTC(yy, mm, 0)).getUTCDate();
       const when = (dueDay: number | null) => iso(new Date(Date.UTC(yy, mm - 1, Math.min(last, Math.max(1, dueDay ?? 1)))));
       const inPeriod = (dueDay: number | null) => {
@@ -335,7 +434,10 @@ export async function getEnvelopes(view: "period" | "month" = "period"): Promise
       for (const h of v.halves) {
         for (const e of h.entries) {
           if (e.kind === "INCOME" || e.paidFromSurplus || cardPayment.get(e.lineItemId)) continue;
-          if (inPeriod(e.dueDay)) dueBills += amount(e);
+          if (inPeriod(e.dueDay)) {
+            dueBills += amount(e);
+            if (e.actualCents === null && !e.skipped && e.budgetedCents > 0) unpaid.push({ name: e.name, dueOn: when(e.dueDay), cents: e.budgetedCents });
+          }
         }
       }
     }
@@ -378,7 +480,7 @@ export async function getEnvelopes(view: "period" | "month" = "period"): Promise
     inputs.push({ id: g.id, name: g.name, tier: g.tier, limitCents, spentCents, carriedCents });
   }
   // Flexible money no envelope needed is real money too: it covers overages first, and what's left is extra.
-  const EXTRA = { id: "extra", name: "Not in an envelope", tier: "FLEXIBLE" as Tier };
+  const EXTRA = { id: "extra", name: "Not budgeted", tier: "FLEXIBLE" as Tier };
   if (limits.unassignedCents > 0) inputs.push({ ...EXTRA, limitCents: limits.unassignedCents, spentCents: 0 });
   const shared = share(inputs);
   const sum = (tier: Tier) => all.filter((g) => g.tier === tier).reduce((s, g) => s + (limits.limits.get(g.id) ?? 0), 0);
@@ -476,6 +578,17 @@ export async function getEnvelopes(view: "period" | "month" = "period"): Promise
     lastPeriod,
     groups: views,
     unplaced: categories.filter((c) => !c.groupId && !c.managedForOthers && !isIncomeCategory(c.name)).length,
+    daily: dayList(period.from, period.next).map((date) => ({ date, spentCents: date <= today ? (dailyMap.get(date) ?? 0) : 0 })),
+    hadCents: inputs.reduce((s, e) => s + e.limitCents + Math.max(0, e.carriedCents ?? 0), 0),
+    history: period.recent.map((from: string, i: number) => ({
+      from,
+      to: period.recent[i + 1] ?? period.next,
+      inCents: hist[i].in,
+      outCents: hist[i].out,
+      current: i === period.recent.length - 1,
+    })),
+    debtChart: await debtChart(trackers, debtCents, periodDays, today),
+    payday: view === "period" && checkingCents !== null ? await paydayFor(checkingCents, unpaid, debtCents, today, period.from === today) : null,
   };
 }
 
@@ -516,7 +629,7 @@ export async function saveGroup(input: unknown): Promise<{ id: string }> {
   if (!parsed.success) throw new ValidationError(z.flattenError(parsed.error).fieldErrors as Record<string, string[]>);
   const { id, name, tier, saveUp, saveUpTargetCents } = parsed.data;
   const clash = (await prisma.categoryGroup.findFirst({ where: { name: { equals: name, mode: "insensitive" }, ...(id ? { NOT: { id } } : {}) }, select: { id: true } })) as { id: string } | null;
-  if (clash) throw new ValidationError({ name: ["There's already an envelope with that name"] });
+  if (clash) throw new ValidationError({ name: ["There's already a budget with that name"] });
   if (!id) {
     const last = (await prisma.categoryGroup.aggregate({ _max: { sortOrder: true } })) as { _max: { sortOrder: number | null } };
     const made = (await prisma.categoryGroup.create({
@@ -526,7 +639,7 @@ export async function saveGroup(input: unknown): Promise<{ id: string }> {
     return made;
   }
   const current = (await prisma.categoryGroup.findUnique({ where: { id }, select: { saveUp: true, saveUpSince: true } })) as { saveUp: boolean; saveUpSince: Date | null } | null;
-  if (!current) throw new NotFoundError("Envelope");
+  if (!current) throw new NotFoundError("Budget");
   await prisma.categoryGroup.update({
     where: { id },
     data: {
@@ -554,7 +667,7 @@ export async function deleteGroup(id: string): Promise<void> {
 export async function setCategoryGroup(categoryId: string, groupId: string | null): Promise<void> {
   if (groupId) {
     const group = await prisma.categoryGroup.findUnique({ where: { id: groupId }, select: { id: true } });
-    if (!group) throw new ValidationError({ groupId: ["Pick an envelope"] });
+    if (!group) throw new ValidationError({ groupId: ["Pick a budget"] });
   }
   const done = await prisma.category.updateMany({ where: { id: categoryId }, data: { groupId } });
   if (!done.count) throw new NotFoundError("Category");

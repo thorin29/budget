@@ -140,6 +140,8 @@ describe("default groups", () => {
     expect(defaultGroupFor("Sports fees")).toBe("Sports");
     expect(defaultGroupFor("Hockey")).toBe("Sports");
     expect(defaultGroupFor("Fees")).toBe("Fees & interest");
+    expect(defaultGroupFor("Debt")).toBe("Paid as bills");
+    expect(defaultGroupFor("Payment")).toBe("Paid as bills");
     expect(defaultGroupFor("Brightwater")).toBeNull();
   });
 });

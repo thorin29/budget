@@ -346,7 +346,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
       <InsightsTabs active="spending" />
       <PageHeading
         title="Insights"
-        description="This pay period's envelopes first, then where the money went. Transfers between your accounts and money managed for others are left out."
+        description="This pay period's spending plan first, then where the money went. Transfers between your accounts and money managed for others are left out."
       />
 
       {envelopes ? <Envelopes view={envelopes} /> : null}

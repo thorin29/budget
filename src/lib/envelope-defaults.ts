@@ -16,7 +16,7 @@ export interface DefaultGroup {
 
 export const DEFAULT_GROUPS: DefaultGroup[] = [
   // Spending these categories is the plan's bills; step 1 counts them.
-  { name: "Paid as bills", tier: "BILLS", match: /housing|mortgage|\brent\b|utilit|phone|internet|insurance|\bloans?\b|\btaxes\b/ },
+  { name: "Paid as bills", tier: "BILLS", match: /housing|mortgage|\brent\b|utilit|phone|internet|insurance|\bloans?\b|\btaxes\b|\bdebt\b|^payments?$/ },
   { name: "Fees & interest", tier: "ESSENTIAL", match: /(?<!sports )\bfees?\b|\binterest\b|penalt|late charge/ },
   { name: "Groceries & household", tier: "ESSENTIAL", match: /grocer|supermarket|warehouse|costco|sam's|target|walmart|^food$|household|toiletr/ },
   { name: "Vehicles", tier: "ESSENTIAL", match: /fuel|\bgas\b|\bauto\b|\bcar\b|vehicle|transit|parking|\btolls?\b/ },
