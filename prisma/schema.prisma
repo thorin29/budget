@@ -107,9 +107,46 @@ model Category {
   /// Kept out of spending and income; shown as its own running balance.
   managedForOthers Boolean @default(false)
 
+  /// The envelope this category's spending comes out of.
+  groupId String?
+  group   CategoryGroup? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
   lineItems    LineItem[]
   transactions BankTransaction[]
   rules        CategoryRule[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([groupId])
+}
+
+/// Where an envelope stands in line for each pay period's income. Bills come
+/// first and are the plan's line items, not a tier here.
+enum EnvelopeTier {
+  /// Food, fuel, medical: protected; an overage draws on flexible money.
+  ESSENTIAL
+  /// Giving, and save-ups for costs that come in lumps.
+  PLANNED
+  /// Wants. One shared pot: an envelope that runs over takes from the others.
+  FLEXIBLE
+}
+
+/// A spending envelope: a group of categories with one limit per pay period.
+/// Entirely user-defined; a starting set is made from the category names.
+model CategoryGroup {
+  id        String       @id @default(cuid())
+  name      String       @unique
+  tier      EnvelopeTier @default(FLEXIBLE)
+  sortOrder Int          @default(0)
+  /// Per pay period, set by the person; null means automatic (from usual spending).
+  limitCents        Int?
+  /// Keeps what isn't spent, building toward a cost that comes in a lump.
+  saveUp            Boolean   @default(false)
+  saveUpTargetCents Int?
+  saveUpSince       DateTime? @db.Date
+
+  categories Category[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

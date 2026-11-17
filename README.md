@@ -11,7 +11,7 @@ Everything runs on your own server against your own PostgreSQL database. Fonts
 are bundled. The only outside requests are optional bank sync's, once you turn it
 on.
 
-> **Status:** v0.39.2. Month view, cash projection, line items, year reports,
+> **Status:** v0.40.0. Month view, cash projection, line items, year reports,
 > import, export, sign-in for up to two people, and a token-secured API for a
 > phone app all work. See `CHANGELOG.md`.
 
@@ -47,6 +47,12 @@ on.
   current. Merchant names are cleaned up, transfers between your own accounts
   are set aside, and past months load from a bank's CSV export. See
   [Bank sync](#bank-sync).
+- **Spending envelopes (with bank sync).** Each pay period's income is handed
+  out in order: bills, essentials, planned spending, the debt payment, then one
+  shared pot of flexible money split into envelopes. An envelope that runs over
+  takes from the others, so nothing goes negative; limits start from your usual
+  spending and move together when you change one; "Can I afford it?" shows what
+  a purchase would do before you make it.
 - **One look with the phone app.** Figtree type, Phosphor icons, and one of six
   accents (Cobalt by default) in light or dark, chosen per browser under
   Settings → Appearance.
@@ -202,7 +208,7 @@ look like bill payments and what was recorded on its own), `POST
 /api/v1/review/confirm` with `{lineItemId, year, month, txnId, amount, paidOn}`
 (the confirm step), `POST /api/v1/review/dismiss` with `{lineItemId, txnId}`,
 `POST /api/v1/review/undo-auto` with `{lineItemId, year, month}`, and
-`GET /api/v1/insights?m=YYYY-MM` (a month's spending summary).
+`GET /api/v1/insights?m=YYYY-MM` (a month's spending summary), `GET /api/v1/envelopes` (this pay period's envelopes).
 
 ## Bank sync
 

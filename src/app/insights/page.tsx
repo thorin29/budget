@@ -4,10 +4,9 @@ import { getInsights, getSuggestions, type CategorySpend, type MonthTotal, type 
 import type { Suggestion } from "@/lib/insight-suggestions";
 import { getUpcoming } from "@/server/yearly";
 import { payoffTrackers, type PayoffTracker } from "@/server/card-payments";
-import { getMonthView } from "@/server/month";
-import { getBudgetPlan } from "@/server/budget-plan";
 import { listPayoffs, type Payoff } from "@/server/payoff";
-import { CardBudget, CategoryTargets, IncomeBar } from "./budget";
+import { getEnvelopes } from "@/server/envelopes";
+import { Envelopes } from "./envelopes";
 import { ComingUpRow } from "./coming-up";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, PageHeading, StatCard, buttonClass } from "@/components/ui";
@@ -250,63 +249,6 @@ function EverydayChart({ months, selected, pace }: { months: MonthTotal[]; selec
   );
 }
 
-/** The month in progress against a usual month by the same day. */
-function PaceCard({ pace, leftAfterBillsCents, weekCents }: { pace: Pace; leftAfterBillsCents: number | null; weekCents: number | null }) {
-  const scale = Math.max(pace.projectedCents, pace.usualMonthCents, 1);
-  const pct = (cents: number) => `${Math.min(100, (cents / scale) * 100).toFixed(1)}%`;
-  const diff = pace.projectedCents - pace.usualMonthCents;
-  const close = Math.abs(diff) < Math.max(2_500, pace.usualMonthCents * 0.03);
-  return (
-    <Card>
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold">Pace</h2>
-        <span className="text-xs text-muted">
-          Day {pace.day} of {pace.daysInMonth} · everyday spending
-        </span>
-      </div>
-      <p className="mt-2 text-sm">
-        On pace for <span className="tnum font-bold">{whole(pace.projectedCents)}</span>
-        {close ? ", about the same as a usual month." : diff > 0 ? `, about ${whole(diff)} more than a usual month.` : `, about ${whole(-diff)} less than a usual month.`}
-      </p>
-      <div className="relative mt-3 h-3 rounded-full bg-neutral-soft" role="img" aria-label={`Spent ${whole(pace.soFarCents)} so far; a usual month has spent ${whole(pace.usualByNowCents)} by now and ${whole(pace.usualMonthCents)} in all.`}>
-        <div className="absolute inset-y-0 left-0 rounded-full bg-accent" style={{ width: pct(pace.soFarCents) }} />
-        <div className="absolute inset-y-0 rounded-full bg-accent/25" style={{ left: pct(pace.soFarCents), width: `calc(${pct(pace.projectedCents)} - ${pct(pace.soFarCents)})` }} />
-        <div className="absolute -top-1 h-5 w-0.5 bg-foreground" style={{ left: pct(pace.usualByNowCents) }} />
-      </div>
-      <div className="mt-2 flex flex-wrap justify-between gap-2 text-xs text-muted">
-        <span>
-          <span className="font-semibold text-foreground">{whole(pace.soFarCents)}</span> so far · a usual month is at {whole(pace.usualByNowCents)} by now (the line)
-        </span>
-        <span>Usual month {whole(pace.usualMonthCents)}</span>
-      </div>
-      <div className="mt-4 grid gap-3 border-t border-line pt-3 text-sm sm:grid-cols-3">
-        {leftAfterBillsCents !== null ? (
-          <p>
-            <span className="block text-xs text-muted">Left after this month&rsquo;s bills</span>
-            <span className={`tnum font-bold ${leftAfterBillsCents < 0 ? "text-danger" : ""}`}>{whole(leftAfterBillsCents)}</span>
-            <span className="block text-xs text-muted">in the bills account, once bills and paychecks land</span>
-          </p>
-        ) : null}
-        <p>
-          <span className="block text-xs text-muted">Still to come this month</span>
-          <span className="tnum font-bold">{whole(pace.projectedCents - pace.soFarCents)}</span>
-          <span className="block text-xs text-muted">
-            everyday spending at a usual pace{pace.restOnCardsCents > 0 ? `, about ${whole(pace.restOnCardsCents)} of it on cards (paid next month)` : ""}
-          </span>
-        </p>
-        {weekCents !== null ? (
-          <p>
-            <span className="block text-xs text-muted">Last 7 days</span>
-            <span className="tnum font-bold">{whole(weekCents)}</span>
-            <span className="block text-xs text-muted">everyday spending</span>
-          </p>
-        ) : null}
-      </div>
-    </Card>
-  );
-}
-
-/** What was actually spent each month, as small labeled bars. */
 function MiniMonths({ months }: { months: Array<{ label: string; cents: number }> }) {
   const max = Math.max(1, ...months.map((m) => m.cents));
   return (
@@ -382,15 +324,14 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   const asked = match ? { year: Number(match[1]), month: Number(match[2]) } : now;
   const picked = asked.month >= 1 && asked.month <= 12 && asked.year * 12 + asked.month <= now.year * 12 + now.month ? asked : now;
   const isNow = picked.year === now.year && picked.month === now.month;
-  const [data, suggestions, upcoming, payoff, view] = await Promise.all([
+  const [data, suggestions, upcoming, payoff] = await Promise.all([
     getInsights(picked.year, picked.month),
     getSuggestions(),
     getUpcoming(),
     payoffTrackers(),
-    isNow ? getMonthView(picked.year, picked.month).catch(() => null) : Promise.resolve(null),
   ]);
   const payoffs = isNow ? await listPayoffs().catch(() => [] as Payoff[]) : [];
-  const budget = isNow ? await getBudgetPlan().catch((error) => (console.error("Budget plan:", error), null)) : null;
+  const envelopes = isNow ? await getEnvelopes().catch((error) => (console.error("Envelopes:", error), null)) : null;
   const prev = shift(picked.year, picked.month, -1);
   const next = shift(picked.year, picked.month, 1);
   const atNow = picked.year === now.year && picked.month === now.month;
@@ -405,23 +346,27 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
       <InsightsTabs active="spending" />
       <PageHeading
         title="Insights"
-        description="Where the money went, from the bank feed. Transfers between your accounts and money managed for others are left out."
-        action={
-          <div className="flex items-center gap-1 rounded-xl border border-line bg-surface p-1 text-sm">
-            <Link href={`/insights?m=${param(prev)}`} className="rounded-lg px-2.5 py-1 text-muted hover:bg-neutral-soft">
-              ‹ {monthLabel(prev.year, prev.month, "short")}
-            </Link>
-            <span className="px-2.5 py-1 font-semibold">{monthLabel(picked.year, picked.month)}</span>
-            {atNow ? (
-              <span className="px-2.5 py-1 text-muted/50">{monthLabel(next.year, next.month, "short")} ›</span>
-            ) : (
-              <Link href={`/insights?m=${param(next)}`} className="rounded-lg px-2.5 py-1 text-muted hover:bg-neutral-soft">
-                {monthLabel(next.year, next.month, "short")} ›
-              </Link>
-            )}
-          </div>
-        }
+        description="This pay period's envelopes first, then where the money went. Transfers between your accounts and money managed for others are left out."
       />
+
+      {envelopes ? <Envelopes view={envelopes} /> : null}
+
+      <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+        <h2 className="font-heading text-xl font-bold tracking-tight">Looking back</h2>
+        <div className="flex items-center gap-1 rounded-xl border border-line bg-surface p-1 text-sm">
+          <Link href={`/insights?m=${param(prev)}`} className="rounded-lg px-2.5 py-1 text-muted hover:bg-neutral-soft">
+            ‹ {monthLabel(prev.year, prev.month, "short")}
+          </Link>
+          <span className="px-2.5 py-1 font-semibold">{monthLabel(picked.year, picked.month)}</span>
+          {atNow ? (
+            <span className="px-2.5 py-1 text-muted/50">{monthLabel(next.year, next.month, "short")} ›</span>
+          ) : (
+            <Link href={`/insights?m=${param(next)}`} className="rounded-lg px-2.5 py-1 text-muted hover:bg-neutral-soft">
+              {monthLabel(next.year, next.month, "short")} ›
+            </Link>
+          )}
+        </div>
+      </div>
 
       {!data.hasData ? (
         <EmptyState>
@@ -450,15 +395,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
             />
           </div>
 
-          {budget ? (
-            <>
-              <IncomeBar plan={budget} />
-              <CardBudget plan={budget} />
-              <CategoryTargets plan={budget} period={param(picked)} />
-            </>
-          ) : null}
           {payoffs.length ? <PayingOff rows={payoffs} /> : null}
-          {data.pace ? <PaceCard pace={data.pace} leftAfterBillsCents={view?.transferAfterSecondCents ?? null} weekCents={data.weekCents} /> : null}
           {payoff.length ? <PayoffCard rows={payoff} /> : null}
           {upcoming.length ? (
             <Card>

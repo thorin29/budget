@@ -3,6 +3,33 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.40.0]
+
+Run the migration (`npm run migrate`, or restart the container): it adds category groups.
+
+### Added
+- **Spending envelopes**, at the top of Insights. Each pay period's income is handed out in order:
+  bills, essentials, planned spending, the debt payment, and what's left is one shared pot of
+  flexible money. Categories sit in groups, and a group is an envelope with a limit per pay period.
+  - No envelope goes negative: one that runs over takes from the flexible envelopes with room, and
+    the page says which gave. Essentials that run over draw on flexible money the same way.
+  - Essentials and planned envelopes keep what a pay period doesn't use (up to two periods' worth),
+    since those costs come in lumps. Save-ups keep everything, toward an optional target.
+  - Limits are automatic from twelve months of spending. Set one and the automatic ones share the
+    rest, so changing one moves the others; "Reset to automatic" puts them all back.
+  - "Can I afford it?" shows what a purchase would take from the other envelopes. Nothing is saved.
+  - The debt payment shows when the balance clears at that rate, and what it takes to clear a 0%
+    balance before the offer ends.
+  - The period follows the pay calendar (payday to payday); without one it is the calendar month.
+- Insights → Set up envelopes: rename, add or remove envelopes, choose each one's kind, turn on
+  save-ups, move categories between envelopes, and set the debt payment. A starting set is made
+  from the category names in use.
+- `GET /api/v1/envelopes` for the phone.
+
+### Changed
+- Insights leads with the envelopes; the month-by-month figures follow under "Looking back". The
+  income bar, card budget, category targets and pace cards are replaced by the envelopes.
+
 ## [0.39.2]
 
 ### Added
