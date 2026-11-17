@@ -5,6 +5,7 @@ import { payoffTrackers } from "@/server/card-payments";
 import { getMonthView } from "@/server/month";
 import { getAllowance } from "@/server/allowance";
 import { getBudgetPlan } from "@/server/budget-plan";
+import { listPayoffs } from "@/server/payoff";
 import { fail, ok } from "@/server/http";
 
 export const dynamic = "force-dynamic";
@@ -31,6 +32,7 @@ export async function GET(request: Request) {
     ]);
     const limit = atNow ? await getAllowance().catch(() => null) : null;
     const budget = atNow ? await getBudgetPlan().catch(() => null) : null;
+    const payingOff = atNow ? await listPayoffs().catch(() => []) : [];
     return ok({
       year: i.year,
       month: i.month,
@@ -46,6 +48,11 @@ export async function GET(request: Request) {
       limit,
       /** The month in progress: where the income goes, the card budget per card, and category targets. */
       budget,
+      /** Bills paying off a balance: what's left and when each ends. */
+      payingOff: payingOff.map((p) => ({
+        name: p.name, remainingCents: p.remainingCents, paidOff: p.paidOff, paymentsLeft: p.paymentsLeft,
+        lastYear: p.lastYear, lastMonth: p.lastMonth, plannedCents: p.plannedCents, source: p.source,
+      })),
       /** What the bills account has left after this month's bills and paychecks (Second half remaining). */
       leftAfterBillsCents: view?.transferAfterSecondCents ?? null,
       weekCents: i.weekCents,

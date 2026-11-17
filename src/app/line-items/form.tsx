@@ -30,6 +30,13 @@ export interface LineItemDefaults {
   paysCard: string;
   /** The card the bank worked out, shown while the choice is "auto". */
   paysCardLearned: string | null;
+  /** Paying off a balance: "none", "balance" (typed in, as of a date) or "account" (a loan in the feed). */
+  payoffMode: string;
+  payoffBalance: string;
+  payoffAsOf: string;
+  payoffAccountId: string | null;
+  /** What's left now and when it ends, when it pays off a balance. */
+  payoffSummary: string | null;
   paydayNumber: number | null;
   scheduleKind: string;
   anchorMonth: number;
@@ -104,6 +111,7 @@ export function LineItemForm({
   accounts,
   cards,
   paySchedules,
+  loans = [],
   submitLabel,
   cancelHref = "/line-items",
 }: {
@@ -113,6 +121,8 @@ export function LineItemForm({
   accounts: Array<{ id: string; name: string }>;
   cards: Array<{ id: string; name: string }>;
   paySchedules: Array<{ id: string; name: string }>;
+  /** Loan and mortgage accounts from the bank feed, to follow a balance. */
+  loans?: Array<{ id: string; name: string }>;
   submitLabel: string;
   cancelHref?: string;
 }) {
@@ -124,6 +134,7 @@ export function LineItemForm({
     defaults.scheduleKind === "CUSTOM" ? defaults.months : monthsFor(defaults.scheduleKind, defaults.anchorMonth, defaults.months),
   );
   const [dueDay, setDueDay] = useState<string>(defaults.dueDay ? String(defaults.dueDay) : "");
+  const [payoffMode, setPayoffMode] = useState(defaults.payoffMode);
 
   const isIncome = kind === "INCOME";
   const needsAnchor = ["QUARTERLY", "SEMI_ANNUAL", "ANNUAL", "ONE_OFF"].includes(scheduleKind);
@@ -426,6 +437,47 @@ export function LineItemForm({
           label={isIncome ? "Record it when it arrives" : "Record it when the bank shows it paid"}
           detail="Once a merchant has been tied to this item, its charge around the due day is recorded on its own, even when the amount changes, with an Undo on the Review page. A charge from a merchant it doesn't know yet still waits for you."
         />
+
+        {!isIncome ? (
+          <div className="rounded-xl border border-line p-4">
+            <span className="block text-[13px] font-semibold">Pays off a balance</span>
+            <span className="mt-0.5 block text-xs text-muted">
+              For a loan, a mortgage or a payment plan: track what&rsquo;s left, and the bill ends on its own when it reaches zero.
+            </span>
+            {defaults.payoffSummary ? <p className="mt-2 rounded-lg bg-neutral-soft px-3 py-2 text-sm font-semibold">{defaults.payoffSummary}</p> : null}
+            <div className="mt-3 grid gap-3 sm:grid-cols-3">
+              <Field label="Balance from">
+                <Select name="payoffMode" value={payoffMode} onChange={(e) => setPayoffMode(e.target.value)}>
+                  <option value="none">Not paying off a balance</option>
+                  <option value="balance">A balance I enter</option>
+                  {loans.length ? <option value="account">A loan account from the bank</option> : null}
+                </Select>
+              </Field>
+              {payoffMode === "balance" ? (
+                <>
+                  <Field label="Left to pay" hint="Payments recorded after the date count it down">
+                    <TextInput name="payoffBalance" inputMode="decimal" defaultValue={defaults.payoffBalance} placeholder="0.00" />
+                  </Field>
+                  <Field label="As of" hint="Update both now and then for a loan with interest">
+                    <TextInput name="payoffAsOf" type="date" defaultValue={defaults.payoffAsOf} />
+                  </Field>
+                </>
+              ) : null}
+              {payoffMode === "account" ? (
+                <Field label="Loan account" hint="Its balance comes from the bank, interest included">
+                  <Select name="payoffAccountId" defaultValue={defaults.payoffAccountId ?? ""}>
+                    <option value="">—</option>
+                    {loans.map((l) => (
+                      <option key={l.id} value={l.id}>
+                        {l.name}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         <details className="group rounded-xl border border-line">
           <summary className="cursor-pointer list-none px-4 py-3 text-sm font-semibold">

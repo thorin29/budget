@@ -10,6 +10,9 @@ import { getSettings } from "@/server/settings";
 import { halfFor } from "@/lib/month-model";
 import { EmptyState, PageHeading, Pill, buttonClass } from "@/components/ui";
 import { LineItemForm, type LineItemDefaults } from "./form";
+import { listPayoffs, payoffLine } from "@/server/payoff";
+import { prisma } from "@/lib/prisma";
+import { displayAccountName } from "@/lib/account-type";
 import { createLineItemAction, updateLineItemAction } from "./actions";
 import { Drawer } from "./drawer";
 
@@ -43,6 +46,11 @@ const BLANK: LineItemDefaults = {
   autoRecord: true,
   paysCard: "auto",
   paysCardLearned: null,
+  payoffMode: "none",
+  payoffBalance: "",
+  payoffAsOf: "",
+  payoffAccountId: null,
+  payoffSummary: null,
   paydayNumber: null,
   periodAssignment: "AUTO",
   scheduleKind: "MONTHLY",
@@ -77,6 +85,11 @@ async function loadEditing(edit: string | undefined): Promise<LineItemDefaults |
       autoRecord: item.autoRecord,
       paysCard: item.paysCardLocked ? (item.paysCardId ?? "none") : "auto",
       paysCardLearned: !item.paysCardLocked && item.paysCardId ? item.paysCardId : null,
+      payoffMode: item.payoffAccountId ? "account" : item.payoffBalanceCents !== null ? "balance" : "none",
+      payoffBalance: item.payoffBalanceCents !== null ? toDecimalString(item.payoffBalanceCents) : "",
+      payoffAsOf: item.payoffAsOf ?? "",
+      payoffAccountId: item.payoffAccountId,
+      payoffSummary: null,
       paydayNumber: item.paydayNumber,
       periodAssignment: item.periodAssignment,
       scheduleKind: item.scheduleKind,
@@ -105,14 +118,19 @@ export default async function LineItemsPage({
   const query = await searchParams;
   const showInactive = query.show === "all";
 
-  const [items, accounts, categories, paySchedules, settings, editing] = await Promise.all([
+  const [items, accounts, categories, paySchedules, settings, editing, payoffs, loans] = await Promise.all([
     listLineItems({ includeInactive: true }),
     listAccounts({ includeInactive: true }),
     listCategories({ includeInactive: true }),
     listPaySchedules(),
     getSettings(),
     loadEditing(query.edit),
+    listPayoffs(),
+    prisma.bankAccount.findMany({ where: { hidden: false, type: { in: ["LOAN", "MORTGAGE", "OTHER"] } }, select: { id: true, name: true, nickname: true } }) as Promise<
+      Array<{ id: string; name: string; nickname: string | null }>
+    >,
   ]);
+  const payoffById = new Map(payoffs.map((p) => [p.lineItemId, p]));
 
   const accountName = new Map(accounts.map((a) => [a.id, a.name]));
   // Halves follow this month's split, which may come from the pay calendar.
@@ -185,6 +203,7 @@ export default async function LineItemsPage({
                           item.dueDay ? `Day ${item.dueDay}` : null,
                           item.paidFromId ? accountName.get(item.paidFromId) : null,
                           item.categoryId ? categoryName.get(item.categoryId) : null,
+                          payoffById.has(item.id) ? payoffLine(payoffById.get(item.id)!, formatCents) : null,
                         ]
                           .filter(Boolean)
                           .join(" · ")}
@@ -227,8 +246,10 @@ export default async function LineItemsPage({
               .filter((a) => a.kind === "CREDIT_CARD" && (a.active || a.id === editing.chargedToId))
               .map((a) => ({ id: a.id, name: a.name }))}
             paySchedules={paySchedules.map((p) => ({ id: p.id, name: p.name }))}
+            loans={loans.map((l) => ({ id: l.id, name: l.nickname || displayAccountName(l.name) }))}
             defaults={{
               ...editing,
+              payoffSummary: editing.id && payoffById.has(editing.id) ? payoffLine(payoffById.get(editing.id)!, formatCents) : null,
               paysCardLearned: editing.paysCardLearned ? (accounts.find((a) => a.id === editing.paysCardLearned)?.name ?? null) : null,
             }}
           />

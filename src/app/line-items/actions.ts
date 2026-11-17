@@ -37,6 +37,13 @@ function readForm(form: FormData) {
     paidFromSurplus: str(form, "paidFromSurplus") === "true",
     autoRecord: str(form, "autoRecord") === "true",
     ...(form.has("paysCard") ? { paysCard: str(form, "paysCard") || "auto" } : {}),
+    ...(form.has("payoffMode")
+      ? str(form, "payoffMode") === "account"
+        ? { payoffAccountId: str(form, "payoffAccountId") || null, payoffBalanceCents: null }
+        : str(form, "payoffMode") === "balance" && str(form, "payoffBalance")
+          ? { payoffAccountId: null, payoffBalanceCents: parseCents(str(form, "payoffBalance")), payoffAsOf: str(form, "payoffAsOf") || null }
+          : { payoffAccountId: null, payoffBalanceCents: null }
+      : {}),
     ...(form.has("paydayNumber") ? { paydayNumber: Number(str(form, "paydayNumber") || 0) } : {}),
     scheduleKind: (str(form, "scheduleKind") || "MONTHLY") as never,
     anchorMonth: num(form, "anchorMonth") ?? 1,

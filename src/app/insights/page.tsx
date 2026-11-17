@@ -6,6 +6,7 @@ import { getUpcoming } from "@/server/yearly";
 import { payoffTrackers, type PayoffTracker } from "@/server/card-payments";
 import { getMonthView } from "@/server/month";
 import { getBudgetPlan } from "@/server/budget-plan";
+import { listPayoffs, type Payoff } from "@/server/payoff";
 import { CardBudget, CategoryTargets, IncomeBar } from "./budget";
 import { ComingUpRow } from "./coming-up";
 import { formatCents } from "@/lib/money";
@@ -139,6 +140,40 @@ const MARK: Record<Suggestion["kind"], { glyph: string; tone: string }> = {
   "price-up": { glyph: "↑", tone: "text-warn" },
   payoff: { glyph: "◎", tone: "text-ok" },
 };
+
+const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Bills paying off a balance: what's left, when each ends, and what that frees up. */
+function PayingOff({ rows }: { rows: Payoff[] }) {
+  return (
+    <Card>
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-base font-bold">Paying off</h2>
+        <Link href="/line-items" className="text-xs font-semibold text-accent-text hover:underline">
+          Bills &amp; income
+        </Link>
+      </div>
+      <ul className="mt-3 divide-y divide-line text-sm">
+        {rows.map((p) => (
+          <li key={p.lineItemId} className="flex flex-wrap items-baseline justify-between gap-3 py-2.5">
+            <span className="min-w-0">
+              <span className="block font-semibold">{p.name}</span>
+              <span className="block text-xs text-muted">
+                {p.paidOff
+                  ? "Paid off: it has dropped off the plan."
+                  : `${p.paymentsLeft ?? "?"} payment${p.paymentsLeft === 1 ? "" : "s"} of ${whole(p.plannedCents)} left${p.lastYear && p.lastMonth ? `, the last in ${MONTH_SHORT[p.lastMonth - 1]} ${p.lastYear}` : ""}${p.source === "bank" ? " · balance from the bank" : ""}`}
+              </span>
+            </span>
+            <span className="text-right">
+              <span className="tnum block font-bold">{p.paidOff ? "Done" : whole(p.remainingCents)}</span>
+              {!p.paidOff ? <span className="block text-xs text-ok">frees {whole(p.plannedCents)} a month after</span> : null}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
 
 const longDate = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 
@@ -354,6 +389,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
     payoffTrackers(),
     isNow ? getMonthView(picked.year, picked.month).catch(() => null) : Promise.resolve(null),
   ]);
+  const payoffs = isNow ? await listPayoffs().catch(() => [] as Payoff[]) : [];
   const budget = isNow ? await getBudgetPlan().catch((error) => (console.error("Budget plan:", error), null)) : null;
   const prev = shift(picked.year, picked.month, -1);
   const next = shift(picked.year, picked.month, 1);
@@ -421,6 +457,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
               <CategoryTargets plan={budget} period={param(picked)} />
             </>
           ) : null}
+          {payoffs.length ? <PayingOff rows={payoffs} /> : null}
           {data.pace ? <PaceCard pace={data.pace} leftAfterBillsCents={view?.transferAfterSecondCents ?? null} weekCents={data.weekCents} /> : null}
           {payoff.length ? <PayoffCard rows={payoff} /> : null}
           {upcoming.length ? (

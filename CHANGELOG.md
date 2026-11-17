@@ -3,6 +3,20 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.37.0]
+
+### Added
+- Bills that pay off a balance (Bills & income → Pays off a balance): a loan, mortgage or payment
+  plan tracks what's left, either a balance you enter (counted down by the payments recorded
+  after its date) or a loan account's balance from the bank. The list shows what's left, the
+  payments to go and the month of the last one; once it reaches zero the bill ends on its own and
+  drops off the plan.
+- "Paying off" on Insights: each such bill with what's left, when it ends and what it frees up
+  each month after. Also in `GET /api/v1/insights` (phone app 0.12).
+
+### Upgrade
+- Migration `0019_bill_payoff_balance`.
+
 ## [0.36.0]
 
 ### Added

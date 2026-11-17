@@ -141,6 +141,15 @@ model LineItem {
   paysCard       Account? @relation("PaysCard", fields: [paysCardId], references: [id], onDelete: SetNull)
   paysCardLocked Boolean  @default(false)
 
+  /// A bill that pays off a balance (a loan, an orthodontist): what's left,
+  /// either followed from a loan account in the bank feed or counted down from
+  /// a balance as of a date by the payments recorded since. The bill ends on
+  /// its own once it reaches zero.
+  payoffBalance   Decimal?     @db.Decimal(12, 2)
+  payoffAsOf      DateTime?    @db.Date
+  payoffAccountId String?
+  payoffAccount   BankAccount? @relation("PayoffAccount", fields: [payoffAccountId], references: [id], onDelete: SetNull)
+
   /// INCOME only: the pay calendar this arrives on. When set, the projection
   /// places one payment on every payday the schedule generates, instead of a
   /// single one on dueDay. This is what makes a three-payday month show up as
@@ -515,6 +524,9 @@ model BankAccount {
   /// Optional: the Budget account whose balance this one keeps current.
   linkedAccountId String?  @unique
   linkedAccount   Account? @relation(fields: [linkedAccountId], references: [id], onDelete: SetNull)
+
+  /// Bills that pay this loan off, following its balance.
+  payoffItems LineItem[] @relation("PayoffAccount")
 
   /// Last time the feed listed this account.
   lastSeenAt   DateTime

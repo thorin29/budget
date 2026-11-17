@@ -143,6 +143,8 @@ export async function runBillAutomation(): Promise<AutomationResult> {
   const dueDaysMoved = await learnDueDays();
   const recorded = await recordExactMatches();
   const cardPayments = await recordCardPayments();
+  const { closePaidOffBills } = await import("./payoff");
+  await closePaidOffBills();
   return { linked, dueDaysMoved, recorded, cardsLinked, cardPayments };
 }
 

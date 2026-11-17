@@ -42,6 +42,10 @@ export interface LineItem {
   /** A card-payment bill: the card it pays (a credit card account), and whether the person picked it. */
   paysCardId: string | null;
   paysCardLocked: boolean;
+  /** Paying off a balance: what was left as of a date, or a loan account in the feed to follow. */
+  payoffBalanceCents: Cents | null;
+  payoffAsOf: string | null;
+  payoffAccountId: string | null;
   /** INCOME: which payday of the month (1st, 2nd…); 0 or null for its due day. */
   paydayNumber: number | null;
   scheduleKind: ScheduleKind;
@@ -74,6 +78,9 @@ const lineItemInput = z
     autoRecord: z.boolean().optional(),
     /** "auto" to let the bank work it out, "none" for not a card payment, or a credit card account id. */
     paysCard: z.string().trim().min(1).nullish(),
+    payoffBalanceCents: z.number().int().min(0).nullish(),
+    payoffAsOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date").nullish(),
+    payoffAccountId: z.string().trim().min(1).nullish(),
     paydayNumber: z.number().int().min(0).max(5).nullish(),
     scheduleKind: z.enum(SCHEDULE_KINDS).default("MONTHLY"),
     /** The month a non-monthly schedule is anchored to. */
@@ -144,6 +151,9 @@ type Row = {
   autoRecord?: boolean;
   paysCardId?: string | null;
   paysCardLocked?: boolean;
+  payoffBalance?: { toString(): string } | null;
+  payoffAsOf?: Date | null;
+  payoffAccountId?: string | null;
   paydayNumber?: number | null;
   scheduleKind: string;
   months: number[];
@@ -176,6 +186,9 @@ function toLineItem(row: Row): LineItem {
     autoRecord: row.autoRecord ?? true,
     paysCardId: row.paysCardId ?? null,
     paysCardLocked: row.paysCardLocked ?? false,
+    payoffBalanceCents: row.payoffBalance ? toCents(row.payoffBalance) : null,
+    payoffAsOf: row.payoffAsOf ? row.payoffAsOf.toISOString().slice(0, 10) : null,
+    payoffAccountId: row.payoffAccountId ?? null,
     paydayNumber: row.paydayNumber ?? null,
     scheduleKind: row.scheduleKind as ScheduleKind,
     months: row.months,
@@ -225,6 +238,15 @@ async function toRowData(data: ReturnType<typeof parse>) {
     paidFromSurplus: data.kind === "INCOME" ? false : (data.paidFromSurplus ?? false),
     ...(data.autoRecord === undefined ? {} : { autoRecord: data.autoRecord }),
     ...paysCardData(data.kind, data.paysCard),
+    ...(data.payoffBalanceCents === undefined && data.payoffAccountId === undefined
+      ? {}
+      : data.kind === "INCOME"
+        ? { payoffBalance: null, payoffAsOf: null, payoffAccountId: null }
+        : {
+            payoffAccountId: data.payoffAccountId ?? null,
+            payoffBalance: data.payoffAccountId || data.payoffBalanceCents == null ? null : toDecimalString(data.payoffBalanceCents),
+            payoffAsOf: data.payoffAccountId || data.payoffBalanceCents == null ? null : new Date(`${data.payoffAsOf ?? new Date().toISOString().slice(0, 10)}T00:00:00Z`),
+          }),
     ...(data.paydayNumber === undefined ? {} : { paydayNumber: data.kind === "INCOME" ? data.paydayNumber : null }),
     scheduleKind: data.scheduleKind,
     months: monthsForSchedule(data.scheduleKind, data.anchorMonth, data.months ?? []),
@@ -289,6 +311,10 @@ function paysCardData(kind: string, choice: string | null | undefined): { paysCa
 async function assertReferencesExist(data: ReturnType<typeof parse>): Promise<void> {
   const issues: Record<string, string[]> = {};
 
+  if (data.payoffAccountId) {
+    const loan = await prisma.bankAccount.findUnique({ where: { id: data.payoffAccountId }, select: { type: true } });
+    if (!loan) issues.payoffAccountId = ["Pick an account"];
+  }
   if (data.paysCard && data.paysCard !== "auto" && data.paysCard !== "none") {
     const account = await prisma.account.findUnique({ where: { id: data.paysCard } });
     if (!account || account.kind !== "CREDIT_CARD") issues.paysCard = ["Pick a credit card"];
