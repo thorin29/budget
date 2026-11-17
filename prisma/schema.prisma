@@ -87,6 +87,7 @@ model Account {
 
   paidFromItems  LineItem[]        @relation("PaidFrom")
   chargedToItems LineItem[]        @relation("ChargedTo")
+  paysCardItems  LineItem[]        @relation("PaysCard")
   balances       BalanceSnapshot[]
   /// A linked bank feed account keeps this account's balance current.
   bankAccount    BankAccount?
@@ -132,6 +133,13 @@ model LineItem {
   /// Reporting only — it does not affect what must be in the bank.
   chargedToId String?
   chargedTo   Account? @relation("ChargedTo", fields: [chargedToId], references: [id], onDelete: SetNull)
+
+  /// A card-payment bill: the card it pays. Payments reaching that card are
+  /// recorded for the bill on their own. Worked out from history and names
+  /// until the person picks (paysCardLocked).
+  paysCardId     String?
+  paysCard       Account? @relation("PaysCard", fields: [paysCardId], references: [id], onDelete: SetNull)
+  paysCardLocked Boolean  @default(false)
 
   /// INCOME only: the pay calendar this arrives on. When set, the projection
   /// places one payment on every payday the schedule generates, instead of a
@@ -206,6 +214,7 @@ model LineItem {
   @@index([active, kind, sortOrder])
   @@index([paidFromId])
   @@index([payScheduleId])
+  @@index([paysCardId])
 }
 
 /// A single month's deviation from plannedAmount. `skipped` marks a month the

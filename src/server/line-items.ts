@@ -39,6 +39,9 @@ export interface LineItem {
   /** Paid from what is left after the bills; kept out of the cash figures. */
   paidFromSurplus: boolean;
   autoRecord: boolean;
+  /** A card-payment bill: the card it pays (a credit card account), and whether the person picked it. */
+  paysCardId: string | null;
+  paysCardLocked: boolean;
   /** INCOME: which payday of the month (1st, 2nd…); 0 or null for its due day. */
   paydayNumber: number | null;
   scheduleKind: ScheduleKind;
@@ -69,6 +72,8 @@ const lineItemInput = z
     periodAssignment: z.enum(PERIOD_ASSIGNMENTS).default("AUTO"),
     paidFromSurplus: z.boolean().optional(),
     autoRecord: z.boolean().optional(),
+    /** "auto" to let the bank work it out, "none" for not a card payment, or a credit card account id. */
+    paysCard: z.string().trim().min(1).nullish(),
     paydayNumber: z.number().int().min(0).max(5).nullish(),
     scheduleKind: z.enum(SCHEDULE_KINDS).default("MONTHLY"),
     /** The month a non-monthly schedule is anchored to. */
@@ -137,6 +142,8 @@ type Row = {
   periodAssignment: string;
   paidFromSurplus: boolean;
   autoRecord?: boolean;
+  paysCardId?: string | null;
+  paysCardLocked?: boolean;
   paydayNumber?: number | null;
   scheduleKind: string;
   months: number[];
@@ -167,6 +174,8 @@ function toLineItem(row: Row): LineItem {
     periodAssignment: row.periodAssignment as PeriodAssignment,
     paidFromSurplus: row.paidFromSurplus,
     autoRecord: row.autoRecord ?? true,
+    paysCardId: row.paysCardId ?? null,
+    paysCardLocked: row.paysCardLocked ?? false,
     paydayNumber: row.paydayNumber ?? null,
     scheduleKind: row.scheduleKind as ScheduleKind,
     months: row.months,
@@ -215,6 +224,7 @@ async function toRowData(data: ReturnType<typeof parse>) {
     periodAssignment: data.periodAssignment,
     paidFromSurplus: data.kind === "INCOME" ? false : (data.paidFromSurplus ?? false),
     ...(data.autoRecord === undefined ? {} : { autoRecord: data.autoRecord }),
+    ...paysCardData(data.kind, data.paysCard),
     ...(data.paydayNumber === undefined ? {} : { paydayNumber: data.kind === "INCOME" ? data.paydayNumber : null }),
     scheduleKind: data.scheduleKind,
     months: monthsForSchedule(data.scheduleKind, data.anchorMonth, data.months ?? []),
@@ -268,8 +278,21 @@ export async function deleteLineItem(id: string): Promise<{ deleted: boolean }> 
   return { deleted: true };
 }
 
+/** The form's card choice as columns: left alone when not sent. */
+function paysCardData(kind: string, choice: string | null | undefined): { paysCardId?: string | null; paysCardLocked?: boolean } {
+  if (choice === undefined || choice === null) return {};
+  if (kind === "INCOME" || choice === "none") return { paysCardId: null, paysCardLocked: kind !== "INCOME" };
+  if (choice === "auto") return { paysCardLocked: false };
+  return { paysCardId: choice, paysCardLocked: true };
+}
+
 async function assertReferencesExist(data: ReturnType<typeof parse>): Promise<void> {
   const issues: Record<string, string[]> = {};
+
+  if (data.paysCard && data.paysCard !== "auto" && data.paysCard !== "none") {
+    const account = await prisma.account.findUnique({ where: { id: data.paysCard } });
+    if (!account || account.kind !== "CREDIT_CARD") issues.paysCard = ["Pick a credit card"];
+  }
 
   if (data.categoryId) {
     const found = await prisma.category.count({ where: { id: data.categoryId } });

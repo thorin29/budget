@@ -26,6 +26,10 @@ export interface LineItemDefaults {
   periodAssignment: string;
   paidFromSurplus: boolean;
   autoRecord: boolean;
+  /** "auto", "none", or a credit card account id. */
+  paysCard: string;
+  /** The card the bank worked out, shown while the choice is "auto". */
+  paysCardLearned: string | null;
   paydayNumber: number | null;
   scheduleKind: string;
   anchorMonth: number;
@@ -390,6 +394,28 @@ export function LineItemForm({
               <option value="3">The 3rd payday of the month</option>
               <option value="4">The 4th payday of the month</option>
               <option value="5">The 5th payday of the month</option>
+            </Select>
+          </Field>
+        ) : null}
+
+        {!isIncome && cards.length > 0 ? (
+          <Field
+            label="Pays a card"
+            hint={
+              defaults.paysCard === "auto" && defaults.paysCardLearned
+                ? `Worked out from the bank: ${defaults.paysCardLearned}. Payments reaching it are recorded here on their own.`
+                : "For a card payment: payments reaching that card are recorded here on their own, whatever the amount."
+            }
+            error={state.issues?.paysCard}
+          >
+            <Select name="paysCard" defaultValue={defaults.paysCard}>
+              <option value="auto">Work it out from the bank</option>
+              <option value="none">Not a card payment</option>
+              {cards.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
             </Select>
           </Field>
         ) : null}

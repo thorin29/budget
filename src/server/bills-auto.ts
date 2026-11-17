@@ -10,6 +10,8 @@
  *     already tied to the bill, around the due day, in the usual amount range
  *     (bills like utilities vary). Undo is on the Review page; a charge from a
  *     merchant it doesn't know yet still waits there for a Confirm.
+ *  4. Card-payment bills: payments reaching the card are recorded for the
+ *     month they pay, whatever the amount (src/server/card-bills.ts).
  */
 
 import { prisma } from "@/lib/prisma";
@@ -31,6 +33,8 @@ export interface AutomationResult {
   linked: number;
   dueDaysMoved: number;
   recorded: number;
+  cardsLinked: number;
+  cardPayments: number;
 }
 
 /** 1. Hand-recorded payments meet their bank charges. */
@@ -134,9 +138,12 @@ export async function assignPaydayNumbers(): Promise<number> {
 export async function runBillAutomation(): Promise<AutomationResult> {
   await assignPaydayNumbers();
   const linked = await linkRecordedPayments();
+  const { learnCardLinks, recordCardPayments } = await import("./card-bills");
+  const cardsLinked = await learnCardLinks();
   const dueDaysMoved = await learnDueDays();
   const recorded = await recordExactMatches();
-  return { linked, dueDaysMoved, recorded };
+  const cardPayments = await recordCardPayments();
+  return { linked, dueDaysMoved, recorded, cardsLinked, cardPayments };
 }
 
 // ---------------------------------------------------------------- what it did, and undoing it

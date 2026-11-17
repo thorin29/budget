@@ -1,5 +1,6 @@
 import { requireDevice } from "@/server/device-auth";
 import { getInsights, getSuggestions } from "@/server/insights";
+import { getUpcoming } from "@/server/yearly";
 import { fail, ok } from "@/server/http";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export async function GET(request: Request) {
     const p = new URL(request.url).searchParams;
     const now = new Intl.DateTimeFormat("en-CA", { timeZone: process.env.TZ || "UTC", year: "numeric", month: "2-digit" }).format(new Date());
     const [y, m] = (p.get("m") && /^\d{4}-\d{2}$/.test(p.get("m")!) ? p.get("m")! : now).split("-").map(Number);
-    const [i, suggestions] = await Promise.all([getInsights(y, m), getSuggestions()]);
+    const [i, suggestions, upcoming] = await Promise.all([getInsights(y, m), getSuggestions(), getUpcoming()]);
     return ok({
       year: i.year,
       month: i.month,
@@ -22,6 +23,7 @@ export async function GET(request: Request) {
       categories: i.categories.slice(0, 6).map((c) => ({ name: c.name, cents: c.cents, averageCents: c.averageCents })),
       uncategorizedCount: i.uncategorized.count,
       pace: i.pace,
+      upcoming: upcoming.map((u) => ({ merchant: u.merchant, expectedOn: u.expectedOn, cents: u.cents, years: u.years })),
       suggestions: suggestions.map((x) => ({
         kind: x.kind,
         title: x.title,

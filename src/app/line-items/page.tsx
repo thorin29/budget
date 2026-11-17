@@ -41,6 +41,8 @@ const BLANK: LineItemDefaults = {
   dueDay: null,
   paidFromSurplus: false,
   autoRecord: true,
+  paysCard: "auto",
+  paysCardLearned: null,
   paydayNumber: null,
   periodAssignment: "AUTO",
   scheduleKind: "MONTHLY",
@@ -73,6 +75,8 @@ async function loadEditing(edit: string | undefined): Promise<LineItemDefaults |
       dueDay: item.dueDay,
       paidFromSurplus: item.paidFromSurplus,
       autoRecord: item.autoRecord,
+      paysCard: item.paysCardLocked ? (item.paysCardId ?? "none") : "auto",
+      paysCardLearned: !item.paysCardLocked && item.paysCardId ? item.paysCardId : null,
       paydayNumber: item.paydayNumber,
       periodAssignment: item.periodAssignment,
       scheduleKind: item.scheduleKind,
@@ -223,7 +227,10 @@ export default async function LineItemsPage({
               .filter((a) => a.kind === "CREDIT_CARD" && (a.active || a.id === editing.chargedToId))
               .map((a) => ({ id: a.id, name: a.name }))}
             paySchedules={paySchedules.map((p) => ({ id: p.id, name: p.name }))}
-            defaults={editing}
+            defaults={{
+              ...editing,
+              paysCardLearned: editing.paysCardLearned ? (accounts.find((a) => a.id === editing.paysCardLearned)?.name ?? null) : null,
+            }}
           />
         </Drawer>
       ) : null}

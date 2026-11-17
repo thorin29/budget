@@ -2,6 +2,8 @@ import { InsightsTabs } from "@/components/insights-tabs";
 import Link from "next/link";
 import { getInsights, getSuggestions, type CategorySpend, type MonthTotal, type Pace } from "@/server/insights";
 import type { Suggestion } from "@/lib/insight-suggestions";
+import { getUpcoming } from "@/server/yearly";
+import { ComingUpRow } from "./coming-up";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, PageHeading, StatCard, buttonClass } from "@/components/ui";
 
@@ -217,7 +219,7 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   const match = /^(\d{4})-(\d{2})$/.exec(m ?? "");
   const asked = match ? { year: Number(match[1]), month: Number(match[2]) } : now;
   const picked = asked.month >= 1 && asked.month <= 12 && asked.year * 12 + asked.month <= now.year * 12 + now.month ? asked : now;
-  const [data, suggestions] = await Promise.all([getInsights(picked.year, picked.month), getSuggestions()]);
+  const [data, suggestions, upcoming] = await Promise.all([getInsights(picked.year, picked.month), getSuggestions(), getUpcoming()]);
   const prev = shift(picked.year, picked.month, -1);
   const next = shift(picked.year, picked.month, 1);
   const atNow = picked.year === now.year && picked.month === now.month;
@@ -270,6 +272,19 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
           </div>
 
           {data.pace ? <PaceCard pace={data.pace} /> : null}
+          {upcoming.length ? (
+            <Card>
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-base font-bold">Coming up</h2>
+                <span className="text-xs text-muted">Yearly charges due in the next 45 days, from bank history</span>
+              </div>
+              <ul className="mt-1 divide-y divide-line text-sm">
+                {upcoming.map((u) => (
+                  <ComingUpRow key={u.key} item={{ key: u.key, merchant: u.merchant, expectedOn: u.expectedOn, cents: u.cents, lastOn: u.lastOn, years: u.years }} />
+                ))}
+              </ul>
+            </Card>
+          ) : null}
           {suggestions.length ? <Suggestions items={suggestions} /> : null}
 
           <div className="grid gap-6 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">

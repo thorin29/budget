@@ -3,6 +3,22 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.31.0]
+
+### Added
+- Coming up on Insights: yearly charges (memberships, renewals, registrations) expected in the next
+  45 days, found from bank history: charged around the same date two years running, or once a year
+  ago when it reads like a renewal. "Add as a yearly bill" plans it in its month; "Not yearly"
+  hides it. Also in `GET /api/v1/insights` (phone app 0.7).
+- Card payments record themselves. A card-payment bill learns which card it pays, from payments
+  recorded by hand that match payments reaching a card, or from a name it shares with one card
+  (Line items → Pays a card to pick it yourself). Each payment reaching that card is recorded for
+  the month it pays, whatever the amount, tied to the checking side of the transfer, with Undo on
+  the Review page.
+
+### Upgrade
+- Migration `0017_bill_pays_card`.
+
 ## [0.30.0]
 
 ### Added
