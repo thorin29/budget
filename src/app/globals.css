@@ -266,6 +266,34 @@
 
 }
 
+/* Chart series, a validated categorical order (fixed: never cycled). Light, then dark. */
+:root {
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+  --series-3: #1baf7a;
+  --series-4: #eda100;
+  --series-5: #e87ba4;
+  --series-neutral: #c9ccd1;
+}
+:root[data-mode="dark"] {
+  --series-1: #3987e5;
+  --series-2: #d95926;
+  --series-3: #199e70;
+  --series-4: #c98500;
+  --series-5: #d55181;
+  --series-neutral: #4a505a;
+}
+@media (prefers-color-scheme: dark) {
+  :root[data-mode="system"] {
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --series-3: #199e70;
+    --series-4: #c98500;
+    --series-5: #d55181;
+    --series-neutral: #4a505a;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-surface: var(--surface);

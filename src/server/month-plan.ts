@@ -99,6 +99,8 @@ export interface MonthPlanView extends Omit<MonthPlanOut, "groups"> {
   standing: "ok" | "low" | "over";
   message: string | null;
   groups: PlanGroup[];
+  /** Everything spent each day of the month (every budget), for the pace chart. */
+  daily: Array<{ date: string; spentCents: number }>;
 }
 
 type Txn = {
@@ -252,6 +254,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   const ymn = (d: Date) => d.getUTCFullYear() * 12 + d.getUTCMonth();
   const usualByMonth = new Map<string, Map<number, number>>();
   const spent = new Map<string, Map<string, { cents: number; txns: PlanTxn[] }>>(); // group -> category -> …
+  const byDay = new Map<string, number>();
   const otherBills: PlanTxn[] = [];
   let firstMonth: number | null = null;
   for (const t of txns) {
@@ -280,6 +283,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
         continue;
       }
       if (inMonth) {
+        byDay.set(row.date, (byDay.get(row.date) ?? 0) + part.cents);
         const g = spent.get(groupId) ?? new Map<string, { cents: number; txns: PlanTxn[] }>();
         const key = part.categoryId ?? "";
         const c = g.get(key) ?? { cents: 0, txns: [] };
@@ -381,5 +385,9 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     standing,
     message,
     groups: viewGroups,
+    daily: Array.from({ length: daysInMonth }, (_, i) => {
+      const date = iso(new Date(Date.UTC(y, m - 1, i + 1)));
+      return { date, spentCents: byDay.get(date) ?? 0 };
+    }),
   };
 }

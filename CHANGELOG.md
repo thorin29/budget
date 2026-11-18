@@ -3,6 +3,22 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.45.0]
+
+### Added
+- **Charts that decide**, on Insights under the plan, each with its numbers on hover:
+  - **Where this month's money goes:** one bar of money in, split into bills, the debt payment,
+    essentials, extras and unplanned, with what's not spent yet (or a mark where spending passed
+    money in).
+  - **Are we on pace?** What's left in the pool each day against spending it evenly.
+  - **Is the 0% balance on track?** Its balance since it moved, where it heads at this month's
+    payment and at the payment that clears it, against the end of the offer.
+  - **Did each month live within its money?** Money in against everything out for the last six
+    months, with in minus out under each.
+- Chart series colors are a fixed, validated order in light and dark.
+- The month plan carries spending by day; `GET /api/v1/plan/charts` gives the months and the 0%
+  balance to the phone.
+
 ## [0.44.0]
 
 ### Added

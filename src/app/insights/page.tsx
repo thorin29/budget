@@ -9,6 +9,8 @@ import { getMonthPlan } from "@/server/month-plan";
 import { MonthPlan } from "./month-plan";
 import { getCashTiming } from "@/server/cash-timing";
 import { CashTimingCard } from "./cash-timing";
+import { DebtChartCard, HistoryChart, PaceChart, PoolBar } from "./plan-charts";
+import { debtChart, planHistory } from "@/server/plan-charts";
 import { ComingUpRow } from "./coming-up";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, PageHeading, StatCard, buttonClass } from "@/components/ui";
@@ -335,6 +337,12 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
   const payoffs = isNow ? await listPayoffs().catch(() => [] as Payoff[]) : [];
   const plan = await getMonthPlan(picked.year, picked.month).catch((error: unknown) => (console.error("Month plan:", error), null));
   const cash = plan && !plan.closed ? await getCashTiming(plan.debt.cents).catch((error: unknown) => (console.error("Cash timing:", error), null)) : null;
+  const [history, debt] = plan
+    ? await Promise.all([
+        planHistory(plan).catch((error: unknown) => (console.error("Plan history:", error), [])),
+        plan.closed ? Promise.resolve(null) : debtChart(plan.today, plan.debt.cents, plan.debt.targetCents).catch(() => null),
+      ])
+    : [[], null];
   const prev = shift(picked.year, picked.month, -1);
   const next = shift(picked.year, picked.month, 1);
   const atNow = picked.year === now.year && picked.month === now.month;
@@ -369,6 +377,14 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
 
       {plan ? <MonthPlan plan={plan} /> : null}
       {cash ? <CashTimingCard cash={cash} /> : null}
+      {plan ? <PoolBar plan={plan} /> : null}
+      {plan && (!plan.closed || debt) ? (
+        <div className="grid gap-4 lg:grid-cols-2">
+          <PaceChart plan={plan} />
+          {debt ? <DebtChartCard debt={debt} /> : null}
+        </div>
+      ) : null}
+      {history.length >= 2 ? <HistoryChart rows={history} /> : null}
 
       <h2 className="pt-2 font-heading text-xl font-bold tracking-tight">Looking back</h2>
 
