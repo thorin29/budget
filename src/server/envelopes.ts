@@ -1,6 +1,6 @@
 /**
  * Budgets: groups of categories, each a kind (bills, essential, flexible or
- * unplanned) with an optional monthly guardrail. The month's plan itself is
+ * unplanned) with an optional monthly limit. The month's plan itself is
  * src/server/month-plan.ts. A starting set is made from the category names.
  */
 
@@ -73,7 +73,7 @@ export async function ensureGroups(): Promise<void> {
 
 const cents = z.number().int().min(0).max(100_000_000);
 
-/** Monthly guardrails by group id; null puts a group back on automatic. */
+/** Monthly limits by group id; null puts a group back on automatic. */
 export async function setLimits(input: unknown): Promise<void> {
   const parsed = z.record(z.string(), cents.nullable()).safeParse(input);
   if (!parsed.success) throw new ValidationError({ limits: ["Each limit is an amount, or empty for automatic"] });

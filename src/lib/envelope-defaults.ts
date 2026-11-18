@@ -30,7 +30,7 @@ export const DEFAULT_GROUPS: DefaultGroup[] = [
   { name: "Subscriptions", tier: "FLEXIBLE", match: /subscriptions?|streaming|memberships?/ },
   { name: "Fitness", tier: "FLEXIBLE", match: /fitness|gym/ },
   { name: "Gifts & trips", tier: "FLEXIBLE", match: /gifts?|occasions?|holiday|christmas|travel|vacation|trips?/ },
-  // Irregular: no guardrail, never averaged.
+  // Irregular: no limit, never averaged.
   { name: "Car repairs", tier: "UNPLANNED", match: /\bauto\b|\bcar\b|vehicle|repairs?$|tires?|registration/ },
   { name: "Medical", tier: "UNPLANNED", match: /medical|health|pharmacy|dental|vision|doctor/ },
   { name: "School & lessons", tier: "UNPLANNED", match: /school|education|tuition|lessons|childcare|camp/ },
@@ -48,5 +48,5 @@ export function defaultGroupFor(category: string): string | null {
   return DEFAULT_GROUPS.find((g) => g.match.test(name))?.name ?? null;
 }
 
-/** Categories in no budget yet. Their spending counts as an extra with no guardrail until they're placed. */
+/** Categories in no budget yet. Their spending counts as an extra with no limit until they're placed. */
 export const OTHER_GROUP = { id: "other", name: "Needs a budget", tier: "FLEXIBLE" as const };

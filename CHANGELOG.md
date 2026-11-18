@@ -3,6 +3,39 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.47.0]
+
+Run the migration (restart the container): it adds a loan's interest rate. The phone app is
+unchanged for now; its Insights will follow the same tabs next.
+
+### Changed
+- **Insights is a set of short pages** with tabs across the top: Overview, Money, Budget, Cash, Debt,
+  Trends and Settings, beside Year plan. Nothing was removed; each section moved to the tab that
+  answers its question. The month being looked at carries across the tabs that are about a month.
+  - **Overview:** safe to spend, the donut, a one-line cash check, "Can we afford it?", and a tile for
+    each tab with its headline.
+  - **Money:** money in (expected against received) and money out as it happens, with no budget
+    amounts: bills, Subscriptions & autopay, the debt payment, and everyday spending by kind, budget,
+    category and charge. Coming up and Managed for others moved here.
+  - **Budget:** each budget against its limit, and the pace chart.
+  - **Cash:** whether checking covers every due date.
+  - **Debt:** see below.
+  - **Trends:** the month comparisons, charts, where it went, what changed, top merchants and
+    suggestions.
+  - **Settings:** limits, budgets and their categories, and the 0% debt payment. The old Set up the
+    spending plan page sends you here.
+- **Guardrails are called limits.**
+
+### Added
+- **Debt tab.** Loans (installment debt) with balance, payment, interest rate and payoff date, counting
+  interest when the rate is known, plus the 0% balance; loan-looking bills without a balance are
+  listed to fill in the balance and rate. Credit cards (revolving debt) with balance, what's due,
+  whether the statement is paid, and interest and fees charged this year. Totals for each.
+- **Subscriptions & autopay.** Charges that come every month on their own are bills in one category,
+  rolled up on the Money tab. Repeating charges in the bank that aren't bills yet are listed in it with
+  "Make it a bill" (it lands in that category) or "Not automatic".
+- Bills carry their category in the month plan.
+
 ## [0.46.0]
 
 ### Changed

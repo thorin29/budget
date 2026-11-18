@@ -1,6 +1,6 @@
 "use server";
 
-/** Budget actions: guardrails, the debt payment, and how categories are grouped. Each checks its caller first. */
+/** Budget actions: limits, the debt payment, and how categories are grouped. Each checks its caller first. */
 
 import { revalidatePath } from "next/cache";
 import { requireUser, UnauthorizedError } from "@/server/auth";
@@ -28,11 +28,11 @@ async function run(work: () => Promise<unknown>, message?: string): Promise<Enve
 }
 
 export async function setLimitsAction(limits: Record<string, number | null>): Promise<EnvelopeState> {
-  return run(() => setLimits(limits), "Guardrails saved.");
+  return run(() => setLimits(limits), "Limits saved.");
 }
 
 export async function resetLimitsAction(): Promise<EnvelopeState> {
-  return run(() => resetLimits(), "Guardrails are automatic again.");
+  return run(() => resetLimits(), "Limits are automatic again.");
 }
 
 export async function setDebtPaymentAction(cents: number | null): Promise<EnvelopeState> {
@@ -62,4 +62,28 @@ export async function addChargeAsBillAction(transactionId: string, name?: string
     made = (await addChargeAsBill(String(transactionId), name ? String(name) : undefined)).name;
   });
   return state.ok ? { ok: true, message: `Added ${made} as a monthly bill. Change it on Bills & income if anything's off.` } : state;
+}
+
+export async function saveLoanDetailsAction(lineItemId: string, balanceCents: number | null, aprBps: number | null): Promise<EnvelopeState> {
+  const { saveLoanDetails } = await import("@/server/debt");
+  return run(() => saveLoanDetails(String(lineItemId), balanceCents, aprBps), "Saved.");
+}
+
+export async function notALoanAction(lineItemId: string): Promise<EnvelopeState> {
+  const { notALoan } = await import("@/server/debt");
+  return run(() => notALoan(String(lineItemId)), "Won't ask about that one again.");
+}
+
+export async function addRepeatAsSubscriptionAction(key: string): Promise<EnvelopeState> {
+  const { addRepeatAsSubscription } = await import("@/server/subscriptions");
+  let name = "";
+  const state = await run(async () => {
+    name = (await addRepeatAsSubscription(String(key))).name;
+  });
+  return state.ok ? { ok: true, message: `${name} is a bill under Subscriptions & autopay.` } : state;
+}
+
+export async function notASubscriptionAction(key: string): Promise<EnvelopeState> {
+  const { notASubscription } = await import("@/server/subscriptions");
+  return run(() => notASubscription(String(key)), "Won't list it again.");
 }

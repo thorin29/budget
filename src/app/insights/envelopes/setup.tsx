@@ -200,7 +200,7 @@ export function EnvelopeSetupForm({
         <Card>
           <h2 className="text-base font-bold">Not in a budget yet</h2>
           <p className="mt-0.5 text-xs text-muted">
-            Their spending counts against the month, with no guardrail, until
+            Their spending counts against the month, with no limit, until
             you place them.
           </p>
           <ul className="mt-3 space-y-1.5">
@@ -254,12 +254,12 @@ export function EnvelopeSetupForm({
       <Card>
         <h2 className="text-base font-bold">Kinds of budget</h2>
         <ul className="mt-2 space-y-1 text-sm text-muted">
-          <li><b className="text-foreground">Essential</b>: needed every month (groceries, fuel). What its guardrail hasn&rsquo;t spent yet is held back from safe to spend.</li>
+          <li><b className="text-foreground">Essential</b>: needed every month (groceries, fuel). What its limit hasn&rsquo;t spent yet is held back from safe to spend.</li>
           <li><b className="text-foreground">Extra</b>: everything you could say no to. Each one&rsquo;s room is never more than what&rsquo;s safe to spend.</li>
-          <li><b className="text-foreground">Unplanned</b>: irregular costs like repairs, the vet or lessons. No guardrail and never averaged; they come out of the month they happen. Known ones can be scheduled as a bill in their month.</li>
+          <li><b className="text-foreground">Unplanned</b>: irregular costs like repairs, the vet or lessons. No limit and never averaged; they come out of the month they happen. Known ones can be scheduled as a bill in their month.</li>
           <li><b className="text-foreground">Paid as bills</b>: these categories are paid through the bills, so they aren&rsquo;t everyday spending.</li>
         </ul>
-        <p className="mt-2 text-xs text-muted">Guardrails aren&rsquo;t money: what one doesn&rsquo;t spend isn&rsquo;t something to use up, and nothing carries over.</p>
+        <p className="mt-2 text-xs text-muted">Limits aren&rsquo;t money: what one doesn&rsquo;t spend isn&rsquo;t something to use up, and nothing carries over.</p>
         <div className="mt-3">
           <Button
             type="button"

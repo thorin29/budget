@@ -34,3 +34,17 @@ describe("payoffStatus", () => {
     expect(payoffStatus({ accountBalanceCents: null, balanceCents: null, asOf: null, payments: [], plannedCents: 1, months: every, today: "2026-11-16" })).toBeNull();
   });
 });
+
+describe("paymentsFor", () => {
+  it("counts payments on an amortized loan and the interest they carry", async () => {
+    const { paymentsFor } = await import("../payoff");
+    // $10,000 at 6% with $200 a month: 58 payments.
+    const r = paymentsFor(1_000_000, 20_000, 600);
+    expect(r.paymentsLeft).toBe(58);
+    expect(r.interestLeftCents).toBeGreaterThan(150_000);
+    expect(r.interestLeftCents).toBeLessThan(160_000);
+    expect(paymentsFor(1_000_000, 20_000, null)).toEqual({ paymentsLeft: 50, neverEnds: false, interestLeftCents: null });
+    // A payment below the interest never ends.
+    expect(paymentsFor(1_000_000, 4_000, 600).neverEnds).toBe(true);
+  });
+});

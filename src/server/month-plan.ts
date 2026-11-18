@@ -50,6 +50,7 @@ export interface PlanBill {
   paidOn: string | null;
   /** The month it's from, when it's an unpaid bill carried from an earlier month. */
   from: string | null;
+  category: string | null;
 }
 
 export interface PlanGroup {
@@ -218,13 +219,13 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
       continue;
     }
     if (isCardPayment(e.lineItemId)) continue;
-    billItems.push({ lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: amount(e), status: status(e), paidOn: e.paidOn, from: null });
+    billItems.push({ lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: amount(e), status: status(e), paidOn: e.paidOn, from: null, category: e.categoryName });
   }
   for (const e of view.carried) {
     if (e.kind === "INCOME" || isCardPayment(e.lineItemId) || e.actualCents !== null || e.skipped) continue;
     billItems.push({
       lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: e.budgetedCents, status: "overdue", paidOn: null,
-      from: `${e.year}-${String(e.month).padStart(2, "0")}`,
+      from: `${e.year}-${String(e.month).padStart(2, "0")}`, category: e.categoryName,
     });
   }
   billItems.sort((a, b) => a.dueOn.localeCompare(b.dueOn) || a.name.localeCompare(b.name));
@@ -317,7 +318,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   const otherCents = otherBills.reduce((s, t) => s + t.cents, 0);
   const billsCents = billItems.reduce((s, b) => s + b.cents, 0) + otherCents;
 
-  // Budgets in the plan, then the spending still to sort (no guardrail; it counts against the month).
+  // Budgets in the plan, then the spending still to sort (no limit; it counts against the month).
   const planGroups = groups
     .filter((g) => planTier(g.tier) !== "BILLS")
     .map((g) => ({ id: g.id, name: g.name, tier: planTier(g.tier) as PlanTier, manualCents: g.limitCents, usualCents: usual(g.id), spentCents: spentIn(g.id), sort: false }));
@@ -362,9 +363,9 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   } else if (out.safeCents < 0) {
     message = `Over by ${money(out.safeCents)}. Anything more, or groceries and fuel at their usual pace, lands on a card that can't be paid in full.`;
   } else if (out.shortCents > 0) {
-    message = `The guardrails you set add up to ${money(out.shortCents)} more than the month has after bills.`;
+    message = `The limits you set add up to ${money(out.shortCents)} more than the month has after bills.`;
   } else if (out.gapCents > 0) {
-    message = `Usual spending is ${money(out.gapCents)} more than this month has after bills, so the extras' guardrails are smaller than usual.`;
+    message = `Usual spending is ${money(out.gapCents)} more than this month has after bills, so the extras' limits are smaller than usual.`;
   }
 
   return {

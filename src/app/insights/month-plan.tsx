@@ -3,7 +3,7 @@
 /**
  * The month's spending plan: what's safe to spend on extras, how it adds up
  * (each step opens to its items), "Can we afford it?", every budget down to
- * its transactions, and the guardrails.
+ * its transactions, and the limits.
  */
 
 import Link from "next/link";
@@ -41,7 +41,7 @@ function planInput(plan: MonthPlanView): MonthPlanIn {
 }
 
 /** A charge's "Make it a bill": a monthly bill from this charge, tied to its merchant. */
-function MakeBill({ id }: { id: string }) {
+export function MakeBill({ id }: { id: string }) {
   const [state, setState] = useState<EnvelopeState | null>(null);
   const [pending, start] = useTransition();
   if (state?.ok) return <span className="shrink-0 text-ok">Added</span>;
@@ -58,7 +58,7 @@ function MakeBill({ id }: { id: string }) {
   );
 }
 
-function Txns({ rows, bills = true }: { rows: PlanTxn[]; bills?: boolean }) {
+export function Txns({ rows, bills = true }: { rows: PlanTxn[]; bills?: boolean }) {
   if (!rows.length) return <p className="text-xs text-muted">Nothing yet.</p>;
   return (
     <ul className="divide-y divide-line text-xs">
@@ -107,7 +107,7 @@ const STATUS: Record<string, { label: string; cls: string }> = {
   skipped: { label: "Not this month", cls: "bg-neutral-soft text-muted" },
 };
 
-function HowItAddsUp({ plan }: { plan: MonthPlanView }) {
+export function HowItAddsUp({ plan }: { plan: MonthPlanView }) {
   const sorts = plan.groups.filter((g) => g.tier === "SORT");
   const byTier = (t: PlanGroup["tier"]) => plan.groups.filter((g) => g.tier === t).reduce((s, g) => s + g.spentCents, 0);
   const d = plan.debt;
@@ -178,7 +178,7 @@ function HowItAddsUp({ plan }: { plan: MonthPlanView }) {
                 </li>
               ) : null}
             </ul>
-            <Link href="/insights/envelopes" className="mt-2 inline-block text-xs font-semibold text-accent-text hover:underline">
+            <Link href="/insights/settings" className="mt-2 inline-block text-xs font-semibold text-accent-text hover:underline">
               Change the debt payment
             </Link>
           </Step>
@@ -216,7 +216,7 @@ function HowItAddsUp({ plan }: { plan: MonthPlanView }) {
   );
 }
 
-function WhatIf({ plan }: { plan: MonthPlanView }) {
+export function WhatIf({ plan }: { plan: MonthPlanView }) {
   const choices = plan.groups.filter((g) => g.tier !== "SORT");
   const first = choices.find((g) => g.tier === "FLEXIBLE")?.id ?? choices[0]?.id ?? "";
   const [rows, setRows] = useState<Array<{ amount: string; groupId: string }>>([{ amount: "", groupId: first }]);
@@ -317,7 +317,7 @@ function GroupRow({ g, share, safeCents }: { g: PlanGroup; share: number; safeCe
     const own = g.leftCents ?? 0;
     note =
       g.overCents > 0
-        ? `${money(g.spentCents)} spent of a ${money(limit ?? 0)} guardrail: ${money(g.overCents)} over`
+        ? `${money(g.spentCents)} spent of a ${money(limit ?? 0)} limit: ${money(g.overCents)} over`
         : (g.roomCents ?? 0) < own
           ? `${money(g.spentCents)} of ${money(limit ?? 0)} spent. Only ${money(Math.max(0, safeCents))} is safe to spend this month, so that's all the room it has.`
           : `${money(g.spentCents)} of ${money(limit ?? 0)} spent`;
@@ -329,7 +329,7 @@ function GroupRow({ g, share, safeCents }: { g: PlanGroup; share: number; safeCe
         <b>{money(g.leftCents ?? 0)}</b> <span className="text-xs text-muted">still to come</span>
       </span>
     );
-    note = `${money(g.spentCents)} of ${money(limit ?? 0)} spent${g.automatic ? " · guardrail from usual spending" : ""}`;
+    note = `${money(g.spentCents)} of ${money(limit ?? 0)} spent${g.automatic ? " · limit from usual spending" : ""}`;
   } else {
     right = (
       <span className="tnum shrink-0">
@@ -366,7 +366,7 @@ function GroupRow({ g, share, safeCents }: { g: PlanGroup; share: number; safeCe
             <p className="text-xs text-muted">Nothing spent this month.</p>
           )}
           {g.tier === "SORT" ? (
-            <Link href={g.id === "uncategorized" ? "/insights/uncategorized" : "/insights/envelopes"} className="inline-block text-xs font-semibold text-accent-text hover:underline">
+            <Link href={g.id === "uncategorized" ? "/insights/uncategorized" : "/insights/settings"} className="inline-block text-xs font-semibold text-accent-text hover:underline">
               {g.id === "uncategorized" ? "Sort them by merchant" : "Place these categories in a budget"}
             </Link>
           ) : null}
@@ -379,11 +379,11 @@ function GroupRow({ g, share, safeCents }: { g: PlanGroup; share: number; safeCe
 const TIER_CARDS: Array<{ tier: PlanGroup["tier"]; title: string; note: string }> = [
   { tier: "ESSENTIAL", title: "Essentials", note: "Needed every month. What they haven't spent yet is held back from safe to spend." },
   { tier: "FLEXIBLE", title: "Extras", note: "Room is never more than what's safe to spend, so an overspend anywhere shrinks all of them." },
-  { tier: "UNPLANNED", title: "Unplanned", note: "Irregular costs. No guardrail; they come out of the month they happen." },
+  { tier: "UNPLANNED", title: "Unplanned", note: "Irregular costs. No limit; they come out of the month they happen." },
   { tier: "SORT", title: "Needs sorting", note: "Spending without a category or a budget. It still counts." },
 ];
 
-function Guardrails({ plan }: { plan: MonthPlanView }) {
+export function Limits({ plan }: { plan: MonthPlanView }) {
   const editable = plan.groups.filter((g) => g.tier === "ESSENTIAL" || g.tier === "FLEXIBLE");
   const [manual, setManual] = useState<Record<string, string>>(() =>
     Object.fromEntries(editable.filter((g) => g.manualCents !== null).map((g) => [g.id, String(Math.round(g.manualCents! / 100))])),
@@ -399,7 +399,7 @@ function Guardrails({ plan }: { plan: MonthPlanView }) {
   const limitOf = new Map(preview.groups.map((g) => [g.id, g.limitCents]));
   return (
     <Card>
-      <h2 className="text-base font-bold">Guardrails</h2>
+      <h2 className="text-base font-bold">Limits</h2>
       <p className="mt-0.5 max-w-prose text-xs text-muted">
         For the month. Type one to set it; leave it empty for automatic. Automatic essentials use usual spending; automatic extras use usual spending,
         scaled down together when they don&rsquo;t all fit in the pool. Changes show in the totals below before you save.
@@ -418,7 +418,7 @@ function Guardrails({ plan }: { plan: MonthPlanView }) {
                   <span className="tnum shrink-0 text-right text-muted">{parsed(g.id) === null ? money(limitOf.get(g.id) ?? 0) : ""}</span>
                   <span className="w-24 shrink-0">
                     <input
-                      aria-label={`Guardrail for ${g.name}`}
+                      aria-label={`Limit for ${g.name}`}
                       className={CONTROL}
                       inputMode="decimal"
                       placeholder="auto"
@@ -441,11 +441,11 @@ function Guardrails({ plan }: { plan: MonthPlanView }) {
         {preview.gapCents > 0 ? ` · usual spending is ${money(preview.gapCents)} more than the pool` : ""}
       </p>
       {preview.shortCents > 0 ? (
-        <p className="mt-2 rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">The guardrails you set add up to {money(preview.shortCents)} more than the pool.</p>
+        <p className="mt-2 rounded-xl bg-danger-soft px-3 py-2 text-sm text-danger">The limits you set add up to {money(preview.shortCents)} more than the pool.</p>
       ) : null}
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <Button type="button" disabled={pending} onClick={() => start(async () => setState(await setLimitsAction(Object.fromEntries(editable.map((g) => [g.id, parsed(g.id)])))))}>
-          Save guardrails
+          Save limits
         </Button>
         <Button
           type="button"
@@ -466,55 +466,54 @@ function Guardrails({ plan }: { plan: MonthPlanView }) {
   );
 }
 
-export function MonthPlan({ plan }: { plan: MonthPlanView }) {
-  const share = plan.daysInMonth ? (plan.daysInMonth - plan.daysLeft) / plan.daysInMonth : 1;
+/** The headline: safe to spend (or over by) for the month, and why. */
+export function PlanHero({ plan }: { plan: MonthPlanView }) {
   const over = plan.safeCents < 0;
   const unplannedUsual = plan.unplannedUsualCents;
   return (
-    <section className="space-y-4" aria-label="Spending plan">
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.1fr]">
-        <div className="space-y-4">
-          <Card>
-            {plan.closed ? (
-              <>
-                <p className="text-sm text-muted">{monthName(plan.month)}, after bills</p>
-                <p className={`tnum mt-1 text-4xl font-bold ${plan.poolLeftCents < 0 ? "text-danger" : ""}`}>
-                  {plan.poolLeftCents < 0 ? `Over by ${money(-plan.poolLeftCents)}` : `${money(plan.poolLeftCents)} not spent`}
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm text-muted">{over ? "This month is" : "Safe to spend on extras"}</p>
-                <p className={`tnum mt-1 text-4xl font-bold ${over ? "text-danger" : plan.standing === "low" ? "text-warn" : ""}`}>
-                  {over ? `Over by ${money(-plan.safeCents)}` : money(plan.safeCents)}
-                </p>
-                {plan.groups.some((g) => g.tier === "FLEXIBLE") ? (
-                  <p className="mt-1 text-sm">
-                    Extras&rsquo; guardrails have <b>{money(plan.groups.reduce((s, g) => s + (g.roomCents ?? 0), 0))}</b> of room left in all.
-                  </p>
-                ) : null}
-                <p className="mt-1 text-sm text-muted">
-                  For the rest of {monthName(plan.month).split(" ")[0]} ({plan.daysLeft} day{plan.daysLeft === 1 ? "" : "s"}), after every bill and the
-                  groceries, fuel and other essentials still to come.
-                </p>
-              </>
-            )}
-            {plan.message ? (
-              <p className={`mt-3 rounded-xl px-3.5 py-2.5 text-sm ${over || plan.shortCents > 0 ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"}`}>{plan.message}</p>
-            ) : null}
-            {unplannedUsual > 0 && !plan.closed ? (
-              <p className="mt-2 text-xs text-muted">
-                Unplanned costs (repairs, medical, the vet, lessons and the like) came to about {money(unplannedUsual * 12)} over the last year. Nothing is set
-                aside for them, so when one comes it comes out of what&rsquo;s safe to spend.
-              </p>
-            ) : null}
-          </Card>
-          {!plan.closed ? <WhatIf plan={plan} /> : null}
-        </div>
-        <HowItAddsUp plan={plan} />
-      </div>
+    <Card>
+      {plan.closed ? (
+        <>
+          <p className="text-sm text-muted">{monthName(plan.month)}, after bills</p>
+          <p className={`tnum mt-1 text-4xl font-bold ${plan.poolLeftCents < 0 ? "text-danger" : ""}`}>
+            {plan.poolLeftCents < 0 ? `Over by ${money(-plan.poolLeftCents)}` : `${money(plan.poolLeftCents)} not spent`}
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="text-sm text-muted">{over ? "This month is" : "Safe to spend on extras"}</p>
+          <p className={`tnum mt-1 text-4xl font-bold ${over ? "text-danger" : plan.standing === "low" ? "text-warn" : ""}`}>
+            {over ? `Over by ${money(-plan.safeCents)}` : money(plan.safeCents)}
+          </p>
+          {plan.groups.some((g) => g.tier === "FLEXIBLE") ? (
+            <p className="mt-1 text-sm">
+              Extras&rsquo; limits have <b>{money(plan.groups.reduce((s, g) => s + (g.roomCents ?? 0), 0))}</b> of room left in all.
+            </p>
+          ) : null}
+          <p className="mt-1 text-sm text-muted">
+            For the rest of {monthName(plan.month).split(" ")[0]} ({plan.daysLeft} day{plan.daysLeft === 1 ? "" : "s"}), after every bill and the
+            groceries, fuel and other essentials still to come.
+          </p>
+        </>
+      )}
+      {plan.message ? (
+        <p className={`mt-3 rounded-xl px-3.5 py-2.5 text-sm ${over || plan.shortCents > 0 ? "bg-danger-soft text-danger" : "bg-warn-soft text-warn"}`}>{plan.message}</p>
+      ) : null}
+      {unplannedUsual > 0 && !plan.closed ? (
+        <p className="mt-2 text-xs text-muted">
+          Unplanned costs (repairs, medical, the vet, lessons and the like) came to about {money(unplannedUsual * 12)} over the last year. Nothing is set
+          aside for them, so when one comes it comes out of what&rsquo;s safe to spend.
+        </p>
+      ) : null}
+    </Card>
+  );
+}
 
-      <div className="grid gap-4 lg:grid-cols-2">
+/** Every budget against its limit, by kind, each opening to its categories and charges. */
+export function TierCards({ plan }: { plan: MonthPlanView }) {
+  const share = plan.daysInMonth ? (plan.daysInMonth - plan.daysLeft) / plan.daysInMonth : 1;
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
         {TIER_CARDS.map(({ tier, title, note }) => {
           const rows = plan.groups.filter((g) => g.tier === tier && (g.tier !== "SORT" || g.spentCents !== 0));
           if (!rows.length) return null;
@@ -534,15 +533,6 @@ export function MonthPlan({ plan }: { plan: MonthPlanView }) {
             </Card>
           );
         })}
-      </div>
-
-      {!plan.closed ? <Guardrails plan={plan} /> : null}
-      <p className="text-xs text-muted">
-        <Link href="/insights/envelopes" className="font-semibold text-accent-text hover:underline">
-          Set up budgets
-        </Link>{" "}
-        · which categories go in which budget, and the debt payment
-      </p>
-    </section>
+    </div>
   );
 }
