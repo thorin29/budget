@@ -27,6 +27,8 @@ export interface OutlookView {
   to: string;
   /** The paycheck that ends the window, when there is one. */
   nextPay: OutlookLine | null;
+  /** The paycheck inside the window: it splits it into before and after payday. */
+  payday: OutlookLine | null;
   pay: OutlookLine[];
   bills: OutlookLine[];
   /** Bills in the window charged to a card: they're paid with the card later, not from checking. */
@@ -124,6 +126,7 @@ export async function getOutlook(today: string, debtCents: number): Promise<Outl
     from,
     to,
     nextPay: second ? line(second) : null,
+    payday: paychecks[0] && inWindow(paychecks[0]) && paychecks[0] !== second ? line(paychecks[0]) : null,
     pay: income.filter(inWindow).map(line).sort(byDate),
     bills: bills.sort(byDate),
     onCard: onCard.sort(byDate),

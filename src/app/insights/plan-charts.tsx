@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import type { MonthPlanView } from "@/server/month-plan";
 import type { BankCheckParts } from "@/server/cash-timing";
 import Link from "next/link";
+import { IncomeRing } from "./ring";
 import type { DebtChart, MonthHistory } from "@/server/plan-charts";
 import { Card } from "@/components/ui";
 
@@ -129,8 +130,8 @@ function BankCheck({ check, debtCents, nextMonth, budgets }: { check: BankCheckP
       <div className="mt-3 border-t border-line pt-2.5">
         <div className="font-semibold">Carries over to {nextMonth}</div>
         <div className="mt-1 grid grid-cols-2 gap-3">
-          {figure("Right now", now)}
-          {budgetCents > 0 ? figure("If the budgets are used", ifUsed) : null}
+          {figure("Best case · current expenses", now)}
+          {budgetCents > 0 ? figure("Worst case · budgets used", ifUsed) : null}
         </div>
         <p className="mt-1.5 text-xs text-muted">
           What checking would hold on {nextMonth} 1 if every card were paid to zero that day, after this month&rsquo;s bills and debt payment.
@@ -140,12 +141,6 @@ function BankCheck({ check, debtCents, nextMonth, budgets }: { check: BankCheckP
   );
 }
 
-/** An open arc on a circle centered at (c, c) from `from` to `to` thousandths of a turn, for use inside rotate(-90). */
-function ringArc(c: number, r: number, from: number, to: number) {
-  const a = (t: number) => (t / 1000) * 2 * Math.PI;
-  const p = (t: number) => `${(c + r * Math.cos(a(t))).toFixed(2)} ${(c + r * Math.sin(a(t))).toFixed(2)}`;
-  return `M ${p(from)} A ${r} ${r} 0 ${to - from > 500 ? 1 : 0} 1 ${p(to)}`;
-}
 
 /**
  * Income vs expenses: the full circle is the month's expected income. The outer ring fills with
@@ -173,21 +168,8 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
     { key: "billsDue", label: "Bills", cents: billsDue, color: "var(--series-1)", due: true },
   ].filter((g) => g.cents > 0);
   const out = segs.reduce((t, g) => t + g.cents, 0);
-  const actual = spent.ess + spent.ext + spent.unp + debtPaid + billsPaid;
   const left = income - out;
   const scale = Math.max(1, income || out);
-  const S = 300, C = S / 2, R_IN = 96, W_IN = 30, R_OUT = 127, W_OUT = 14, R_OVER = 144;
-  const turn = (c: number) => (c / scale) * 1000;
-  let at0 = 0;
-  const arcs = segs.map((g) => {
-    const from = Math.min(1000, at0);
-    const len = Math.max(0, Math.min(1000, at0 + turn(g.cents)) - from - (segs.length > 1 ? 2 : 0));
-    at0 += turn(g.cents);
-    return { ...g, from, len };
-  });
-  const tick = Math.min(1, received / scale) * 2 * Math.PI;
-  const tx = (r: number) => C + r * Math.sin(tick);
-  const ty = (r: number) => C - r * Math.cos(tick);
   const pct = (c: number) => `${Math.min(100, Math.max(0, (c / scale) * 100))}%`;
   const row = (label: string, color: string, value: ReactNode, bar: ReactNode, strong = false) => (
     <li className="space-y-1">
@@ -202,7 +184,7 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
     </li>
   );
   const fill = (c: number, color: string, opacity = 1) => <span className="block h-full rounded-full" style={{ width: pct(c), background: color, opacity }} />;
-  // Budgets are for reference only: the pale part of a bar, never part of the ring or "left to spend".
+  // Budgets are for reference only: the pale part of a bar, never part of the ring or "remaining".
   const tierBudget = (t: string) => {
     const gs = plan.groups.filter((g) => g.tier === t && g.limitCents !== null);
     return { limit: gs.reduce((a, g) => a + (g.limitCents ?? 0), 0), left: gs.reduce((a, g) => a + Math.max(0, g.leftCents ?? 0), 0) };
@@ -236,38 +218,12 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
         <span className="text-xs text-muted">The full circle is the month&rsquo;s {money(income)} expected income</span>
       </div>
       <div className="@container mt-3"><div className="grid items-center gap-5 @xl:grid-cols-[240px_1fr]">
-        <svg viewBox={`0 0 ${S} ${S}`} className="mx-auto w-64" role="img" aria-label={`Income ${money(received)} of ${money(income)} received; ${money(actual)} paid and spent; ${money(billsDue + debtDue)} still due; ${left >= 0 ? `${money(left)} left to spend` : `${money(-left)} over income`}`}>
-          <g transform={`rotate(-90 ${C} ${C})`} fill="none">
-            <circle cx={C} cy={C} r={R_OUT} stroke="var(--border)" strokeWidth={W_OUT} pathLength={1000} />
-            <circle cx={C} cy={C} r={R_OUT} stroke="var(--foreground)" strokeWidth={W_OUT} pathLength={1000} strokeDasharray={`${turn(received)} 1000`}>
-              <title>{`Income received: ${money(received)} of ${money(income)}`}</title>
-            </circle>
-            {arcs.map((g) => (
-              <circle key={g.key} cx={C} cy={C} r={R_IN} stroke={g.color} strokeOpacity={g.due ? 0.3 : 1} strokeWidth={W_IN} pathLength={1000} strokeDasharray={`${g.len} 1000`} strokeDashoffset={-g.from}>
-                <title>{`${g.label}${g.due ? " still due" : g.key.endsWith("Paid") ? " paid" : " spent"}: ${money(g.cents)}`}</title>
-              </circle>
-            ))}
-            {left > 0 ? (
-              <g>
-                <title>{`Left to spend: ${money(left)}`}</title>
-                <path d={ringArc(C, R_IN, Math.min(1000, at0) + 2, 1000)} stroke="var(--muted)" strokeWidth={W_IN} strokeDasharray="2 3" opacity={0.6} />
-                <path d={ringArc(C, R_IN, Math.min(1000, at0) + 2, 1000)} stroke="transparent" strokeWidth={W_IN} pointerEvents="stroke" />
-              </g>
-            ) : null}
-            {left < 0 ? (
-              <circle cx={C} cy={C} r={R_OVER} stroke="var(--danger)" strokeWidth={7} strokeLinecap="round" pathLength={1000} strokeDasharray={`${Math.min(1000, turn(-left))} 1000`}>
-                <title>{`Over income: ${money(-left)}`}</title>
-              </circle>
-            ) : null}
-          </g>
-          {income > 0 ? <line x1={tx(R_IN - W_IN / 2 - 4)} y1={ty(R_IN - W_IN / 2 - 4)} x2={tx(R_OUT + W_OUT / 2 + 2)} y2={ty(R_OUT + W_OUT / 2 + 2)} stroke="var(--foreground)" strokeWidth="2.5" /> : null}
-          <text x={C} y={C - 2} textAnchor="middle" fontSize="28" fontWeight="700" className={left < 0 ? "fill-danger" : "fill-foreground"}>
-            {left < 0 ? `${money(-left)} over` : money(left)}
-          </text>
-          <text x={C} y={C + 20} textAnchor="middle" fontSize="12" className={left < 0 ? "fill-danger" : "fill-muted"}>
-            {left < 0 ? "expenses pass income" : "left to spend"}
-          </text>
-        </svg>
+        <IncomeRing
+          segs={segs.map((g) => ({ ...g, verb: g.due ? "still due" : g.key.endsWith("Paid") ? "paid" : "spent" }))}
+          income={income}
+          received={received}
+          left={left}
+        />
         <ul className="space-y-2.5">
           {row("Income", "var(--foreground)", <><b>{money(received)}</b> <span className="text-xs text-muted">of {money(income)}</span></>, <>{fill(received, "var(--foreground)")}</>, true)}
           {budgetRow("Essentials", "var(--series-3)", spent.ess, budget.ess)}
@@ -283,9 +239,9 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
                 <span>
                   Budget left <span className="text-xs text-muted">· reference only</span>
                 </span>
-                <span className="tnum" title="What's left of the Essentials and Extras budgets, against left to spend">
+                <span className="tnum" title="What's left of the Essentials and Extras budgets, against what's remaining">
                   <b className={budgetLeftCents > left ? "text-warn" : ""}>{money(budgetLeftCents)}</b>{" "}
-                  <span className="text-xs text-muted">of {left >= 0 ? money(left) : "$0"} left to spend</span>
+                  <span className="text-xs text-muted">of {left >= 0 ? money(left) : "$0"} remaining</span>
                 </span>
               </span>
               <span className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full bg-neutral-soft">
@@ -305,7 +261,7 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
           ) : null}
           <li className="border-t border-line pt-2.5">
             {left >= 0
-              ? row("Left to spend", "transparent", <b>{money(left)}</b>, fill(left, "var(--muted)", 0.5), true)
+              ? row("Remaining", "transparent", <b>{money(left)}</b>, fill(left, "var(--muted)", 0.5), true)
               : row("Over income", "var(--danger)", <b className="text-danger">{money(-left)}</b>, fill(-left, "var(--danger)"), true)}
           </li>
         </ul>

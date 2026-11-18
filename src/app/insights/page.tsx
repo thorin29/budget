@@ -6,9 +6,7 @@ import { getDebt, type DebtView } from "@/server/debt";
 import { Card } from "@/components/ui";
 import { PlanHero } from "./month-plan";
 import { IncomeVsExpenses, carryOver } from "./plan-charts";
-import { Outlook } from "./outlook";
-import { AvailableCard } from "./available";
-import { available } from "@/lib/available";
+import { OutlookCards } from "./outlook";
 import { getOutlook, type OutlookView } from "@/server/outlook";
 import { TabHeading, monthLabel, pickMonth, shiftMonth } from "./shared";
 
@@ -84,17 +82,6 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
   const outlook: OutlookView | null = current && cash?.check ? await getOutlook(cash.today, plan!.debt.cents).catch((error: unknown) => (console.error("Outlook:", error), null)) : null;
   const carry = plan && cash?.check ? carryOver(plan, cash.check) : null;
   const thisMonth = plan ? monthLabel(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), "long").split(" ")[0] : "";
-  const avail =
-    outlook && carry
-      ? available({
-          startCents: carry.budgetsCents,
-          until: outlook.to,
-          events: [
-            ...outlook.pay.map((l) => ({ date: l.date, name: l.name, cents: l.cents })),
-            ...[...outlook.bills, ...outlook.debt].map((l) => ({ date: l.date, name: l.name, cents: -l.cents })),
-          ],
-        })
-      : null;
 
   return (
     <div className="space-y-6">
@@ -109,15 +96,10 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
             <IncomeVsExpenses plan={plan} check={cash?.check} />
             <div className="space-y-4">
               {outlook && carry ? (
-                <Outlook
-                  outlook={outlook}
-                  nowCents={carry.nowCents}
-                  budgetsCents={carry.budgetsCents}
-                  budgetLeftCents={carry.budgetLeftCents}
-                  thisMonth={thisMonth}
-                />
-              ) : null}
-              {avail ? <AvailableCard a={avail} thisMonth={thisMonth} nextPayOn={outlook?.nextPay?.date ?? null} /> : <PlanHero plan={plan} />}
+                <OutlookCards outlook={outlook} nowCents={carry.nowCents} budgetsCents={carry.budgetsCents} budgetLeftCents={carry.budgetLeftCents} thisMonth={thisMonth} />
+              ) : (
+                <PlanHero plan={plan} />
+              )}
             </div>
           </div>
           <Tiles plan={plan} debt={debt} last={last} />

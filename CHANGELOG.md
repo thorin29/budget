@@ -3,6 +3,26 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.57.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **The Outlook splits at payday.** The first stretch runs from the 1st to the day before the
+  next paycheck: the carry-over plus any income landing before payday (a monthly benefit), its
+  bills, and what's left. The second runs from payday to the day before the paycheck after it:
+  what's left plus the paycheck, its bills and the debt payment, and what's left. Both bars share
+  one scale. Hovering "Bills" lists them.
+- **Worst case / Best case** on the Outlook and Available to spend, kept in step. Worst case starts
+  from the carry-over with this month's budgets used; best case with current expenses only. The
+  bank check's two figures are labeled the same way.
+- **Available to spend** names the tightest stretch, what's left at the end of each stretch if all
+  of it is spent today, and that every bill through the last date is still paid. Its note reads
+  "Available funds using current and budgeted expenses" or "…using current expenses only."
+- **Click the ring** (or tab to it and press Enter): the middle shows that part, like
+  "$669 essentials spent." Click it again, or the middle, to go back.
+- "Left to spend" is now **Remaining**.
+
 ## [0.56.0]
 
 No migration. The phone app is unchanged.
