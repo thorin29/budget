@@ -3,6 +3,23 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.51.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Two carry-over figures in the bank check:** "Right now," and "If the budgets are used," which
+  also sets aside what's left of the Essentials and Extras budgets. On the bar, those budgets show
+  in their own lighter colors between what's owed and the green carry-over.
+- **Budget left is compared with left to spend** on the side ("$650 of $2,000 left to spend"),
+  using the Essentials and Extras budgets. The debt payment is already out of left to spend. It
+  turns amber when the budgets left are more than what's left to spend.
+- The tick where today's balance ends now sticks out above and below the bar.
+- Hovering anywhere on the dashed "left to spend" part of the ring shows its amount.
+- Each bank-check piece explains itself on hover. "Owed on cards" is spending and bills already
+  charged to a card.
+- "About" is gone from the carry-over.
+
 ## [0.50.0]
 
 No migration. The phone app is unchanged.
