@@ -3,6 +3,25 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.56.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Available to spend on Overview**, in place of "safe to spend / over by." It's the most that
+  can go out today without any later bill coming up short, in the worst case. It starts from what
+  this month carries over with the budgets fully used, then walks the Outlook's pay and bills up
+  to the day before the paycheck after next and takes the lowest point. It shows how long the
+  figure holds, the bill where spending it all would bring checking to $0, that every bill and
+  card payment through that date is still paid, and what's left before that paycheck. Past months
+  still show the month's own figure.
+
+### Changed
+- **The Outlook is just the chart:** the toggle, the summary bar and the card lines. The pay and
+  bill lines are gone; hovering "Bills" lists them.
+- Removed the "Checking covers every bill…" box from Overview. The Cash tab still has it day by
+  day.
+
 ## [0.55.0]
 
 No migration. The phone app is unchanged.

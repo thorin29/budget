@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * Outlook: next month up to the second paycheck. It starts from what this month carries over,
- * with a toggle between "Right now" and "If budgets are used", then runs through the pay and
- * bills in date order to show whether checking covers everything before that paycheck.
+ * Outlook: next month up to the second paycheck, as one chart. It starts from what this month
+ * carries over, with a toggle between "Right now" and "If budgets are used", adds the pay in that
+ * stretch and splits it into the bills, the debt payment and what's left before that paycheck.
  */
 
 import { useState } from "react";
@@ -12,7 +12,6 @@ import type { OutlookView, OutlookLine } from "@/server/outlook";
 
 const money = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(Math.round(cents / 100)).toLocaleString("en-US")}`;
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-const weekday = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", timeZone: "UTC" });
 
 type Mode = "now" | "budgets";
 
@@ -53,16 +52,13 @@ export function Outlook({
   });
   void steps;
   const end = balance;
-  // The paycheck in this stretch (the one before the paycheck that ends it); other income, like a monthly benefit, on its own line above.
-  const paycheck = outlook.nextPay ? ([...outlook.pay].reverse().find((l) => l.name.toLowerCase().replace(/[\s#]*\d+$/, "") === outlook.nextPay!.name.toLowerCase().replace(/[\s#]*\d+$/, "")) ?? null) : null;
-  const otherPay = outlook.pay.filter((l) => l !== paycheck);
-  const billCount = outlook.bills.length + outlook.debt.length;
+  const billList = outlook.bills.map((l) => `${day(l.date)} · ${l.name} ${money(l.cents)}`).join("\n");
   const payIn = outlook.pay.reduce((t, l) => t + l.cents, 0);
   const billsOut = outlook.bills.reduce((t, l) => t + l.cents, 0) + outlook.debt.reduce((t, l) => t + l.cents, 0);
   const have = Math.max(0, start) + payIn;
   const debtOut = outlook.debt.reduce((t, l) => t + l.cents, 0);
   const segs = [
-    { key: "bills", label: "Bills", cents: billsOut - debtOut, color: "var(--series-1)", opacity: 0.35 },
+    { key: "bills", label: `Bills (${outlook.bills.length})`, cents: billsOut - debtOut, color: "var(--series-1)", opacity: 0.35, list: billList },
     { key: "debt", label: "Debt payment", cents: debtOut, color: "var(--series-2)", opacity: 0.35 },
     { key: "left", label: `Left before ${outlook.nextPay ? day(outlook.nextPay.date) : "month end"}`, cents: Math.max(0, end), color: "var(--ok)", opacity: 1 },
   ].filter((g) => g.cents > 0);
@@ -89,60 +85,7 @@ export function Outlook({
         />
       </div>
 
-      <div className="mt-4 flex items-baseline justify-between gap-3 rounded-xl bg-neutral-soft px-3.5 py-2.5 text-sm">
-        <span>Carries over from {thisMonth}</span>
-        <b className={`tnum ${start < 0 ? "text-danger" : ""}`}>{money(start)}</b>
-      </div>
-
-      <ul className="mt-2 divide-y divide-line text-sm">
-        {otherPay.map((l, i) => (
-          <li key={`pay-${i}`} className="flex items-baseline justify-between gap-3 py-2.5">
-            <span>
-              <span className="font-semibold">{l.name}</span> <span className="text-xs text-muted">· {weekday(l.date)}, {day(l.date)} · expected</span>
-            </span>
-            <span className="tnum font-semibold text-ok">+{money(l.cents)}</span>
-          </li>
-        ))}
-        <li className="py-2.5">
-          <div className="flex items-baseline justify-between gap-3">
-            <span>
-              <span className="font-semibold">Bills</span>{" "}
-              <span className="text-xs text-muted">
-                · {outlook.bills.length} {outlook.bills.length === 1 ? "bill" : "bills"}
-                {outlook.debt.length ? " and the debt payment" : ""}, {day(outlook.from)} to {day(outlook.to)}
-              </span>
-            </span>
-            <span className="tnum font-semibold">−{money(billsOut)}</span>
-          </div>
-          {billCount ? (
-            <details className="mt-1 text-xs text-muted">
-              <summary className="cursor-pointer select-none hover:text-foreground">Show the bills</summary>
-              <ul className="mt-1 space-y-0.5">
-                {[...outlook.bills, ...outlook.debt]
-                  .sort((x, y) => x.date.localeCompare(y.date))
-                  .map((l, i) => (
-                    <li key={i} className="flex justify-between gap-3">
-                      <span>
-                        {day(l.date)} · {l.name}
-                      </span>
-                      <span className="tnum">{money(l.cents)}</span>
-                    </li>
-                  ))}
-              </ul>
-            </details>
-          ) : null}
-        </li>
-        {paycheck ? (
-          <li className="flex items-baseline justify-between gap-3 py-2.5">
-            <span>
-              <span className="font-semibold">{paycheck.name}</span> <span className="text-xs text-muted">· {weekday(paycheck.date)}, {day(paycheck.date)} · estimate</span>
-            </span>
-            <span className="tnum font-semibold text-ok">+{money(paycheck.cents)}</span>
-          </li>
-        ) : null}
-      </ul>
-
-      <div className="mt-2 rounded-xl bg-neutral-soft px-4 py-3.5 text-sm">
+      <div className="mt-4 rounded-xl bg-neutral-soft px-4 py-3.5 text-sm">
         <div className="text-muted">
           <b className="text-foreground">Carried over {money(start)}</b>
           {outlook.pay.map((l, i) => (
@@ -155,7 +98,7 @@ export function Outlook({
         <div className="relative mt-3">
           <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-surface" role="img" aria-label={`${money(have)} to work with; ${money(billsOut)} of bills and debt; ${end >= 0 ? `${money(end)} left` : `${money(-end)} short`}`}>
             {segs.map((g) => (
-              <span key={g.key} className="block h-full" style={{ width: w(g.cents), background: g.color, opacity: g.opacity }} title={`${g.label}: ${money(g.cents)}`} />
+              <span key={g.key} className="block h-full" style={{ width: w(g.cents), background: g.color, opacity: g.opacity }} title={`${g.label}: ${money(g.cents)}${"list" in g && g.list ? `\n${g.list}` : ""}`} />
             ))}
           </div>
           {start > 0 && payIn > 0 ? (
@@ -164,7 +107,7 @@ export function Outlook({
         </div>
         <ul className="mt-2.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
           {segs.map((g) => (
-            <li key={g.key} className="flex items-center gap-1.5">
+            <li key={g.key} className="flex items-center gap-1.5" title={"list" in g && g.list ? g.list : undefined}>
               <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: g.color, opacity: g.opacity }} />
               {g.label} <span className="tnum text-foreground">{money(g.cents)}</span>
             </li>

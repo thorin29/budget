@@ -1,19 +1,20 @@
 import Link from "next/link";
 import { InsightsTabs } from "@/components/insights-tabs";
 import { getMonthPlan, type MonthPlanView } from "@/server/month-plan";
-import { getCashTiming, type CashTimingView } from "@/server/cash-timing";
+import { getCashTiming } from "@/server/cash-timing";
 import { getDebt, type DebtView } from "@/server/debt";
 import { Card } from "@/components/ui";
 import { PlanHero } from "./month-plan";
 import { IncomeVsExpenses, carryOver } from "./plan-charts";
 import { Outlook } from "./outlook";
+import { AvailableCard } from "./available";
+import { available } from "@/lib/available";
 import { getOutlook, type OutlookView } from "@/server/outlook";
 import { TabHeading, monthLabel, pickMonth, shiftMonth } from "./shared";
 
 export const dynamic = "force-dynamic";
 
 const money = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(Math.round(cents / 100)).toLocaleString("en-US")}`;
-const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** A tile for another tab: its headline number, one line, and a link. */
 function Tile({ href, title, value, line, tone = "plain" }: { href: string; title: string; value: string; line: string; tone?: "plain" | "danger" | "ok" | "warn" }) {
@@ -28,21 +29,6 @@ function Tile({ href, title, value, line, tone = "plain" }: { href: string; titl
       </span>
       <span className={`tnum mt-1 block text-2xl font-bold ${color}`}>{value}</span>
       <span className="mt-1 block text-xs text-muted">{line}</span>
-    </Link>
-  );
-}
-
-function CashLine({ cash }: { cash: CashTimingView }) {
-  if (cash.missing) return null;
-  const short = cash.shortOn !== null;
-  return (
-    <Link
-      href="/insights/cash"
-      className={`block rounded-xl px-4 py-3 text-sm hover:underline ${short ? "bg-danger-soft text-danger" : "bg-ok-soft text-ok"}`}
-    >
-      {short
-        ? `Checking would run short on ${day(cash.shortOn!)}, as low as ${money(cash.lowCents)}. See what's due ›`
-        : `Checking covers every bill and card payment through ${day(cash.until)}; the lowest it gets is ${money(cash.lowCents)} on ${day(cash.lowOn)}. ›`}
     </Link>
   );
 }
@@ -97,6 +83,18 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
   const current = !!(plan && cash && plan.month === cash.today.slice(0, 7));
   const outlook: OutlookView | null = current && cash?.check ? await getOutlook(cash.today, plan!.debt.cents).catch((error: unknown) => (console.error("Outlook:", error), null)) : null;
   const carry = plan && cash?.check ? carryOver(plan, cash.check) : null;
+  const thisMonth = plan ? monthLabel(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), "long").split(" ")[0] : "";
+  const avail =
+    outlook && carry
+      ? available({
+          startCents: carry.budgetsCents,
+          until: outlook.to,
+          events: [
+            ...outlook.pay.map((l) => ({ date: l.date, name: l.name, cents: l.cents })),
+            ...[...outlook.bills, ...outlook.debt].map((l) => ({ date: l.date, name: l.name, cents: -l.cents })),
+          ],
+        })
+      : null;
 
   return (
     <div className="space-y-6">
@@ -116,11 +114,10 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
                   nowCents={carry.nowCents}
                   budgetsCents={carry.budgetsCents}
                   budgetLeftCents={carry.budgetLeftCents}
-                  thisMonth={monthLabel(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), "long").split(" ")[0]}
+                  thisMonth={thisMonth}
                 />
               ) : null}
-              <PlanHero plan={plan} />
-              {cash ? <CashLine cash={cash} /> : null}
+              {avail ? <AvailableCard a={avail} thisMonth={thisMonth} nextPayOn={outlook?.nextPay?.date ?? null} /> : <PlanHero plan={plan} />}
             </div>
           </div>
           <Tiles plan={plan} debt={debt} last={last} />
