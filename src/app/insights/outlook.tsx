@@ -3,10 +3,9 @@
 /**
  * Outlook and Available to spend, sharing one worst/best case choice.
  *
- * Outlook: next month in two stretches, before payday and from payday to the day before the
- * paycheck after it. Each stretch starts from what's on hand (the carry-over plus any income
- * landing before payday, like a monthly benefit; then what's left plus the paycheck), takes off
- * its bills and the debt payment, and ends with what's left.
+ * Outlook: next month from the 1st to the day before the paycheck after next, as one chart of
+ * money in against money out with the payday marked through both, so it shows whether the bills
+ * due before payday are covered before it lands, and what's left after the rest.
  *
  * Available to spend: the most that can go out today with every bill through the window still
  * paid, which is the lowest point along the way (src/lib/available.ts).
@@ -62,55 +61,116 @@ function stretches(outlook: OutlookView, start: number, thisMonth: string): Stre
   return out;
 }
 
-function StretchBar({ s, scale }: { s: Stretch; scale: number }) {
-  const billsCents = sum(s.bills);
-  const debtCents = sum(s.debt);
-  const segs = [
-    { key: "bills", label: `Bills (${s.bills.length})`, cents: billsCents, color: "var(--series-1)", opacity: 0.35, list: s.bills.map((l) => `${day(l.date)} · ${l.name} ${money(l.cents)}`).join("\n") },
-    { key: "debt", label: "Debt payment", cents: debtCents, color: "var(--series-2)", opacity: 0.35, list: "" },
-    { key: "left", label: "Left", cents: Math.max(0, s.endCents), color: "var(--ok)", opacity: 1, list: "" },
+/**
+ * One chart: money in on top, money out below, on the same scale. In: the carry-over, then each
+ * deposit in the order it lands. Out: bills and the debt payment in date order, then what's left.
+ * The payday line runs through both bars at the point where the paycheck lands; everything due
+ * before payday has to end to the left of it to be covered before the paycheck.
+ */
+function OutlookChart({ outlook, start, parts }: { outlook: OutlookView; start: number; parts: Stretch[] }) {
+  const payday = outlook.payday;
+  const before = parts[0];
+  const inSegs = [
+    { key: "carry", label: "Carried over", sub: "", cents: Math.max(0, start), color: "var(--muted)", opacity: 0.45 },
+    ...[...outlook.pay].sort((x, y) => x.date.localeCompare(y.date)).map((l, i) => ({ key: `pay${i}`, label: l.name, sub: day(l.date), cents: l.cents, color: "var(--foreground)", opacity: i % 2 ? 0.85 : 0.6 })),
   ].filter((g) => g.cents > 0);
-  const w = (c: number) => `${Math.max(0, (c / Math.max(1, scale)) * 100)}%`;
+  const outs = [...outlook.bills.map((l) => ({ ...l, debt: false })), ...outlook.debt.map((l) => ({ ...l, debt: true }))].sort((x, y) => x.date.localeCompare(y.date));
+  const early = (d: string) => !payday || d < payday.date;
+  const group = (pre: boolean, debt: boolean) => outs.filter((l) => early(l.date) === pre && l.debt === debt);
+  const list = (ls: OutlookLine[]) => ls.map((l) => `${day(l.date)} · ${l.name} ${money(l.cents)}`).join("\n");
+  const tag = payday ? (pre: boolean) => (pre ? ` before ${day(payday.date)}` : ` from ${day(payday.date)}`) : () => "";
+  const outSegs = [
+    { key: "b1", ls: group(true, false), label: `Bills${tag(true)}`, color: "var(--series-1)", opacity: 0.7 },
+    { key: "d1", ls: group(true, true), label: `Debt payment${tag(true)}`, color: "var(--series-2)", opacity: 0.7 },
+    { key: "b2", ls: group(false, false), label: `Bills${tag(false)}`, color: "var(--series-1)", opacity: 0.3 },
+    { key: "d2", ls: group(false, true), label: `Debt payment${tag(false)}`, color: "var(--series-2)", opacity: 0.3 },
+  ]
+    .map((g) => ({ ...g, cents: sum(g.ls), count: g.ls.length }))
+    .filter((g) => g.cents > 0);
+  const inTotal = inSegs.reduce((t, g) => t + g.cents, 0);
+  const outTotal = outSegs.reduce((t, g) => t + g.cents, 0);
+  const end = parts[parts.length - 1].endCents;
+  const scale = Math.max(1, inTotal, outTotal);
+  const pct = (c: number) => (Math.max(0, c) / scale) * 100;
+  // Where the paycheck lands on the money-in bar: everything that came in before it.
+  const payAt = payday ? pct(Math.max(0, start) + sum(outlook.pay.filter((l) => l.date < payday.date))) : null;
+  const preOut = outSegs.filter((g) => g.key.endsWith("1")).reduce((t, g) => t + g.cents, 0);
+
+  const bar = (segs: Array<{ key: string; label: string; cents: number; color: string; opacity: number; title?: string }>, tail?: { cents: number; color: string; label: string }) => (
+    <div className="flex h-3 w-full gap-0.5 overflow-hidden rounded-full bg-surface">
+      {segs.map((g) => (
+        <span key={g.key} className="block h-full" style={{ width: `${pct(g.cents)}%`, background: g.color, opacity: g.opacity }} title={g.title ?? `${g.label}: ${money(g.cents)}`} />
+      ))}
+      {tail && tail.cents > 0 ? <span className="block h-full" style={{ width: `${pct(tail.cents)}%`, background: tail.color }} title={`${tail.label}: ${money(tail.cents)}`} /> : null}
+    </div>
+  );
+  const swatch = (color: string, opacity: number) => <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: color, opacity }} />;
+
   return (
     <div>
-      <div className="flex flex-wrap items-baseline justify-between gap-x-3 text-xs text-muted">
-        <span className="font-semibold uppercase tracking-wide">
-          {day(s.from)}
-          {s.to !== s.from ? `–${day(s.to)}` : ""}
-        </span>
-        <span>before {s.endsBefore}</span>
+      <div className="relative">
+        {payAt !== null && payday ? (
+          <>
+            <span className="absolute -top-0.5 z-10 -translate-x-1/2 whitespace-nowrap text-[11px] font-semibold" style={{ left: `${Math.min(92, Math.max(8, payAt))}%` }}>
+              {day(payday.date)} pay
+            </span>
+            <span className="absolute top-4 bottom-0 z-10 w-[3px] -translate-x-1/2 rounded-full bg-foreground" style={{ left: `${payAt}%` }} title={`${payday.name} lands ${day(payday.date)}. Bills left of this line are due before it.`} />
+          </>
+        ) : null}
+        <div className={payday ? "pt-5" : ""}>
+          <div className="mb-1 flex justify-between text-xs text-muted">
+            <span className="font-semibold uppercase tracking-wide">Money in</span>
+            <span className="tnum">{money(inTotal)}</span>
+          </div>
+          {bar(inSegs)}
+          <div className="mb-1 mt-3 flex justify-between text-xs text-muted">
+            <span className="font-semibold uppercase tracking-wide">Money out</span>
+            <span className="tnum">{money(outTotal)}</span>
+          </div>
+          {bar(
+            outSegs.map((g) => ({ ...g, title: `${g.label}: ${money(g.cents)}\n${list(g.ls)}` })),
+            { cents: Math.max(0, end), color: "var(--ok)", label: "Left" },
+          )}
+        </div>
       </div>
-      <div className="mt-1 text-sm text-muted">
-        <b className="text-foreground">
-          {s.startLabel} {money(s.startCents)}
-        </b>
-        {s.pay.map((l, i) => (
-          <span key={i}>
-            {" "}
-            + {l.name} {money(l.cents)}
-            <span className="text-xs"> ({day(l.date)})</span>
-          </span>
+      <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+        {inSegs.map((g) => (
+          <li key={g.key} className="flex items-center gap-1.5">
+            {swatch(g.color, g.opacity)}
+            {g.label}
+            {g.sub ? ` (${g.sub})` : ""} <span className="tnum text-foreground">{money(g.cents)}</span>
+          </li>
         ))}
-      </div>
-      <div className="mt-2 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-surface" role="img" aria-label={`${money(billsCents + debtCents)} of bills and debt; ${s.endCents >= 0 ? `${money(s.endCents)} left` : `${money(-s.endCents)} short`}`}>
-        {segs.map((g) => (
-          <span key={g.key} className="block h-full" style={{ width: w(g.cents), background: g.color, opacity: g.opacity }} title={`${g.label}: ${money(g.cents)}${g.list ? `\n${g.list}` : ""}`} />
+      </ul>
+      <ul className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+        {outSegs.map((g) => (
+          <li key={g.key} className="flex items-center gap-1.5" title={list(g.ls)}>
+            {swatch(g.color, g.opacity)}
+            {g.label}
+            {g.key.startsWith("b") ? ` (${g.count})` : ""} <span className="tnum text-foreground">{money(g.cents)}</span>
+          </li>
         ))}
-      </div>
-      <div className="mt-2 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
-          {segs
-            .filter((g) => g.key !== "left")
-            .map((g) => (
-              <li key={g.key} className="flex items-center gap-1.5" title={g.list || undefined}>
-                <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: g.color, opacity: g.opacity }} />
-                {g.label} <span className="tnum text-foreground">{money(g.cents)}</span>
-              </li>
-            ))}
-          {segs.length === 1 && segs[0].key === "left" ? <li>No bills from checking</li> : null}
-        </ul>
-        <span className={`tnum text-sm font-semibold ${s.endCents < 0 ? "text-danger" : "text-ok"}`}>{s.endCents < 0 ? `Short ${money(-s.endCents)}` : `Left ${money(s.endCents)}`}</span>
-      </div>
+        {end > 0 ? (
+          <li className="flex items-center gap-1.5">
+            {swatch("var(--ok)", 1)}
+            Left <span className="tnum text-foreground">{money(end)}</span>
+          </li>
+        ) : null}
+      </ul>
+      <dl className="mt-3 divide-y divide-line border-t border-line text-sm">
+        {payday ? (
+          <div className="flex items-baseline justify-between gap-3 py-1.5">
+            <dt className="text-muted">
+              Before the {day(payday.date)} paycheck <span className="text-xs">({money(Math.max(0, start) + sum(before.pay))} in, {money(preOut)} out)</span>
+            </dt>
+            <dd className={`tnum font-semibold ${before.endCents < 0 ? "text-danger" : "text-ok"}`}>{before.endCents < 0 ? `Short ${money(-before.endCents)}` : `Left ${money(before.endCents)}`}</dd>
+          </div>
+        ) : null}
+        <div className="flex items-baseline justify-between gap-3 py-1.5">
+          <dt className="text-muted">Before {parts[parts.length - 1].endsBefore}</dt>
+          <dd className={`tnum font-semibold ${end < 0 ? "text-danger" : "text-ok"}`}>{end < 0 ? `Short ${money(-end)}` : `Left ${money(end)}`}</dd>
+        </div>
+      </dl>
     </div>
   );
 }
@@ -134,7 +194,6 @@ export function OutlookCards({
   const [mode, setMode] = useState<Case>("worst");
   const start = mode === "worst" ? budgetsCents : nowCents;
   const parts = stretches(outlook, start, thisMonth);
-  const scale = Math.max(1, ...parts.map((s) => Math.max(0, s.startCents) + sum(s.pay)), ...parts.map((s) => sum(s.bills) + sum(s.debt)));
   // The same choice on both cards; each needs its own radio group name.
   const toggle = (name: string) => (
     <Segmented
@@ -158,15 +217,14 @@ export function OutlookCards({
       <Card>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="text-base font-bold">Outlook</h2>
-          <span className="text-xs text-muted">{outlook.payday ? `Before and after the ${day(outlook.payday.date)} paycheck` : `${day(outlook.from)} to ${day(outlook.to)}`}</span>
+          <span className="text-xs text-muted">
+            {day(outlook.from)} to {day(outlook.to)}
+            {outlook.nextPay ? `, before the ${day(outlook.nextPay.date)} paycheck` : ""}
+          </span>
         </div>
         <div className="mt-3">{toggle("outlook-case")}</div>
-        <div className="mt-4 space-y-4 rounded-xl bg-neutral-soft px-4 py-3.5">
-          {parts.map((s, i) => (
-            <div key={s.from} className={i > 0 ? "border-t border-line pt-4" : ""}>
-              <StretchBar s={s} scale={scale} />
-            </div>
-          ))}
+        <div className="mt-4 rounded-xl bg-neutral-soft px-4 py-3.5">
+          <OutlookChart outlook={outlook} start={start} parts={parts} />
         </div>
         <div className="mt-3 space-y-1.5 text-xs text-muted">
           {outlook.cards.length || (mode === "worst" && budgetLeftCents > 0) ? (

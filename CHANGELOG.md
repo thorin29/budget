@@ -3,6 +3,17 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.58.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **The Outlook is one chart:** a money-in bar (the carry-over, then each deposit in the order it
+  lands) above a money-out bar (bills and the debt payment in date order, then what's left), on
+  the same scale. A payday line runs through both where the paycheck lands. Bills due before
+  payday are the darker blue and have to end left of the line to be covered. Under it: what's
+  left before payday and before the paycheck after it.
+
 ## [0.57.0]
 
 No migration. The phone app is unchanged.
