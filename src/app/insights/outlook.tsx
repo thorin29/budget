@@ -52,7 +52,12 @@ export function Outlook({
     if (balance < 0 && !shortOn) shortOn = r.date;
     return { ...r, balance };
   });
+  void steps;
   const end = balance;
+  // The paycheck in this stretch (the one before the paycheck that ends it); other income, like a monthly benefit, on its own line above.
+  const paycheck = outlook.nextPay ? ([...outlook.pay].reverse().find((l) => l.name.toLowerCase().replace(/[\s#]*\d+$/, "") === outlook.nextPay!.name.toLowerCase().replace(/[\s#]*\d+$/, "")) ?? null) : null;
+  const otherPay = outlook.pay.filter((l) => l !== paycheck);
+  const billCount = outlook.bills.length + outlook.debt.length;
   const payIn = outlook.pay.reduce((t, l) => t + l.cents, 0);
   const billsOut = outlook.bills.reduce((t, l) => t + l.cents, 0) + outlook.debt.reduce((t, l) => t + l.cents, 0);
   const cardsCents = outlook.cards.reduce((t, c) => t + c.cents, 0);
@@ -83,25 +88,53 @@ export function Outlook({
         <b className={`tnum ${start < 0 ? "text-danger" : ""}`}>{money(start)}</b>
       </div>
 
-      <ol className="mt-2 divide-y divide-line text-sm">
-        {steps.map((s, i) => (
-          <li key={`${s.kind}-${s.name}-${s.date}-${i}`} className="grid grid-cols-[3.25rem_1fr_auto] items-baseline gap-x-3 py-2 sm:grid-cols-[3.25rem_1fr_auto_5rem]">
-            <span className="text-xs text-muted">
-              <span className="block font-semibold text-foreground">{day(s.date)}</span>
-              {weekday(s.date)}
+      <ul className="mt-2 divide-y divide-line text-sm">
+        {otherPay.map((l, i) => (
+          <li key={`pay-${i}`} className="flex items-baseline justify-between gap-3 py-2.5">
+            <span>
+              <span className="font-semibold">{l.name}</span> <span className="text-xs text-muted">· {weekday(l.date)}, {day(l.date)} · expected</span>
             </span>
-            <span className="min-w-0">
-              <span className={`block truncate ${s.kind === "pay" ? "font-semibold" : ""}`}>{s.name}</span>
-              {s.kind === "pay" ? <span className="text-xs text-muted">Expected</span> : s.kind === "debt" ? <span className="text-xs text-muted">Debt payment</span> : null}
-            </span>
-            <span className={`tnum ${s.kind === "pay" ? "font-semibold text-ok" : ""}`}>{s.kind === "pay" ? `+${money(s.cents)}` : `−${money(s.cents)}`}</span>
-            <span className={`tnum hidden text-right text-xs sm:block ${s.balance < 0 ? "text-danger" : "text-muted"}`} title="Checking after this">
-              {money(s.balance)}
-            </span>
+            <span className="tnum font-semibold text-ok">+{money(l.cents)}</span>
           </li>
         ))}
-        {steps.length === 0 ? <li className="py-2 text-muted">No pay or bills from checking in this stretch.</li> : null}
-      </ol>
+        <li className="py-2.5">
+          <div className="flex items-baseline justify-between gap-3">
+            <span>
+              <span className="font-semibold">Bills</span>{" "}
+              <span className="text-xs text-muted">
+                · {outlook.bills.length} {outlook.bills.length === 1 ? "bill" : "bills"}
+                {outlook.debt.length ? " and the debt payment" : ""}, {day(outlook.from)} to {day(outlook.to)}
+              </span>
+            </span>
+            <span className="tnum font-semibold">−{money(billsOut)}</span>
+          </div>
+          {billCount ? (
+            <details className="mt-1 text-xs text-muted">
+              <summary className="cursor-pointer select-none hover:text-foreground">Show the bills</summary>
+              <ul className="mt-1 space-y-0.5">
+                {[...outlook.bills, ...outlook.debt]
+                  .sort((x, y) => x.date.localeCompare(y.date))
+                  .map((l, i) => (
+                    <li key={i} className="flex justify-between gap-3">
+                      <span>
+                        {day(l.date)} · {l.name}
+                      </span>
+                      <span className="tnum">{money(l.cents)}</span>
+                    </li>
+                  ))}
+              </ul>
+            </details>
+          ) : null}
+        </li>
+        {paycheck ? (
+          <li className="flex items-baseline justify-between gap-3 py-2.5">
+            <span>
+              <span className="font-semibold">{paycheck.name}</span> <span className="text-xs text-muted">· {weekday(paycheck.date)}, {day(paycheck.date)} · estimate</span>
+            </span>
+            <span className="tnum font-semibold text-ok">+{money(paycheck.cents)}</span>
+          </li>
+        ) : null}
+      </ul>
 
       <div className={`mt-2 rounded-xl px-3.5 py-2.5 text-sm ${shortOn ? "bg-danger-soft text-danger" : "bg-ok-soft text-ok"}`}>
         <div className="font-semibold">

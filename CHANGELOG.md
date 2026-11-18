@@ -3,6 +3,17 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.54.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **The Outlook is a short summary.** Under the carry-over: other income, like a monthly benefit,
+  on its own line; one line totaling every bill and the debt payment up to the day before the
+  paycheck after next ("Show the bills" opens the list); then the paycheck's date and estimate;
+  then the bottom line. The line-per-bill list with a running balance is gone. The Cash tab still
+  has it day by day.
+
 ## [0.53.0]
 
 No migration. The phone app is unchanged.
