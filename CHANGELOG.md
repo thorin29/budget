@@ -3,6 +3,20 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.59.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **The Outlook is one bar of bills over time.** It has no income bar. The bills and the debt
+  payment are in date order: due before payday in the darker shade, from payday on in the lighter
+  one, then what's left in green. The full width is all the money coming in. Two lines:
+  - a solid line where the carry-over plus income before payday (a monthly benefit) runs out;
+  - a dotted line at payday, where the bills switch from before to after.
+  When the dotted line is left of the solid one, the bills before payday are covered.
+- Two lines under the bar match the marks: "Carried over + VA pay" with its total, and the
+  paycheck with its date and amount.
+
 ## [0.58.0]
 
 No migration. The phone app is unchanged.
