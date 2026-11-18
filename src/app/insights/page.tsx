@@ -5,7 +5,7 @@ import { getCashTiming, type CashTimingView } from "@/server/cash-timing";
 import { getDebt, type DebtView } from "@/server/debt";
 import { Card } from "@/components/ui";
 import { PlanHero, WhatIf } from "./month-plan";
-import { PoolBar } from "./plan-charts";
+import { IncomeVsExpenses } from "./plan-charts";
 import { TabHeading, monthLabel, pickMonth, shiftMonth } from "./shared";
 
 export const dynamic = "force-dynamic";
@@ -109,7 +109,7 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
               {cash ? <CashLine cash={cash} /> : null}
               {!plan.closed ? <WhatIf plan={plan} /> : null}
             </div>
-            <PoolBar plan={plan} />
+            <IncomeVsExpenses plan={plan} />
           </div>
           <Tiles plan={plan} debt={debt} last={last} />
         </>

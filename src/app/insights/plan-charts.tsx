@@ -7,6 +7,7 @@
  * Plain SVG; hovering a mark shows its numbers.
  */
 
+import type { ReactNode } from "react";
 import type { MonthPlanView } from "@/server/month-plan";
 import type { DebtChart, MonthHistory } from "@/server/plan-charts";
 import { Card } from "@/components/ui";
@@ -30,90 +31,129 @@ function ticks(lo: number, hi: number, count = 4): number[] {
 
 // ---------------------------------------------------------------- where the money goes
 
-/** An arc of a ring, clockwise from the top, in turns (0 to 1). */
-function arc(cx: number, cy: number, r: number, from: number, to: number): string {
-  const p = (t: number) => [cx + r * Math.sin(2 * Math.PI * t), cy - r * Math.cos(2 * Math.PI * t)];
-  const [x0, y0] = p(from);
-  const [x1, y1] = p(Math.min(to, from + 0.9999));
-  return `M${x0} ${y0}A${r} ${r} 0 ${to - from > 0.5 ? 1 : 0} 1 ${x1} ${y1}`;
+/** An open arc on a circle centered at (c, c) from `from` to `to` thousandths of a turn, for use inside rotate(-90). */
+function ringArc(c: number, r: number, from: number, to: number) {
+  const a = (t: number) => (t / 1000) * 2 * Math.PI;
+  const p = (t: number) => `${(c + r * Math.cos(a(t))).toFixed(2)} ${(c + r * Math.sin(a(t))).toFixed(2)}`;
+  return `M ${p(from)} A ${r} ${r} 0 ${to - from > 500 ? 1 : 0} 1 ${p(to)}`;
 }
 
-export function PoolBar({ plan }: { plan: MonthPlanView }) {
+/**
+ * Income vs expenses: the full circle is the month's expected income. The outer ring fills with
+ * income received; the inner ring holds every expense on the same scale, what's already paid or
+ * spent first (so it lines up with income received), then bills and the debt payment still due,
+ * then what's left. Spending past income grows as a red arc outside the circle. Only actual
+ * spending is shown for everyday categories: no budget amounts.
+ */
+export function IncomeVsExpenses({ plan }: { plan: MonthPlanView }) {
   const by = (t: string) => plan.groups.filter((g) => g.tier === t).reduce((s, g) => s + g.spentCents, 0);
-  const parts = [
-    { key: "bills", label: "Bills", cents: plan.bills.totalCents, color: "var(--series-1)" },
-    { key: "debt", label: "Debt payment", cents: plan.debt.cents, color: "var(--series-2)" },
-    { key: "ess", label: "Essentials", cents: by("ESSENTIAL"), color: "var(--series-3)" },
-    { key: "ext", label: "Extras", cents: by("FLEXIBLE"), color: "var(--series-4)" },
-    { key: "unp", label: "Unplanned", cents: by("UNPLANNED") + by("SORT"), color: "var(--series-5)" },
-  ].filter((p) => p.cents > 0);
+  const billsPaid = plan.bills.paidCents;
+  const billsDue = Math.max(0, plan.bills.totalCents - billsPaid);
+  const debtPaid = plan.debt.source === "paid" ? plan.debt.cents : 0;
+  const debtDue = plan.debt.cents - debtPaid;
   const income = Math.max(0, plan.income.totalCents);
-  const out = parts.reduce((s, p) => s + p.cents, 0);
+  const received = Math.max(0, plan.income.receivedCents);
+  const spent = { ess: by("ESSENTIAL"), ext: by("FLEXIBLE"), unp: by("UNPLANNED") + by("SORT") };
+  const segs = [
+    { key: "ess", label: "Essentials", cents: spent.ess, color: "var(--series-3)", due: false },
+    { key: "ext", label: "Extras", cents: spent.ext, color: "var(--series-4)", due: false },
+    { key: "unp", label: "Unplanned", cents: spent.unp, color: "var(--series-5)", due: false },
+    { key: "debtPaid", label: "Debt payment", cents: debtPaid, color: "var(--series-2)", due: false },
+    { key: "billsPaid", label: "Bills", cents: billsPaid, color: "var(--series-1)", due: false },
+    { key: "debtDue", label: "Debt payment", cents: debtDue, color: "var(--series-2)", due: true },
+    { key: "billsDue", label: "Bills", cents: billsDue, color: "var(--series-1)", due: true },
+  ].filter((g) => g.cents > 0);
+  const out = segs.reduce((t, g) => t + g.cents, 0);
+  const actual = spent.ess + spent.ext + spent.unp + debtPaid + billsPaid;
   const left = income - out;
-  // The ring is money in; past it, the ring holds everything out, and a red outer ring marks the part past money in.
-  const total = Math.max(income, out, 1);
-  const S = 240, C = S / 2, R = 84, SW = 30, OUTER = R + SW / 2 + 9;
-  const gapTurns = parts.length > 1 ? 0.004 : 0;
-  let t = 0;
-  const segs = parts.map((p) => {
-    const span = p.cents / total;
-    const seg = { ...p, from: t, to: t + span };
-    t += span;
-    return seg;
+  const scale = Math.max(1, income || out);
+  const S = 300, C = S / 2, R_IN = 96, W_IN = 30, R_OUT = 127, W_OUT = 14, R_OVER = 144;
+  const turn = (c: number) => (c / scale) * 1000;
+  let at0 = 0;
+  const arcs = segs.map((g) => {
+    const from = Math.min(1000, at0);
+    const len = Math.max(0, Math.min(1000, at0 + turn(g.cents)) - from - (segs.length > 1 ? 2 : 0));
+    at0 += turn(g.cents);
+    return { ...g, from, len };
   });
-  const pct = (c: number) => `${Math.round((c / Math.max(1, income)) * 100)}%`;
+  const tick = Math.min(1, received / scale) * 2 * Math.PI;
+  const tx = (r: number) => C + r * Math.sin(tick);
+  const ty = (r: number) => C - r * Math.cos(tick);
+  const pct = (c: number) => `${Math.min(100, Math.max(0, (c / scale) * 100))}%`;
+  const ahead = received - actual;
+  const row = (label: string, color: string, value: ReactNode, bar: ReactNode, strong = false) => (
+    <li className="space-y-1">
+      <span className="flex items-center justify-between gap-3 text-sm">
+        <span className="flex items-center gap-2">
+          <span aria-hidden className={`inline-block h-3 w-3 rounded-sm ${color === "transparent" ? "border-2 border-dashed border-muted" : ""}`} style={{ background: color }} />
+          {strong ? <b>{label}</b> : label}
+        </span>
+        <span className="tnum">{value}</span>
+      </span>
+      <span className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full bg-neutral-soft">{bar}</span>
+    </li>
+  );
+  const fill = (c: number, color: string, opacity = 1) => <span className="block h-full rounded-full" style={{ width: pct(c), background: color, opacity }} />;
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold">Where this month&rsquo;s money goes</h2>
-        <span className="text-xs text-muted">The circle is the month&rsquo;s {money(income)} in{plan.closed ? "" : "; spending so far"}</span>
+        <h2 className="text-base font-bold">Income vs expenses</h2>
+        <span className="text-xs text-muted">The full circle is the month&rsquo;s {money(income)} expected income</span>
       </div>
-      <div className="mt-3 grid items-center gap-5 sm:grid-cols-[240px_1fr]">
-        <svg viewBox={`0 0 ${S} ${S}`} className="mx-auto w-56 sm:w-full" role="img" aria-label={`Of ${money(income)} in: ${parts.map((p) => `${p.label} ${money(p.cents)}`).join(", ")}; ${left >= 0 ? `${money(left)} not spent yet` : `${money(-left)} over`}`}>
-          <circle cx={C} cy={C} r={R} fill="none" stroke="var(--series-neutral)" strokeWidth={SW} opacity={left > 0 ? 1 : 0.35}>
-            {left > 0 ? <title>{`Not spent yet: ${money(left)} (${pct(left)} of money in)`}</title> : null}
-          </circle>
-          {segs.map((g) => (
-            <path key={g.key} d={arc(C, C, R, g.from + gapTurns / 2, g.to - gapTurns / 2)} fill="none" stroke={g.color} strokeWidth={SW}>
-              <title>{`${g.label}: ${money(g.cents)} (${pct(g.cents)} of money in)`}</title>
-            </path>
-          ))}
-          {out > income ? (
-            <path d={arc(C, C, OUTER, income / total, 1)} fill="none" stroke="var(--danger)" strokeWidth="8" strokeLinecap="round">
-              <title>{`Over: ${money(out - income)} more out than in`}</title>
-            </path>
-          ) : null}
-          <text x={C} y={C - 4} textAnchor="middle" fontSize="26" fontWeight="700" className={left < 0 ? "fill-danger" : "fill-foreground"}>
-            {money(Math.abs(left))}
+      <div className="@container mt-3"><div className="grid items-center gap-5 @xl:grid-cols-[240px_1fr]">
+        <svg viewBox={`0 0 ${S} ${S}`} className="mx-auto w-64" role="img" aria-label={`Income ${money(received)} of ${money(income)} received; ${money(actual)} paid and spent; ${money(billsDue + debtDue)} still due; ${left >= 0 ? `${money(left)} left to spend` : `${money(-left)} over income`}`}>
+          <g transform={`rotate(-90 ${C} ${C})`} fill="none">
+            <circle cx={C} cy={C} r={R_OUT} stroke="var(--border)" strokeWidth={W_OUT} pathLength={1000} />
+            <circle cx={C} cy={C} r={R_OUT} stroke="var(--foreground)" strokeWidth={W_OUT} pathLength={1000} strokeDasharray={`${turn(received)} 1000`}>
+              <title>{`Income received: ${money(received)} of ${money(income)}`}</title>
+            </circle>
+            {arcs.map((g) => (
+              <circle key={g.key} cx={C} cy={C} r={R_IN} stroke={g.color} strokeOpacity={g.due ? 0.3 : 1} strokeWidth={W_IN} pathLength={1000} strokeDasharray={`${g.len} 1000`} strokeDashoffset={-g.from}>
+                <title>{`${g.label}${g.due ? " still due" : g.key.endsWith("Paid") ? " paid" : " spent"}: ${money(g.cents)}`}</title>
+              </circle>
+            ))}
+            {left > 0 ? (
+              <path d={ringArc(C, R_IN, Math.min(1000, at0) + 2, 1000)} stroke="var(--muted)" strokeWidth={W_IN} strokeDasharray="2 3" opacity={0.6}>
+                <title>{`Left to spend: ${money(left)}`}</title>
+              </path>
+            ) : null}
+            {left < 0 ? (
+              <circle cx={C} cy={C} r={R_OVER} stroke="var(--danger)" strokeWidth={7} strokeLinecap="round" pathLength={1000} strokeDasharray={`${Math.min(1000, turn(-left))} 1000`}>
+                <title>{`Over income: ${money(-left)}`}</title>
+              </circle>
+            ) : null}
+          </g>
+          {income > 0 ? <line x1={tx(R_IN - W_IN / 2 - 4)} y1={ty(R_IN - W_IN / 2 - 4)} x2={tx(R_OUT + W_OUT / 2 + 2)} y2={ty(R_OUT + W_OUT / 2 + 2)} stroke="var(--foreground)" strokeWidth="2.5" /> : null}
+          <text x={C} y={C - 2} textAnchor="middle" fontSize="28" fontWeight="700" className={left < 0 ? "fill-danger" : "fill-foreground"}>
+            {left < 0 ? `${money(-left)} over` : money(left)}
           </text>
-          <text x={C} y={C + 18} textAnchor="middle" fontSize="13" className="fill-muted">
-            {left < 0 ? "over money in" : plan.closed ? "not spent" : "not spent yet"}
+          <text x={C} y={C + 20} textAnchor="middle" fontSize="12" className={left < 0 ? "fill-danger" : "fill-muted"}>
+            {left < 0 ? "expenses pass income" : "left to spend"}
           </text>
         </svg>
-        <ul className="space-y-1.5 text-sm">
-          {parts.map((p) => (
-            <li key={p.key} className="flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2">
-                <span aria-hidden className="inline-block h-3 w-3 rounded-sm" style={{ background: p.color }} />
-                {p.label}
-              </span>
-              <span className="tnum">
-                <b>{money(p.cents)}</b> <span className="text-xs text-muted">{pct(p.cents)}</span>
-              </span>
-            </li>
-          ))}
-          <li className="flex items-center justify-between gap-3 border-t border-line pt-1.5">
-            <span className="flex items-center gap-2">
-              <span aria-hidden className="inline-block h-3 w-3 rounded-sm" style={{ background: left >= 0 ? "var(--series-neutral)" : "var(--danger)" }} />
-              {left >= 0 ? "Not spent yet" : "Over: more out than in"}
-            </span>
-            <span className={`tnum ${left < 0 ? "text-danger" : ""}`}>
-              <b>{money(Math.abs(left))}</b> <span className="text-xs text-muted">{pct(Math.abs(left))}</span>
-            </span>
+        <ul className="space-y-2.5">
+          {row("Income", "var(--foreground)", <><b>{money(received)}</b> <span className="text-xs text-muted">of {money(income)}</span></>, <>{fill(received, "var(--foreground)")}</>, true)}
+          {row("Essentials", "var(--series-3)", <b>{money(spent.ess)}</b>, fill(spent.ess, "var(--series-3)"))}
+          {row("Extras", "var(--series-4)", <b>{money(spent.ext)}</b>, fill(spent.ext, "var(--series-4)"))}
+          {row("Unplanned", "var(--series-5)", <b>{money(spent.unp)}</b>, fill(spent.unp, "var(--series-5)"))}
+          {plan.debt.cents > 0
+            ? row("Debt payment", "var(--series-2)", <><b>{money(debtPaid)}</b> <span className="text-xs text-muted">paid of {money(plan.debt.cents)}</span></>, <>{fill(debtPaid, "var(--series-2)")}{fill(debtDue, "var(--series-2)", 0.3)}</>)
+            : null}
+          {row("Bills", "var(--series-1)", <><b>{money(billsPaid)}</b> <span className="text-xs text-muted">paid of {money(plan.bills.totalCents)}</span></>, <>{fill(billsPaid, "var(--series-1)")}{fill(billsDue, "var(--series-1)", 0.3)}</>)}
+          <li className="border-t border-line pt-2.5">
+            {left >= 0
+              ? row("Left to spend", "transparent", <b>{money(left)}</b>, fill(left, "var(--muted)", 0.5), true)
+              : row("Over income", "var(--danger)", <b className="text-danger">{money(-left)}</b>, fill(-left, "var(--danger)"), true)}
           </li>
-          {out > income ? <li className="text-xs text-danger">The red outer ring is the part of the month&rsquo;s spending past its money in.</li> : null}
         </ul>
-      </div>
+      </div></div>
+      {!plan.closed && received > 0 ? (
+        <p className={`mt-4 rounded-xl px-3.5 py-2.5 text-sm ${ahead >= 0 ? "bg-ok-soft text-ok" : "bg-danger-soft text-danger"}`}>
+          {ahead >= 0
+            ? `So far this month ${money(received)} has come in and ${money(actual)} has been paid or spent, so ${money(ahead)} of what came in hasn't gone out yet.`
+            : `So far this month ${money(actual)} has been paid or spent but only ${money(received)} has come in: ${money(-ahead)} more went out than came in.`}
+        </p>
+      ) : null}
     </Card>
   );
 }

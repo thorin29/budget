@@ -3,6 +3,21 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.48.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Overview's donut is now "Income vs expenses."** The full circle is the month's expected income.
+  The outer ring fills as income arrives, and a dark tick marks how much has come in. The inner
+  ring holds expenses on the same scale: what's already paid or spent comes first (essentials,
+  extras, unplanned, the debt payment and paid bills), then bills and the debt payment still due
+  (pale), then what's left to spend (dashed). Spending past income shows as a red arc outside the
+  circle. Everyday categories show actual spending only, no budget amounts; bills and the debt
+  payment show their full amounts.
+- Beside the ring, each row has a thin bar on the same scale. Below it, one line says how much of
+  the income received so far hasn't gone out yet, or how much more has gone out than come in.
+
 ## [0.47.0]
 
 Run the migration (restart the container): it adds a loan's interest rate. The phone app is
