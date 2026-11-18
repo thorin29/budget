@@ -6,6 +6,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { toCents } from "@/lib/money";
 import { cashTiming, type CashEvent, type CashTiming } from "@/lib/cash-timing";
 import { getMonthView, type MonthEntry } from "./month";
 import { listCardPayments } from "./card-payments";
@@ -24,6 +25,20 @@ export interface CashTimingView extends CashTiming {
   balanceAsOf: string | null;
   /** Cards without statement and due days set, so their payments can't be placed. */
   cardsWithoutDays: number;
+  /** Checking against what's already owed this month (see bankCheck). Null when checking isn't known. */
+  check: BankCheckParts | null;
+}
+
+/** What checking has to cover by the end of this month. The debt payment comes from the month plan. */
+export interface BankCheckParts {
+  checkingCents: number;
+  /** Everything owed on the cards right now, except a 0% card (its monthly payment is the debt payment). */
+  cardsCents: number;
+  cards: number;
+  /** Bills still due this month, overdue ones included: from checking, or charged to a card and not charged yet. */
+  billsCents: number;
+  /** Paychecks still to land this month. */
+  incomeCents: number;
 }
 
 const addMonth = (iso: string, by = 1) => {
@@ -47,12 +62,16 @@ export async function getCashTiming(debtCents: number): Promise<CashTimingView> 
     >,
     listCardPayments(today),
     prisma.bankAccount.findMany({ where: { type: "CREDIT_CARD", hidden: false }, select: { id: true, name: true, nickname: true, institution: true, promoEndsOn: true } }) as Promise<CardRow[]>,
-    prisma.bankAccount.count({ where: { type: "CREDIT_CARD", hidden: false } }),
+    prisma.bankAccount.findMany({ where: { type: "CREDIT_CARD", hidden: false }, select: { balance: true, promoEndsOn: true } }) as Promise<
+      Array<{ balance: { toString(): string } | null; promoEndsOn: Date | null }>
+    >,
   ]);
   const { isCardPayment, isDebt } = billTypes(items, cardRows, today);
   const onCard = new Set(items.filter((i) => i.chargedToId).map((i) => i.id));
 
   const events: CashEvent[] = [];
+  /** Bills charged to a card that haven't been charged yet this month: they'll land on a card, then leave checking. */
+  let onCardDueCents = 0;
   const seen = new Set<string>();
   const add = (e: MonthEntry, overdue = false) => {
     const key = `${e.lineItemId}:${e.year}:${e.month}`;
@@ -63,6 +82,7 @@ export async function getCashTiming(debtCents: number): Promise<CashTimingView> 
       if (date >= today) events.push({ date, label: e.name, cents: e.budgetedCents, kind: "pay" });
       return;
     }
+    if (onCard.has(e.lineItemId) && !isCardPayment(e.lineItemId) && !isDebt(e.lineItemId) && !e.paidFromSurplus && e.year === y && e.month === m) onCardDueCents += e.budgetedCents;
     if (isCardPayment(e.lineItemId) || isDebt(e.lineItemId) || e.paidFromSurplus || onCard.has(e.lineItemId)) return;
     events.push({ date, label: e.name, cents: -e.budgetedCents, kind: "bill", overdue: overdue || date < today });
   };
@@ -86,5 +106,19 @@ export async function getCashTiming(debtCents: number): Promise<CashTimingView> 
 
   const start = now.billsBalanceCents;
   const t = cashTiming({ today, until, startCents: start ?? 0, events });
-  return { ...t, today, until, missing: start === null, balanceAsOf: now.billsBankDataAt ?? now.billsBalanceAsOf, cardsWithoutDays: allCards - cards.length };
+  const monthEnd = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  const owed = allCards
+    .filter((c) => !(c.promoEndsOn && c.promoEndsOn.toISOString().slice(0, 10) >= today))
+    .map((c) => (c.balance === null ? 0 : Math.max(0, -toCents(c.balance))));
+  const check: BankCheckParts | null =
+    start === null
+      ? null
+      : {
+          checkingCents: start,
+          cardsCents: owed.reduce((a, b) => a + b, 0),
+          cards: owed.filter((c) => c > 0).length,
+          billsCents: events.filter((e) => e.kind === "bill" && e.date <= monthEnd).reduce((a, e) => a - e.cents, onCardDueCents),
+          incomeCents: events.filter((e) => e.kind === "pay" && e.date <= monthEnd).reduce((a, e) => a + e.cents, 0),
+        };
+  return { ...t, today, until, missing: start === null, balanceAsOf: now.billsBankDataAt ?? now.billsBalanceAsOf, cardsWithoutDays: allCards.length - cards.length, check };
 }

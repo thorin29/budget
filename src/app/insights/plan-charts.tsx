@@ -9,6 +9,8 @@
 
 import type { ReactNode } from "react";
 import type { MonthPlanView } from "@/server/month-plan";
+import type { BankCheckParts } from "@/server/cash-timing";
+import Link from "next/link";
 import type { DebtChart, MonthHistory } from "@/server/plan-charts";
 import { Card } from "@/components/ui";
 
@@ -31,6 +33,64 @@ function ticks(lo: number, hi: number, count = 4): number[] {
 
 // ---------------------------------------------------------------- where the money goes
 
+/**
+ * Bank check: checking plus the pay still coming this month, against what's already owed: everything
+ * on the cards (paid to zero, so it all leaves checking), bills still due from checking and the debt
+ * payment. What's left is what checking holds once all of it is paid.
+ */
+function BankCheck({ check, debtCents, monthLeftCents }: { check: BankCheckParts; debtCents: number; monthLeftCents: number }) {
+  const have = check.checkingCents + check.incomeCents;
+  const owed = [
+    { key: "cards", label: check.cards === 1 ? "Owed on the card" : "Owed on cards", cents: check.cardsCents, color: "var(--muted)", opacity: 0.55 },
+    { key: "bills", label: "Bills still due", cents: check.billsCents, color: "var(--series-1)", opacity: 0.35 },
+    { key: "debt", label: "Debt payment", cents: debtCents, color: "var(--series-2)", opacity: 0.35 },
+  ].filter((o) => o.cents > 0);
+  const owedCents = owed.reduce((t, o) => t + o.cents, 0);
+  const after = have - owedCents;
+  const scale = Math.max(1, have, owedCents);
+  const w = (c: number) => `${Math.max(0, (c / scale) * 100)}%`;
+  const before = after - monthLeftCents;
+  const swatch = (color: string, opacity = 1) => <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: color, opacity }} />;
+  return (
+    <div className="mt-4 rounded-xl bg-neutral-soft px-4 py-3.5 text-sm">
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span>
+          <b>Checking {money(check.checkingCents)}</b>
+          {check.incomeCents > 0 ? <span className="text-muted"> + {money(check.incomeCents)} still coming in</span> : null}
+        </span>
+        <Link href="/insights/cash" className="text-xs text-accent-text hover:underline">
+          Day by day ›
+        </Link>
+      </div>
+      <div className="relative mt-2.5 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-surface" role="img" aria-label={`${money(have)} in checking and still coming in; ${money(owedCents)} already owed; ${after >= 0 ? `${money(after)} left` : `${money(-after)} short`} once it's all paid`}>
+        {owed.map((o) => (
+          <span key={o.key} className="block h-full" style={{ width: w(o.cents), background: o.color, opacity: o.opacity }} title={`${o.label}: ${money(o.cents)}`} />
+        ))}
+        {after > 0 ? <span className="block h-full" style={{ width: w(after), background: "var(--ok)" }} title={`After everything's paid: ${money(after)}`} /> : null}
+        {check.incomeCents > 0 && have > 0 ? (
+          <span aria-hidden className="absolute inset-y-0 w-0.5 bg-foreground" style={{ left: w(check.checkingCents) }} title="Where today's balance ends" />
+        ) : null}
+      </div>
+      <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+        {owed.map((o) => (
+          <li key={o.key} className="flex items-center gap-1.5">
+            {swatch(o.color, o.opacity)}
+            {o.label} <span className="tnum text-foreground">{money(o.cents)}</span>
+          </li>
+        ))}
+      </ul>
+      <p className={`mt-2.5 font-semibold ${after >= 0 ? "text-ok" : "text-danger"}`}>
+        {after >= 0 ? `After every card and bill is paid: about ${money(after)}` : `Checking comes up ${money(-after)} short once every card and bill is paid`}
+      </p>
+      {after >= 0 && monthLeftCents >= 0 && before >= 0 ? (
+        <p className="mt-0.5 text-xs text-muted">
+          {money(monthLeftCents)} left from this month plus {money(before)} you started the month with.
+        </p>
+      ) : null}
+    </div>
+  );
+}
+
 /** An open arc on a circle centered at (c, c) from `from` to `to` thousandths of a turn, for use inside rotate(-90). */
 function ringArc(c: number, r: number, from: number, to: number) {
   const a = (t: number) => (t / 1000) * 2 * Math.PI;
@@ -45,7 +105,7 @@ function ringArc(c: number, r: number, from: number, to: number) {
  * then what's left. Spending past income grows as a red arc outside the circle. Only actual
  * spending is shown for everyday categories: no budget amounts.
  */
-export function IncomeVsExpenses({ plan }: { plan: MonthPlanView }) {
+export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?: BankCheckParts | null }) {
   const by = (t: string) => plan.groups.filter((g) => g.tier === t).reduce((s, g) => s + g.spentCents, 0);
   const billsPaid = plan.bills.paidCents;
   const billsDue = Math.max(0, plan.bills.totalCents - billsPaid);
@@ -80,7 +140,6 @@ export function IncomeVsExpenses({ plan }: { plan: MonthPlanView }) {
   const tx = (r: number) => C + r * Math.sin(tick);
   const ty = (r: number) => C - r * Math.cos(tick);
   const pct = (c: number) => `${Math.min(100, Math.max(0, (c / scale) * 100))}%`;
-  const ahead = received - actual;
   const row = (label: string, color: string, value: ReactNode, bar: ReactNode, strong = false) => (
     <li className="space-y-1">
       <span className="flex items-center justify-between gap-3 text-sm">
@@ -147,13 +206,7 @@ export function IncomeVsExpenses({ plan }: { plan: MonthPlanView }) {
           </li>
         </ul>
       </div></div>
-      {!plan.closed && received > 0 ? (
-        <p className={`mt-4 rounded-xl px-3.5 py-2.5 text-sm ${ahead >= 0 ? "bg-ok-soft text-ok" : "bg-danger-soft text-danger"}`}>
-          {ahead >= 0
-            ? `So far this month ${money(received)} has come in and ${money(actual)} has been paid or spent, so ${money(ahead)} of what came in hasn't gone out yet.`
-            : `So far this month ${money(actual)} has been paid or spent but only ${money(received)} has come in: ${money(-ahead)} more went out than came in.`}
-        </p>
-      ) : null}
+      {!plan.closed && check ? <BankCheck check={check} debtCents={debtDue} monthLeftCents={left} /> : null}
     </Card>
   );
 }

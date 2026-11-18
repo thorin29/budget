@@ -109,7 +109,7 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
               {cash ? <CashLine cash={cash} /> : null}
               {!plan.closed ? <WhatIf plan={plan} /> : null}
             </div>
-            <IncomeVsExpenses plan={plan} />
+            <IncomeVsExpenses plan={plan} check={cash?.check} />
           </div>
           <Tiles plan={plan} debt={debt} last={last} />
         </>

@@ -3,6 +3,21 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.49.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **A bank check under Income vs expenses** replaces the "so far this month" sentence. It starts
+  with checking today plus the pay still coming this month, then takes off what's already owed:
+  everything on the cards (they're paid to zero, so it all leaves checking), bills still due from
+  checking, and the debt payment. One bar shows how much of it is spoken for. A tick marks where
+  today's balance ends. The last line says what checking holds once every card and bill is paid,
+  and how much of that is this month's leftover vs what the month started with. When it comes up
+  short, the line turns red. It links to the Cash tab for the day-by-day view.
+- A 0% card's balance isn't counted as owed now; only its monthly payment (the debt payment) is.
+- `/api/v1/cash` also returns these figures as `check`.
+
 ## [0.48.0]
 
 No migration. The phone app is unchanged.
