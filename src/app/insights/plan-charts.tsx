@@ -38,7 +38,7 @@ function ticks(lo: number, hi: number, count = 4): number[] {
  * on the cards (paid to zero, so it all leaves checking), bills still due from checking and the debt
  * payment. What's left is what checking holds once all of it is paid.
  */
-function BankCheck({ check, debtCents, monthLeftCents }: { check: BankCheckParts; debtCents: number; monthLeftCents: number }) {
+function BankCheck({ check, debtCents, nextMonth }: { check: BankCheckParts; debtCents: number; nextMonth: string }) {
   const have = check.checkingCents + check.incomeCents;
   const owed = [
     { key: "cards", label: check.cards === 1 ? "Owed on the card" : "Owed on cards", cents: check.cardsCents, color: "var(--muted)", opacity: 0.55 },
@@ -49,7 +49,6 @@ function BankCheck({ check, debtCents, monthLeftCents }: { check: BankCheckParts
   const after = have - owedCents;
   const scale = Math.max(1, have, owedCents);
   const w = (c: number) => `${Math.max(0, (c / scale) * 100)}%`;
-  const before = after - monthLeftCents;
   const swatch = (color: string, opacity = 1) => <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: color, opacity }} />;
   return (
     <div className="mt-4 rounded-xl bg-neutral-soft px-4 py-3.5 text-sm">
@@ -62,11 +61,11 @@ function BankCheck({ check, debtCents, monthLeftCents }: { check: BankCheckParts
           Day by day ›
         </Link>
       </div>
-      <div className="relative mt-2.5 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-surface" role="img" aria-label={`${money(have)} in checking and still coming in; ${money(owedCents)} already owed; ${after >= 0 ? `${money(after)} left` : `${money(-after)} short`} once it's all paid`}>
+      <div className="relative mt-2.5 flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-surface" role="img" aria-label={`${money(have)} in checking and still coming in; ${money(owedCents)} already owed; ${after >= 0 ? `${money(after)} carries over` : `${money(-after)} short`}`}>
         {owed.map((o) => (
           <span key={o.key} className="block h-full" style={{ width: w(o.cents), background: o.color, opacity: o.opacity }} title={`${o.label}: ${money(o.cents)}`} />
         ))}
-        {after > 0 ? <span className="block h-full" style={{ width: w(after), background: "var(--ok)" }} title={`After everything's paid: ${money(after)}`} /> : null}
+        {after > 0 ? <span className="block h-full" style={{ width: w(after), background: "var(--ok)" }} title={`Carries over: ${money(after)}`} /> : null}
         {check.incomeCents > 0 && have > 0 ? (
           <span aria-hidden className="absolute inset-y-0 w-0.5 bg-foreground" style={{ left: w(check.checkingCents) }} title="Where today's balance ends" />
         ) : null}
@@ -78,15 +77,21 @@ function BankCheck({ check, debtCents, monthLeftCents }: { check: BankCheckParts
             {o.label} <span className="tnum text-foreground">{money(o.cents)}</span>
           </li>
         ))}
+        {after > 0 ? (
+          <li className="flex items-center gap-1.5">
+            {swatch("var(--ok)")}
+            Carries over <span className="tnum text-foreground">{money(after)}</span>
+          </li>
+        ) : null}
       </ul>
       <p className={`mt-2.5 font-semibold ${after >= 0 ? "text-ok" : "text-danger"}`}>
-        {after >= 0 ? `After every card and bill is paid: about ${money(after)}` : `Checking comes up ${money(-after)} short once every card and bill is paid`}
+        {after >= 0 ? `Carries over to ${nextMonth}: about ${money(after)}` : `Short going into ${nextMonth}: about ${money(-after)}`}
       </p>
-      {after >= 0 && monthLeftCents >= 0 && before >= 0 ? (
-        <p className="mt-0.5 text-xs text-muted">
-          {money(monthLeftCents)} left from this month plus {money(before)} you started the month with.
-        </p>
-      ) : null}
+      <p className="mt-0.5 text-xs text-muted">
+        {after >= 0
+          ? `What checking keeps once this month's bills, the debt payment and every card balance are covered, even card payments due in ${nextMonth}.`
+          : `Checking won't cover this month's bills, the debt payment and every card balance, even card payments due in ${nextMonth}.`}
+      </p>
     </div>
   );
 }
@@ -153,6 +158,34 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
     </li>
   );
   const fill = (c: number, color: string, opacity = 1) => <span className="block h-full rounded-full" style={{ width: pct(c), background: color, opacity }} />;
+  // Budgets are for reference only: the pale part of a bar, never part of the ring or "left to spend".
+  const tierBudget = (t: string) => {
+    const gs = plan.groups.filter((g) => g.tier === t && g.limitCents !== null);
+    return { limit: gs.reduce((a, g) => a + (g.limitCents ?? 0), 0), left: gs.reduce((a, g) => a + Math.max(0, g.leftCents ?? 0), 0) };
+  };
+  const budget = { ess: tierBudget("ESSENTIAL"), ext: tierBudget("FLEXIBLE") };
+  const budgetRow = (label: string, color: string, cents: number, b: { limit: number; left: number }) =>
+    row(
+      label,
+      color,
+      b.limit > 0 ? (
+        <>
+          <b className={cents > b.limit ? "text-warn" : ""}>{money(cents)}</b> <span className="text-xs text-muted">of {money(b.limit)} budget</span>
+        </>
+      ) : (
+        <b>{money(cents)}</b>
+      ),
+      <>
+        {fill(cents, color)}
+        {b.left > 0 ? fill(b.left, color, 0.3) : null}
+      </>,
+    );
+  const budgetLeft = [
+    { key: "ess", label: "Essentials", cents: budget.ess.left, color: "var(--series-3)" },
+    { key: "ext", label: "Extras", cents: budget.ext.left, color: "var(--series-4)" },
+    { key: "debt", label: "Debt payment", cents: debtDue, color: "var(--series-2)" },
+  ].filter((b) => b.cents > 0);
+  const budgetLeftCents = budgetLeft.reduce((a, b) => a + b.cents, 0);
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -192,13 +225,36 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
         </svg>
         <ul className="space-y-2.5">
           {row("Income", "var(--foreground)", <><b>{money(received)}</b> <span className="text-xs text-muted">of {money(income)}</span></>, <>{fill(received, "var(--foreground)")}</>, true)}
-          {row("Essentials", "var(--series-3)", <b>{money(spent.ess)}</b>, fill(spent.ess, "var(--series-3)"))}
-          {row("Extras", "var(--series-4)", <b>{money(spent.ext)}</b>, fill(spent.ext, "var(--series-4)"))}
+          {budgetRow("Essentials", "var(--series-3)", spent.ess, budget.ess)}
+          {budgetRow("Extras", "var(--series-4)", spent.ext, budget.ext)}
           {row("Unplanned", "var(--series-5)", <b>{money(spent.unp)}</b>, fill(spent.unp, "var(--series-5)"))}
           {plan.debt.cents > 0
             ? row("Debt payment", "var(--series-2)", <><b>{money(debtPaid)}</b> <span className="text-xs text-muted">paid of {money(plan.debt.cents)}</span></>, <>{fill(debtPaid, "var(--series-2)")}{fill(debtDue, "var(--series-2)", 0.3)}</>)
             : null}
           {row("Bills", "var(--series-1)", <><b>{money(billsPaid)}</b> <span className="text-xs text-muted">paid of {money(plan.bills.totalCents)}</span></>, <>{fill(billsPaid, "var(--series-1)")}{fill(billsDue, "var(--series-1)", 0.3)}</>)}
+          {!plan.closed && budgetLeftCents > 0 ? (
+            <li className="space-y-1">
+              <span className="flex items-center justify-between gap-3 text-sm">
+                <span>
+                  Budget left <span className="text-xs text-muted">· for reference, not counted</span>
+                </span>
+                <b className="tnum">{money(budgetLeftCents)}</b>
+              </span>
+              <span className="flex h-1.5 w-full gap-0.5 overflow-hidden rounded-full bg-neutral-soft">
+                {budgetLeft.map((b) => (
+                  <span key={b.key} className="block h-full rounded-full" style={{ width: pct(b.cents), background: b.color, opacity: 0.3 }} title={`${b.label}: ${money(b.cents)} left`} />
+                ))}
+              </span>
+              <span className="flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-muted">
+                {budgetLeft.map((b) => (
+                  <span key={b.key} className="flex items-center gap-1.5">
+                    <span aria-hidden className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: b.color, opacity: 0.3 }} />
+                    {b.label} <span className="tnum text-foreground">{money(b.cents)}</span>
+                  </span>
+                ))}
+              </span>
+            </li>
+          ) : null}
           <li className="border-t border-line pt-2.5">
             {left >= 0
               ? row("Left to spend", "transparent", <b>{money(left)}</b>, fill(left, "var(--muted)", 0.5), true)
@@ -206,7 +262,7 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
           </li>
         </ul>
       </div></div>
-      {!plan.closed && check ? <BankCheck check={check} debtCents={debtDue} monthLeftCents={left} /> : null}
+      {!plan.closed && check ? <BankCheck check={check} debtCents={debtDue} nextMonth={new Date(Date.UTC(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), 1)).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })} /> : null}
     </Card>
   );
 }

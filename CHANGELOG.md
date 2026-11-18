@@ -3,6 +3,20 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.50.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Budgets for reference beside Income vs expenses.** The Essentials and Extras bars show what's
+  left of their budget in a lighter shade, the way Bills shows what's still due, and say
+  "of $X budget." A new "Budget left" bar puts what's left of the Essentials, Extras and debt
+  payment budgets side by side in their own colors. Budgets never enter the ring or "left to
+  spend"; Unplanned has no budget, so it isn't there.
+- **The bank check ends with what carries over to next month:** checking once this month's bills,
+  the debt payment and every card balance are covered. It replaces the "after every card and bill
+  is paid" line. "Carries over" also has its own swatch on the bar.
+
 ## [0.49.0]
 
 No migration. The phone app is unchanged.
