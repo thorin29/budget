@@ -34,6 +34,20 @@ function ticks(lo: number, hi: number, count = 4): number[] {
 // ---------------------------------------------------------------- where the money goes
 
 /**
+ * What this month carries over: checking plus pay still coming, less bills still due, the debt
+ * payment and every card balance; and the same with what's left of the Essentials and Extras
+ * budgets also set aside. The bank check below shows the same figures.
+ */
+export function carryOver(plan: MonthPlanView, check: BankCheckParts) {
+  const debtDue = plan.debt.source === "paid" ? 0 : plan.debt.cents;
+  const budgetLeftCents = plan.groups
+    .filter((g) => (g.tier === "ESSENTIAL" || g.tier === "FLEXIBLE") && g.limitCents !== null)
+    .reduce((a, g) => a + Math.max(0, g.leftCents ?? 0), 0);
+  const nowCents = check.checkingCents + check.incomeCents - check.cardsCents - check.billsCents - debtDue;
+  return { nowCents, budgetsCents: nowCents - budgetLeftCents, budgetLeftCents };
+}
+
+/**
  * Bank check: checking plus the pay still coming this month, against what's already owed: everything
  * on the cards (paid to zero, so it all leaves checking), bills still due from checking and the debt
  * payment. What's left carries over to next month. A second figure also sets aside what's left of

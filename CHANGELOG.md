@@ -3,6 +3,23 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.53.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Outlook on Overview**, in place of "Can we afford it?" It looks at next month from the 1st
+  to the day before the second paycheck. It starts from what this month carries over, then lists
+  the pay and the bills from checking in date order, with checking after each one. The last line
+  says what's left before that paycheck, or in red, when and by how much checking comes up short.
+  - A toggle switches the starting point between **Right now** and **If budgets are used**, the
+    same two figures as the bank check.
+  - The next card payments are listed, already set aside in the carry-over. With budgets used,
+    they also include the rest of this month's budgets still to be charged, as an estimate of the
+    next statements. Bills charged to a card in that stretch are listed separately.
+  - The paycheck is the income that lands more than once a month, as one line item or as numbered
+    ones ("Paycheck", "Paycheck 2"). Other income, like a monthly benefit, is listed as it lands.
+
 ## [0.52.0]
 
 No migration. The phone app is unchanged.

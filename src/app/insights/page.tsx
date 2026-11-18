@@ -4,8 +4,10 @@ import { getMonthPlan, type MonthPlanView } from "@/server/month-plan";
 import { getCashTiming, type CashTimingView } from "@/server/cash-timing";
 import { getDebt, type DebtView } from "@/server/debt";
 import { Card } from "@/components/ui";
-import { PlanHero, WhatIf } from "./month-plan";
-import { IncomeVsExpenses } from "./plan-charts";
+import { PlanHero } from "./month-plan";
+import { IncomeVsExpenses, carryOver } from "./plan-charts";
+import { Outlook } from "./outlook";
+import { getOutlook, type OutlookView } from "@/server/outlook";
 import { TabHeading, monthLabel, pickMonth, shiftMonth } from "./shared";
 
 export const dynamic = "force-dynamic";
@@ -92,6 +94,9 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
         getMonthPlan(prev.year, prev.month).catch(() => null),
       ])
     : [null, null, null];
+  const current = !!(plan && cash && plan.month === cash.today.slice(0, 7));
+  const outlook: OutlookView | null = current && cash?.check ? await getOutlook(cash.today, plan!.debt.cents).catch((error: unknown) => (console.error("Outlook:", error), null)) : null;
+  const carry = plan && cash?.check ? carryOver(plan, cash.check) : null;
 
   return (
     <div className="space-y-6">
@@ -108,7 +113,15 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
             <div className="space-y-4">
               <PlanHero plan={plan} />
               {cash ? <CashLine cash={cash} /> : null}
-              {!plan.closed ? <WhatIf plan={plan} /> : null}
+              {outlook && carry ? (
+                <Outlook
+                  outlook={outlook}
+                  nowCents={carry.nowCents}
+                  budgetsCents={carry.budgetsCents}
+                  budgetLeftCents={carry.budgetLeftCents}
+                  thisMonth={monthLabel(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), "long").split(" ")[0]}
+                />
+              ) : null}
             </div>
           </div>
           <Tiles plan={plan} debt={debt} last={last} />
