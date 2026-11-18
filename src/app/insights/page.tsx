@@ -376,8 +376,8 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
       </div>
 
       {plan ? <MonthPlan plan={plan} /> : null}
-      {cash ? <CashTimingCard cash={cash} /> : null}
       {plan ? <PoolBar plan={plan} /> : null}
+      {cash ? <CashTimingCard cash={cash} /> : null}
       {plan && (!plan.closed || debt) ? (
         <div className="grid gap-4 lg:grid-cols-2">
           <PaceChart plan={plan} />

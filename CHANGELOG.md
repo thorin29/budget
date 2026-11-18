@@ -3,6 +3,19 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.46.0]
+
+### Changed
+- **Where this month's money goes** is a donut: the circle is the month's money in, cut into bills,
+  the debt payment, essentials, extras, unplanned and what's not spent yet, with the amount left (or
+  over) in the middle. When everything out passes money in, a red outer ring marks the part past it.
+  It now sits right under the plan.
+
+### Fixed
+- A card payment whose other side hasn't arrived from the bank yet (the payment has left checking but
+  the card hasn't posted it, or the reverse) no longer counts as spending or as a refund while it
+  waits to be paired.
+
 ## [0.45.0]
 
 ### Added

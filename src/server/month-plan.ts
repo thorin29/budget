@@ -18,6 +18,8 @@ import { billCharge } from "./bill-merchants";
 import { ensureGroups, debtSetting } from "./envelopes";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
+/** A credit on a card, or money leaving checking, that reads like a card payment. */
+const PAYMENT_WORDS = /\b(payment|pymt|pmt|thank you|autopay|auto pay|epay|online pmt|crcardpmt|card pmt)\b/i;
 /** Under this much safe to spend, the month is running low. */
 export const LOW_CENTS = 20_000;
 const UNCATEGORIZED = { id: "uncategorized", name: "Needs a category" };
@@ -108,6 +110,7 @@ type Txn = {
   postedOn: Date;
   amount: { toString(): string };
   merchant: string;
+  description: string;
   categoryId: string | null;
   pending: boolean;
   category: { name: string; managedForOthers: boolean } | null;
@@ -182,7 +185,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     prisma.bankTransaction.findMany({
       where: { postedOn: { gte: windowStart, lt: monthEnd }, kind: "NORMAL", account: { hidden: false } },
       select: {
-        id: true, postedOn: true, amount: true, merchant: true, categoryId: true, pending: true,
+        id: true, postedOn: true, amount: true, merchant: true, description: true, categoryId: true, pending: true,
         category: { select: { name: true, managedForOthers: true } },
         account: { select: { type: true } },
         actual: { select: { id: true } },
@@ -257,11 +260,18 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   const byDay = new Map<string, number>();
   const otherBills: PlanTxn[] = [];
   let firstMonth: number | null = null;
+  // A card payment whose other side hasn't arrived yet isn't paired as a transfer: it's
+  // still not spending (leaving checking) or a refund (reaching the card).
+  const cardNames = cards.map((c) => ({ id: c.id, names: [c.nickname ?? "", c.name, c.institution ?? ""] }));
+  const cardPayment = (t: Txn, cents: number) =>
+    PAYMENT_WORDS.test(`${t.description} ${t.merchant}`) &&
+    (t.account.type === "CREDIT_CARD" ? cents > 0 : cents < 0 && cardByName(`${t.merchant} ${t.description}`, cardNames) !== null);
   for (const t of txns) {
     if (t.category?.managedForOthers) continue;
     const cents = toCents(t.amount);
     const spending = SPENDING_TYPES.includes(t.account.type);
     if (!spending) continue;
+    if (cardPayment(t, cents)) continue;
     let everyday = 0;
     if (cents < 0 && !isBill(t)) everyday = -cents;
     else if (cents > 0) {
