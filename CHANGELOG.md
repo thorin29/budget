@@ -3,6 +3,21 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.55.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **The Outlook's summary box looks like the bank check:** "Carried over $X + VA pay + paycheck,"
+  a bar split into bills, the debt payment and what's left, a tick where the carry-over ends, and
+  the "Left before the paycheck" line.
+- **Card lines tell a statement from charges still building:** "$515 statement due Dec 9" vs.
+  "$156 charged since the last statement, next statement closes Dec 3." They used to show each
+  card's whole balance as its next payment.
+- The Outlook sits at the top of the right column, above safe to spend.
+- Removed the "Spending in December goes on the cards…" line, and the description under the
+  Overview title.
+
 ## [0.54.0]
 
 No migration. The phone app is unchanged.

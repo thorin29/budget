@@ -49,12 +49,12 @@ export function MonthPicker({ path, year, month }: { path: string; year: number;
 }
 
 /** A tab's heading: its title, one line on what it answers, and the month picker where it applies. */
-export function TabHeading({ title, description, picker }: { title: string; description: string; picker?: { path: string; year: number; month: number } }) {
+export function TabHeading({ title, description, picker }: { title: string; description?: string; picker?: { path: string; year: number; month: number } }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
         <h1 className="font-heading text-2xl font-bold tracking-tight">{title}</h1>
-        <p className="mt-1 max-w-prose text-sm text-muted">{description}</p>
+        {description ? <p className="mt-1 max-w-prose text-sm text-muted">{description}</p> : null}
       </div>
       {picker ? <MonthPicker {...picker} /> : null}
     </div>

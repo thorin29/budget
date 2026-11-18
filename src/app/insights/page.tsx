@@ -103,7 +103,6 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
       <InsightsTabs />
       <TabHeading
         title="Overview"
-        description="Where the month stands. Each tab above goes deeper: money in and out, the budget, cash timing, debt and trends."
         picker={{ path: "/insights", year: picked.year, month: picked.month }}
       />
       {plan ? (
@@ -111,8 +110,6 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
           <div className="grid items-start gap-4 lg:grid-cols-2">
             <IncomeVsExpenses plan={plan} check={cash?.check} />
             <div className="space-y-4">
-              <PlanHero plan={plan} />
-              {cash ? <CashLine cash={cash} /> : null}
               {outlook && carry ? (
                 <Outlook
                   outlook={outlook}
@@ -122,6 +119,8 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
                   thisMonth={monthLabel(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), "long").split(" ")[0]}
                 />
               ) : null}
+              <PlanHero plan={plan} />
+              {cash ? <CashLine cash={cash} /> : null}
             </div>
           </div>
           <Tiles plan={plan} debt={debt} last={last} />

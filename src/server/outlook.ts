@@ -32,8 +32,12 @@ export interface OutlookView {
   /** Bills in the window charged to a card: they're paid with the card later, not from checking. */
   onCard: OutlookLine[];
   debt: OutlookLine[];
-  /** What each card is owed now: set aside in the carry-over, and the next payment on each. */
-  cards: Array<{ name: string; cents: number; due: string | null }>;
+  /**
+   * What each card is owed now, all of it set aside in the carry-over: the statement still to pay
+   * (with its due date), and what's been charged since it closed (with the next closing date).
+   * Cards without statement and due days set only have their balance.
+   */
+  cards: Array<{ name: string; cents: number; statementCents: number; dueOn: string | null; buildingCents: number; closesOn: string | null }>;
 }
 
 const pad = (n: number) => String(n).padStart(2, "0");
@@ -92,10 +96,27 @@ export async function getOutlook(today: string, debtCents: number): Promise<Outl
     if (!debt.length) for (const e of entries.filter((e) => isDebt(e.lineItemId))) debt.push({ ...line(e), cents: debtCents });
   }
 
-  const dueOf = new Map(statuses.map((s) => [s.id, s.nextDue]));
+  const statusOf = new Map(statuses.map((st) => [st.id, st]));
+  const addMonth = (iso: string) => {
+    const d = new Date(Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)), 1));
+    const last = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 0)).getUTCDate();
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(Math.min(last, Number(iso.slice(8, 10))))}`;
+  };
   const cards = allCards
     .filter((c) => !promoIds.has(c.id))
-    .map((c) => ({ name: c.nickname || displayAccountName(c.name), cents: c.balance === null ? 0 : Math.max(0, -toCents(c.balance)), due: dueOf.get(c.id) ?? null }))
+    .map((c) => {
+      const cents = c.balance === null ? 0 : Math.max(0, -toCents(c.balance));
+      const st = statusOf.get(c.id);
+      const statementCents = st ? Math.min(cents, st.dueCents) : 0;
+      return {
+        name: c.nickname || displayAccountName(c.name),
+        cents,
+        statementCents,
+        dueOn: st && statementCents > 0 ? st.nextDue : null,
+        buildingCents: st ? cents - statementCents : cents,
+        closesOn: st ? addMonth(st.lastClose) : null,
+      };
+    })
     .filter((c) => c.cents > 0);
 
   const byDate = (a: OutlookLine, b: OutlookLine) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name);
