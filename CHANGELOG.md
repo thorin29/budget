@@ -3,6 +3,19 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.52.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Overview:** Income vs expenses moved to the left column, with safe to spend, the cash line and
+  "Can we afford it?" on the right.
+- **Budget left** is just Essentials and Extras now, one figure against left to spend. The debt
+  payment is counted in full like a bill, so it isn't a budget to spend down. The bank check's
+  "if the budgets are used" figure matches.
+- The note under "Carries over" now reads: what checking would hold on the 1st if every card were
+  paid to zero that day, after this month's bills and debt payment.
+
 ## [0.51.0]
 
 No migration. The phone app is unchanged.

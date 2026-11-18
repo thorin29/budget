@@ -119,7 +119,7 @@ function BankCheck({ check, debtCents, nextMonth, budgets }: { check: BankCheckP
           {budgetCents > 0 ? figure("If the budgets are used", ifUsed) : null}
         </div>
         <p className="mt-1.5 text-xs text-muted">
-          What checking keeps once this month&rsquo;s bills, the debt payment and every card balance are covered, even card payments due in {nextMonth}.
+          What checking would hold on {nextMonth} 1 if every card were paid to zero that day, after this month&rsquo;s bills and debt payment.
         </p>
       </div>
     </div>
@@ -213,10 +213,8 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
   const budgetLeft = [
     { key: "ess", label: "Essentials", cents: budget.ess.left, color: "var(--series-3)" },
     { key: "ext", label: "Extras", cents: budget.ext.left, color: "var(--series-4)" },
-    { key: "debt", label: "Debt payment", cents: debtDue, color: "var(--series-2)" },
   ].filter((b) => b.cents > 0);
   const budgetLeftCents = budgetLeft.reduce((a, b) => a + b.cents, 0);
-  const spendBudgetCents = budget.ess.left + budget.ext.left;
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -269,10 +267,10 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
             <li className="space-y-1">
               <span className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
                 <span>
-                  Budget left <b className="tnum">{money(budgetLeftCents)}</b> <span className="text-xs text-muted">· reference only</span>
+                  Budget left <span className="text-xs text-muted">· reference only</span>
                 </span>
-                <span className="tnum" title="Essentials and Extras budgets left, against left to spend. The debt payment is already taken out of left to spend.">
-                  <b className={spendBudgetCents > left ? "text-warn" : ""}>{money(spendBudgetCents)}</b>{" "}
+                <span className="tnum" title="What's left of the Essentials and Extras budgets, against left to spend">
+                  <b className={budgetLeftCents > left ? "text-warn" : ""}>{money(budgetLeftCents)}</b>{" "}
                   <span className="text-xs text-muted">of {left >= 0 ? money(left) : "$0"} left to spend</span>
                 </span>
               </span>
@@ -298,7 +296,7 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
           </li>
         </ul>
       </div></div>
-      {!plan.closed && check ? <BankCheck check={check} debtCents={debtDue} budgets={budgetLeft.filter((b) => b.key !== "debt")} nextMonth={new Date(Date.UTC(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), 1)).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })} /> : null}
+      {!plan.closed && check ? <BankCheck check={check} debtCents={debtDue} budgets={budgetLeft} nextMonth={new Date(Date.UTC(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), 1)).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })} /> : null}
     </Card>
   );
 }

@@ -103,13 +103,13 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
       />
       {plan ? (
         <>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid items-start gap-4 lg:grid-cols-2">
+            <IncomeVsExpenses plan={plan} check={cash?.check} />
             <div className="space-y-4">
               <PlanHero plan={plan} />
               {cash ? <CashLine cash={cash} /> : null}
               {!plan.closed ? <WhatIf plan={plan} /> : null}
             </div>
-            <IncomeVsExpenses plan={plan} check={cash?.check} />
           </div>
           <Tiles plan={plan} debt={debt} last={last} />
         </>
