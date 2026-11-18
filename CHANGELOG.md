@@ -3,6 +3,25 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.60.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Available to spend shows how it's worked out, line by line:** checking today, this month's
+  pay still coming, bills, cards and debt still owed, budgets left used in full (worst case),
+  then each paycheck and the bills up to the tightest point. Under that:
+  - whether every bill through the last date is still paid if all of it is spent;
+  - this month's income after its expenses (worst case also takes off the budgets left);
+  - whether spending all of it stays within this month's income.
+  The heading matches the other cards, and "Good through" is now "Until."
+  The "spend it all" lines are gone.
+- **Outlook:** "Bills after Dec 4." The results read "Before Dec 4 pay" and "After Dec 4 pay,"
+  as plain amounts, green or red. The "Plus November's budgets still to be charged" line is gone,
+  since the worst case already counts it.
+- **Carries over:** "Best case · if spending stopped now" and "Worst case · all budgeted funds
+  are used."
+
 ## [0.59.0]
 
 No migration. The phone app is unchanged.

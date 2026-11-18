@@ -96,7 +96,7 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
             <IncomeVsExpenses plan={plan} check={cash?.check} />
             <div className="space-y-4">
               {outlook && carry ? (
-                <OutlookCards outlook={outlook} nowCents={carry.nowCents} budgetsCents={carry.budgetsCents} budgetLeftCents={carry.budgetLeftCents} thisMonth={thisMonth} />
+                <OutlookCards outlook={outlook} carry={carry} thisMonth={thisMonth} />
               ) : (
                 <PlanHero plan={plan} />
               )}

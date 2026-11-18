@@ -75,7 +75,7 @@ function OutlookChart({ outlook, start, parts }: { outlook: OutlookView; start: 
   const outs = [...outlook.bills.map((l) => ({ ...l, debt: false })), ...outlook.debt.map((l) => ({ ...l, debt: true }))].sort((x, y) => x.date.localeCompare(y.date));
   const group = (pre: boolean, debt: boolean) => outs.filter((l) => early(l.date) === pre && l.debt === debt);
   const list = (ls: OutlookLine[]) => ls.map((l) => `${day(l.date)} · ${l.name} ${money(l.cents)}`).join("\n");
-  const tag = payday ? (pre: boolean) => (pre ? ` before ${day(payday.date)}` : ` from ${day(payday.date)}`) : () => "";
+  const tag = payday ? (pre: boolean) => (pre ? ` before ${day(payday.date)}` : ` after ${day(payday.date)}`) : () => "";
   const segs = [
     { key: "b1", ls: group(true, false), label: `Bills${tag(true)}`, color: "var(--series-1)", opacity: 0.75, count: true },
     { key: "d1", ls: group(true, true), label: `Debt payment${tag(true)}`, color: "var(--series-2)", opacity: 0.75, count: false },
@@ -93,7 +93,6 @@ function OutlookChart({ outlook, start, parts }: { outlook: OutlookView; start: 
   const end = parts[parts.length - 1].endCents;
   const scale = Math.max(1, inTotal, outTotal);
   const pct = (c: number) => (Math.max(0, c) / scale) * 100;
-  const covered = preOut <= onHand;
   const lines = [
     { key: "have", at: pct(onHand), label: firstPay.length ? `Carried over + ${firstPay.map((l) => l.name).join(" + ")}` : "Carried over", top: true },
     ...(payday ? [{ key: "pay", at: pct(preOut), label: `${day(payday.date)} pay`, top: false }] : []),
@@ -167,35 +166,36 @@ function OutlookChart({ outlook, start, parts }: { outlook: OutlookView; start: 
       <dl className="mt-3 divide-y divide-line border-t border-line text-sm">
         {payday ? (
           <div className="flex items-baseline justify-between gap-3 py-1.5">
-            <dt className="text-muted">Before the {day(payday.date)} paycheck</dt>
-            <dd className={`tnum font-semibold ${covered ? "text-ok" : "text-danger"}`}>{covered ? `Left ${money(before.endCents)}` : `Short ${money(-before.endCents)}`}</dd>
+            <dt className="text-muted">Before {day(payday.date)} pay</dt>
+            <dd className={`tnum font-semibold ${before.endCents < 0 ? "text-danger" : "text-ok"}`}>{money(before.endCents)}</dd>
           </div>
         ) : null}
         <div className="flex items-baseline justify-between gap-3 py-1.5">
-          <dt className="text-muted">Before {parts[parts.length - 1].endsBefore}</dt>
-          <dd className={`tnum font-semibold ${end < 0 ? "text-danger" : "text-ok"}`}>{end < 0 ? `Short ${money(-end)}` : `Left ${money(end)}`}</dd>
+          <dt className="text-muted">{payday ? `After ${day(payday.date)} pay` : `Before ${parts[parts.length - 1].endsBefore}`}</dt>
+          <dd className={`tnum font-semibold ${end < 0 ? "text-danger" : "text-ok"}`}>{money(end)}</dd>
         </div>
       </dl>
     </div>
   );
 }
 
-export function OutlookCards({
-  outlook,
-  nowCents,
-  budgetsCents,
-  budgetLeftCents,
-  thisMonth,
-}: {
-  outlook: OutlookView;
-  /** Carries over with current expenses only (the bank check's "right now"). */
+export interface CarryOver {
+  /** Carries over if spending stopped now. */
   nowCents: number;
-  /** Carries over with this month's budgets also used. */
+  /** Carries over with every budget used in full. */
   budgetsCents: number;
   budgetLeftCents: number;
-  /** This month's name, e.g. "November". */
-  thisMonth: string;
-}) {
+  checkingCents: number;
+  /** This month's pay still coming. */
+  incomeCents: number;
+  /** Still owed this month: card balances, bills still due and the debt payment. */
+  owedCents: number;
+  /** This month's income less its expenses. */
+  remainingCents: number;
+}
+
+export function OutlookCards({ outlook, carry, thisMonth }: { outlook: OutlookView; carry: CarryOver; thisMonth: string }) {
+  const { nowCents, budgetsCents } = carry;
   const [mode, setMode] = useState<Case>("worst");
   const start = mode === "worst" ? budgetsCents : nowCents;
   const parts = stretches(outlook, start, thisMonth);
@@ -232,7 +232,7 @@ export function OutlookCards({
           <OutlookChart outlook={outlook} start={start} parts={parts} />
         </div>
         <div className="mt-3 space-y-1.5 text-xs text-muted">
-          {outlook.cards.length || (mode === "worst" && budgetLeftCents > 0) ? (
+          {outlook.cards.length ? (
             <div>
               <b className="font-semibold text-foreground">On the cards, already set aside in the carry-over:</b>
               <ul className="mt-0.5 space-y-0.5">
@@ -247,7 +247,6 @@ export function OutlookCards({
                       .join("; ")}
                   </li>
                 ))}
-                {mode === "worst" && budgetLeftCents > 0 ? <li>Plus {money(budgetLeftCents)} of {thisMonth}&rsquo;s budgets still to be charged</li> : null}
               </ul>
             </div>
           ) : null}
@@ -259,7 +258,7 @@ export function OutlookCards({
           ) : null}
         </div>
       </Card>
-      <AvailableCard a={a} mode={mode} toggle={toggle("available-case")} stretches={parts} />
+      <AvailableCard a={a} mode={mode} toggle={toggle("available-case")} stretches={parts} carry={carry} thisMonth={thisMonth} />
     </>
   );
 }

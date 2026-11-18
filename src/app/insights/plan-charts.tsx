@@ -45,7 +45,17 @@ export function carryOver(plan: MonthPlanView, check: BankCheckParts) {
     .filter((g) => (g.tier === "ESSENTIAL" || g.tier === "FLEXIBLE") && g.limitCents !== null)
     .reduce((a, g) => a + Math.max(0, g.leftCents ?? 0), 0);
   const nowCents = check.checkingCents + check.incomeCents - check.cardsCents - check.billsCents - debtDue;
-  return { nowCents, budgetsCents: nowCents - budgetLeftCents, budgetLeftCents };
+  const outCents = plan.bills.totalCents + plan.debt.cents + plan.groups.reduce((a, g) => a + g.spentCents, 0);
+  return {
+    nowCents,
+    budgetsCents: nowCents - budgetLeftCents,
+    budgetLeftCents,
+    checkingCents: check.checkingCents,
+    incomeCents: check.incomeCents,
+    owedCents: check.cardsCents + check.billsCents + debtDue,
+    /** The month's income less its expenses: "remaining" on the ring. */
+    remainingCents: plan.income.totalCents - outCents,
+  };
 }
 
 /**
@@ -130,8 +140,8 @@ function BankCheck({ check, debtCents, nextMonth, budgets }: { check: BankCheckP
       <div className="mt-3 border-t border-line pt-2.5">
         <div className="font-semibold">Carries over to {nextMonth}</div>
         <div className="mt-1 grid grid-cols-2 gap-3">
-          {figure("Best case · current expenses", now)}
-          {budgetCents > 0 ? figure("Worst case · budgets used", ifUsed) : null}
+          {figure("Best case · if spending stopped now", now)}
+          {budgetCents > 0 ? figure("Worst case · all budgeted funds are used", ifUsed) : null}
         </div>
         <p className="mt-1.5 text-xs text-muted">
           What checking would hold on {nextMonth} 1 if every card were paid to zero that day, after this month&rsquo;s bills and debt payment.
