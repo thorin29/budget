@@ -18,6 +18,7 @@ const COLOR: Record<ForecastRow["tier"], string> = {
   UNPLANNED: "var(--series-5)",
   SORT: "var(--series-neutral)",
 };
+const SUMMARY = "[&::-webkit-details-marker]:hidden list-none cursor-pointer";
 const TIERS: Array<{ tier: ForecastRow["tier"]; name: string }> = [
   { tier: "ESSENTIAL", name: "Essentials" },
   { tier: "FLEXIBLE", name: "Extras" },
@@ -25,7 +26,8 @@ const TIERS: Array<{ tier: ForecastRow["tier"]; name: string }> = [
   { tier: "SORT", name: "Needs sorting" },
 ];
 const GRID = "grid grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)_repeat(4,minmax(0,0.75fr))_minmax(0,0.9fr)] items-center gap-3";
-const TOTAL = "var(--foreground)";
+/** Totals: the muted ink, softer than black and still clear against the light projection. */
+const TOTAL = "var(--muted)";
 
 function Bar({ spent, forecast, limit, color, unplanned = 0, thick = false }: { spent: number; forecast: number; limit: number | null; color: string; unplanned?: number; thick?: boolean }) {
   const scale = Math.max(1, limit ?? 0, forecast, spent + unplanned);
@@ -41,7 +43,8 @@ function Bar({ spent, forecast, limit, color, unplanned = 0, thick = false }: { 
   );
 }
 
-const tone = (margin: number | null) => (margin === null ? "text-muted" : margin < 0 ? "text-warn" : "text-ok");
+/** Projected over is a warning (amber); over in a month that's ended has happened (red). */
+const tone = (margin: number | null, ended: boolean) => (margin === null ? "text-muted" : margin < 0 ? (ended ? "text-danger" : "text-warn") : "text-ok");
 
 export function ForecastCards({
   totals,
@@ -79,7 +82,7 @@ export function ForecastCards({
           {closed ? null : (
             <div>
               <dt className="text-xs text-muted">Projected by {day(monthEnd)}</dt>
-              <dd className={`tnum text-3xl font-bold ${end < 0 ? "text-danger" : "text-ok"}`}>{left(end)}</dd>
+              <dd className={`tnum text-3xl font-bold ${end < 0 ? "text-warn" : "text-ok"}`}>{left(end)}</dd>
               <dd className="text-xs text-muted">Projected spend {money(projected)}</dd>
             </div>
           )}
@@ -133,9 +136,13 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
     margin: totals.marginCents,
   };
   const swatch = (color: string, opacity = 1) => <span aria-hidden className="inline-block h-2.5 w-4 rounded-full" style={{ background: color, opacity }} />;
-  const billRow = (name: string, color: string, spent: number, total: number, strong = false) => (
-    <div key={name} className={`${GRID} border-b ${strong ? "border-line bg-neutral-soft py-2 font-bold" : "border-line/60 py-1.5"} ${strong ? "rounded-lg px-2 -mx-2" : ""} text-sm`}>
-      <span className={`flex min-w-0 items-center gap-2 ${strong ? "" : "pl-4"}`}>
+  const chevron = <span aria-hidden className="inline-block w-3 text-muted transition-transform group-open:rotate-90">›</span>;
+  const billRow = (name: string, color: string, spent: number, total: number, strong = false) => {
+    const Tag = strong ? "summary" : "div";
+    return (
+    <Tag key={name} className={`${GRID} border-b ${strong ? `border-line bg-neutral-soft py-2 font-bold ${SUMMARY}` : "border-line/60 py-1.5"} ${strong ? "rounded-lg px-2 -mx-2" : ""} text-sm`}>
+      <span className={`flex min-w-0 items-center gap-2 ${strong ? "" : "pl-6"}`}>
+        {strong ? chevron : null}
         <span aria-hidden className={`${strong ? "h-2.5 w-2.5" : "h-2 w-2"} shrink-0 rounded-sm`} style={{ background: color }} />
         <span className="truncate">{name}</span>
       </span>
@@ -145,21 +152,16 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
       <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{money(total - spent)}</span>
       <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{cell(true, money(total))}</span>
       <span className="text-right text-muted">{closed ? (spent >= total ? "paid" : `${money(total - spent)} unpaid`) : "as planned"}</span>
-    </div>
-  );
+    </Tag>
+    );
+  };
   return (
     <Card>
       <ul className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted">
-        <li className="flex items-center gap-1.5">{swatch("var(--series-1)")}Bills</li>
-        <li className="flex items-center gap-1.5">{swatch("var(--series-2)")}Debt payment</li>
-        <li className="flex items-center gap-1.5">{swatch(COLOR.ESSENTIAL)}Essentials</li>
-        <li className="flex items-center gap-1.5">{swatch(COLOR.FLEXIBLE)}Extras</li>
-        <li className="flex items-center gap-1.5">{swatch(COLOR.UNPLANNED)}Unplanned</li>
-        <li className="flex items-center gap-1.5">{swatch(TOTAL)}Total</li>
-        <li className="text-line">|</li>
-        <li>Solid = actual</li>
-        {closed ? null : <li className="flex items-center gap-1.5">{swatch("var(--series-neutral)")}Lighter = projection</li>}
+        <li className="flex items-center gap-1.5">{swatch("var(--muted)")}Solid = actual</li>
+        {closed ? null : <li className="flex items-center gap-1.5">{swatch("var(--muted)", 0.3)}Lighter = projection</li>}
         <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-3 w-0.5 bg-foreground" />Line = budget</li>
+        <li>Click a group to show or hide its budgets.</li>
       </ul>
       <div className="overflow-x-auto overflow-y-hidden py-1 lg:overflow-visible">
         <div className="min-w-[820px]">
@@ -173,11 +175,11 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
             <span className="text-right leading-tight">{closed ? "Result" : <>Projected<br />by {day(monthEnd)}</>}</span>
           </div>
           {planned > 0 ? (
-            <div className="mt-2">
+            <details className="group mt-2">
               {billRow("Bills & debt", "var(--series-1)", paid, planned, true)}
               {billRow("Bills", "var(--series-1)", bills.billsPaidCents, bills.billsCents)}
               {bills.debtCents > 0 ? billRow("Debt payment", "var(--series-2)", bills.debtPaidCents, bills.debtCents) : null}
-            </div>
+            </details>
           ) : null}
           {TIERS.map(({ tier, name }) => {
             const list = rows.filter((r) => r.tier === tier && (r.spentCents !== 0 || r.limitCents));
@@ -187,10 +189,13 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
             const limit = budgeted ? list.reduce((t, r) => t + (r.limitCents ?? 0), 0) : null;
             const forecast = list.reduce((t, r) => t + r.forecastCents, 0);
             const margin = limit === null ? null : closed ? limit - spent : limit - forecast;
+            // Open when something in it is over (or heading over); the rest stay folded to save room.
+            const open = list.some((r) => r.limitCents !== null && (r.limitCents - r.spentCents < 0 || (!closed && (r.marginCents ?? 0) < 0)));
             return (
-              <div key={tier} className="mt-2">
-                <div className={`${GRID} -mx-2 rounded-lg border-b border-line bg-neutral-soft px-2 py-2 text-sm font-bold`}>
+              <details key={tier} className="group mt-2" open={open}>
+                <summary className={`${GRID} -mx-2 rounded-lg border-b border-line bg-neutral-soft px-2 py-2 text-sm font-bold ${SUMMARY}`}>
                   <span className="flex items-center gap-2">
+                    {chevron}
                     <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: COLOR[tier] }} />
                     {name}
                   </span>
@@ -199,13 +204,13 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
                   <span className="tnum text-right">{limit === null ? "none" : money(limit)}</span>
                   <span className={`tnum text-right ${limit !== null && limit - spent < 0 ? "text-danger" : ""}`}>{limit === null ? "—" : money(limit - spent)}</span>
                   <span className="tnum text-right">{cell(limit !== null, money(forecast))}</span>
-                  <span className={`text-right ${tone(margin)}`}>{margin === null ? "—" : left(margin)}</span>
-                </div>
+                  <span className={`text-right ${tone(margin, closed)}`}>{margin === null ? "—" : left(margin)}</span>
+                </summary>
                 {list.map((r) => {
                   const m = r.limitCents === null ? null : closed ? r.limitCents - r.spentCents : r.marginCents;
                   return (
                     <div key={r.id} className={`${GRID} border-b border-line/60 py-1.5 text-sm`}>
-                      <span className="flex min-w-0 items-center gap-2 pl-4">
+                      <span className="flex min-w-0 items-center gap-2 pl-6">
                         <span aria-hidden className="h-2 w-2 shrink-0 rounded-sm" style={{ background: COLOR[tier] }} />
                         <span className="truncate">{r.name}</span>
                       </span>
@@ -214,13 +219,13 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
                       <span className="tnum text-right text-muted">{r.limitCents ? money(r.limitCents) : "none"}</span>
                       <span className={`tnum text-right ${r.limitCents && r.limitCents - r.spentCents < 0 ? "text-danger" : "text-muted"}`}>{r.limitCents ? money(r.limitCents - r.spentCents) : "—"}</span>
                       <span className="tnum text-right text-muted">{cell(!!r.limitCents, money(r.forecastCents))}</span>
-                      <span className={`text-right font-semibold ${tone(m)}`} title={r.monthly ? "A monthly charge, already in: counted once" : undefined}>
+                      <span className={`text-right font-semibold ${tone(m, closed)}`} title={r.monthly ? "A monthly charge, already in: counted once" : undefined}>
                         {m === null ? "—" : left(m)}
                       </span>
                     </div>
                   );
                 })}
-              </div>
+              </details>
             );
           })}
           {[
@@ -244,7 +249,7 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
                 <span className="tnum text-right">{money(t.budget)}</span>
                 <span className={`tnum text-right ${t.budget - t.spent < 0 ? "text-danger" : ""}`}>{money(t.budget - t.spent)}</span>
                 <span className="tnum text-right">{cell(true, money(t.projected))}</span>
-                <span className={`text-right ${m < 0 ? "text-danger" : "text-ok"}`}>{left(m)}</span>
+                <span className={`text-right ${m < 0 ? (closed ? "text-danger" : "text-warn") : "text-ok"}`}>{left(m)}</span>
               </div>
             );
           })}

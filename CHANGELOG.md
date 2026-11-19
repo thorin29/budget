@@ -3,6 +3,19 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.75.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Budget tab:**
+  - The groups fold. A group opens on its own when one of its budgets is over or heading over;
+    the rest show just their total row until clicked, so the table usually fits on one screen.
+  - The key is only solid = actual, lighter = projection, line = budget.
+  - Totals use the muted gray instead of black.
+  - Colors: a projected overage is amber (a warning). Red is for what has happened: a negative
+    Remaining, or an overage in a month that's over.
+
 ## [0.74.0]
 
 No migration. The phone app is unchanged.
