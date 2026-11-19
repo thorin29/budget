@@ -84,7 +84,12 @@ export interface MonthPlanView extends Omit<MonthPlanOut, "groups"> {
     totalCents: number;
     paidCents: number;
     items: PlanBill[];
-    /** Charges in bill categories that aren't on the bill list. They count as bills. */
+    /** The bills on the bill list (card payments and the debt payment aren't): the "Bills" figure everywhere. */
+    listCents: number;
+    listPaidCents: number;
+    /** Card payments on the bill list, left out because the cards' charges count as spending. */
+    cardPaymentsCents: number;
+    /** Charges in bill categories that aren't on the bill list. They count in totalCents, shown on their own. */
     otherCents: number;
     other: PlanTxn[];
   };
@@ -214,13 +219,17 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     e.skipped ? "skipped" : e.actualCents !== null ? "paid" : dueIso(e.year, e.month, e.dueDay) < today ? "overdue" : "due";
   const billItems: PlanBill[] = [];
   const debtEntries: MonthEntry[] = [];
+  let cardPaymentsCents = 0;
   for (const e of [...view.halves[0].entries, ...view.halves[1].entries]) {
     if (e.kind === "INCOME") continue;
     if (isDebt(e.lineItemId)) {
       debtEntries.push(e);
       continue;
     }
-    if (isCardPayment(e.lineItemId)) continue;
+    if (isCardPayment(e.lineItemId)) {
+      cardPaymentsCents += amount(e);
+      continue;
+    }
     billItems.push({ lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: amount(e), status: status(e), paidOn: e.paidOn, from: null, category: e.categoryName });
   }
   for (const e of view.carried) {
@@ -380,6 +389,9 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     bills: {
       totalCents: billsCents,
       paidCents: billItems.filter((b) => b.status === "paid").reduce((s, b) => s + b.cents, 0) + otherCents,
+      listCents: billItems.reduce((s, b) => s + b.cents, 0),
+      listPaidCents: billItems.filter((b) => b.status === "paid").reduce((s, b) => s + b.cents, 0),
+      cardPaymentsCents,
       items: billItems,
       otherCents,
       other: otherBills,

@@ -153,7 +153,7 @@ export default async function MoneySectionPage({ params, searchParams }: { param
         <Card>
           <Head title={TITLES[section]} cents={plan.spentCents} badge="actual" note={long} />
           <div className="mt-4">
-            <SpendingChart groups={plan.groups} month={plan.month} />
+            <SpendingChart groups={plan.groups} month={plan.month} from="everyday" />
           </div>
         </Card>
         <div className="grid gap-4 md:grid-cols-2">
@@ -169,7 +169,7 @@ export default async function MoneySectionPage({ params, searchParams }: { param
                 <ul className="mt-1 divide-y divide-line text-sm">
                   {groups.map((g) => (
                     <li key={g.id}>
-                      <Link href={`/insights/money/budget/${encodeURIComponent(g.id)}?m=${plan.month}`} className="flex justify-between gap-3 py-2 font-semibold hover:underline">
+                      <Link href={`/insights/money/budget/${encodeURIComponent(g.id)}?m=${plan.month}&from=everyday`} className="flex justify-between gap-3 py-2 font-semibold hover:underline">
                         <span>{g.name} ›</span>
                         <span className="tnum">{exact(g.spentCents)}</span>
                       </Link>

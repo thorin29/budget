@@ -117,13 +117,13 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
 
       <Card>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-base font-bold">Spending by budget</h2>
+          <h2 className="text-base font-bold">Everyday spending by budget</h2>
           <span className="tnum text-sm">
             <b>{money(plan.spentCents)}</b>
           </span>
         </div>
         <div className="mt-3">
-          <SpendingChart groups={plan.groups} month={plan.month} />
+          <SpendingChart groups={plan.groups} month={plan.month} from="money" />
         </div>
       </Card>
 

@@ -3,6 +3,28 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.79.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **One Bills figure everywhere.** The Tracker's "Bills this month," the Overview's Income vs
+  expenses, the Budget tab's Bills row and the Money tab's Bills plus Subscriptions & autopay now
+  all count the same thing: the bills on the bill list, each at what was paid or, if not paid
+  yet, what's planned, plus any past due. Left out of it, and shown on their own:
+  - the **debt payment** (its own row on every tab; on the Tracker, under the total);
+  - **card payments** (the cards' charges already count as spending; on the Tracker, under the
+    total);
+  - **charges that may be bills** (their own row on the Overview and the Budget tab).
+  The month's money math is unchanged; only how it's split into lines.
+- **Budget remaining** reads "Budget − spent − unplanned" and "Budget − projected − unplanned."
+- A budget opened from the Money tab's chart goes back to the Money tab; one opened from Everyday
+  spending goes back there. The chart is titled "Everyday spending by budget."
+
+### Fixed
+- The Overview's Income vs expenses card had a list item inside a list item, which made the page
+  re-render once on load.
+
 ## [0.78.0]
 
 No migration. The phone app is unchanged.

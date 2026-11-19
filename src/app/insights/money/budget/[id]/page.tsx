@@ -15,8 +15,8 @@ export const dynamic = "force-dynamic";
 const exact = (cents: number) => `${cents < 0 ? "−" : ""}$${(Math.abs(cents) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
-export default async function BudgetSpendingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ m?: string }> }) {
-  const [{ id }, { m }] = await Promise.all([params, searchParams]);
+export default async function BudgetSpendingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ m?: string; from?: string }> }) {
+  const [{ id }, { m, from }] = await Promise.all([params, searchParams]);
   const picked = pickMonth(m);
   const plan = await getMonthPlan(picked.year, picked.month).catch(() => null);
   const group = plan?.groups.find((g) => g.id === decodeURIComponent(id)) ?? null;
@@ -25,14 +25,16 @@ export default async function BudgetSpendingPage({ params, searchParams }: { par
   const peers = (plan?.groups ?? []).filter((g) => g.tier === group?.tier && g.spentCents > 0).sort((a, b) => b.spentCents - a.spentCents);
   const color = group && tier ? shade(tier.color, Math.max(0, peers.findIndex((g) => g.id === group.id)), peers.length) : "var(--series-1)";
   const top = group ? Math.max(1, ...group.categories.map((c) => c.spentCents)) : 1;
-  const back = `/insights/money/everyday?m=${plan?.month ?? ""}`;
+  // Back to wherever the budget was opened from: the Money tab's chart, or Everyday spending.
+  const fromEveryday = from === "everyday";
+  const back = `/insights/money${fromEveryday ? "/everyday" : ""}?m=${plan?.month ?? ""}`;
 
   return (
     <div className="space-y-4">
       <InsightsTabs right={<MonthPicker path={`/insights/money/budget/${id}`} year={picked.year} month={picked.month} />} />
       <TabHeading title={group?.name ?? "Spending"} />
       <Link href={back} className="inline-block text-sm text-muted hover:text-foreground">
-        ← Everyday spending
+        ← {fromEveryday ? "Everyday spending" : "Money"}
       </Link>
       {!group ? (
         <Card>

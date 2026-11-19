@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { getMonthView } from "@/server/month";
+import { getMonthPlan } from "@/server/month-plan";
 import { getProjection } from "@/server/projection-view";
 import { formatCents } from "@/lib/money";
 import { EmptyState, StatCard, buttonClass } from "@/components/ui";
@@ -50,13 +51,15 @@ export default async function MonthPage({
   const accountCount = await prisma.account.count();
   if (accountCount === 0) return <Welcome />;
 
-  const [view, projection, review] = await Promise.all([
+  const [view, projection, review, plan] = await Promise.all([
     getMonthView(year, month),
     getProjection().catch(() => null),
     getReview().catch((error) => {
       console.error("Review:", error instanceof Error ? error.message : error);
       return null;
     }),
+    // The same Bills figure the Insights tabs show.
+    getMonthPlan(year, month).catch(() => null),
   ]);
   const billsSource = view.billsAccountId
     ? ((await prisma.bankAccount.findFirst({ where: { linkedAccountId: view.billsAccountId, hidden: false }, select: { balanceDate: true } })) as { balanceDate: Date | null } | null)
@@ -299,7 +302,18 @@ export default async function MonthPage({
           <div className="min-w-0 space-y-6">
             <MonthList
               sections={sections}
-              footer={{ paidCents: paidOf(billRows), budgetedCents: budgetOf(billRows) }}
+              footer={
+                plan
+                  ? {
+                      paidCents: plan.bills.listPaidCents,
+                      budgetedCents: plan.bills.listCents,
+                      also: [
+                        ["Debt payment", plan.debt.cents],
+                        ["Card payments", plan.bills.cardPaymentsCents],
+                      ],
+                    }
+                  : { paidCents: paidOf(billRows), budgetedCents: budgetOf(billRows) }
+              }
             />
             {cards && deckCards.length ? <CardTable cards={deckCards} /> : null}
           </div>

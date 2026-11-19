@@ -78,13 +78,13 @@ export function ForecastCards({
           <div>
             <dt className="text-xs text-muted">{closed ? "Month end" : "Today"}</dt>
             <dd className={`tnum text-3xl font-bold ${today < 0 ? "text-danger" : "text-ok"}`}>{today < 0 ? `${money(-today)} over` : money(today)}</dd>
-            <dd className="text-xs text-muted">Current spend + unplanned</dd>
+            <dd className="text-xs text-muted">Budget − spent − unplanned</dd>
           </div>
           {closed ? null : (
             <div>
               <dt className="text-xs text-muted">Projected by {day(monthEnd)}</dt>
               <dd className={`tnum text-3xl font-bold ${end < 0 ? "text-warn" : "text-ok"}`}>{left(end)}</dd>
-              <dd className="text-xs text-muted">Projected spend + unplanned</dd>
+              <dd className="text-xs text-muted">Budget − projected − unplanned</dd>
             </div>
           )}
         </dl>
@@ -123,12 +123,14 @@ export interface BillsLine {
   billsPaidCents: number;
   debtCents: number;
   debtPaidCents: number;
+  /** Charges in a bill category that aren't on the bill list. */
+  otherCents: number;
 }
 
 export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows: ForecastRow[]; totals: Totals; bills: BillsLine; monthEnd: string; closed: boolean }) {
   const cell = (show: boolean, value: string) => (closed || !show ? "" : value);
-  const planned = bills.billsCents + bills.debtCents;
-  const paid = bills.billsPaidCents + bills.debtPaidCents;
+  const planned = bills.billsCents + bills.debtCents + bills.otherCents;
+  const paid = bills.billsPaidCents + bills.debtPaidCents + bills.otherCents;
   // The whole month: bills and the debt payment in full, plus the budgets.
   const all = {
     spent: totals.spentCents + paid,
@@ -179,6 +181,7 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
               {billRow("Bills & debt", "var(--series-1)", paid, planned, true)}
               {billRow("Bills", "var(--series-1)", bills.billsPaidCents, bills.billsCents)}
               {bills.debtCents > 0 ? billRow("Debt payment", "var(--series-2)", bills.debtPaidCents, bills.debtCents) : null}
+              {bills.otherCents > 0 ? billRow("Charges that may be bills", "var(--series-neutral)", bills.otherCents, bills.otherCents) : null}
             </details>
           ) : null}
           {TIERS.map(({ tier, name }) => {

@@ -68,7 +68,7 @@ export default async function BudgetPage({ searchParams }: { searchParams: Promi
           <ForecastTable
             rows={view.rows}
             totals={view.totals}
-            bills={{ billsCents: plan.bills.totalCents, billsPaidCents: plan.bills.paidCents, debtCents: plan.debt.cents, debtPaidCents: plan.debt.source === "paid" ? plan.debt.cents : 0 }}
+            bills={{ billsCents: plan.bills.listCents, billsPaidCents: plan.bills.listPaidCents, debtCents: plan.debt.cents, debtPaidCents: plan.debt.source === "paid" ? plan.debt.cents : 0, otherCents: plan.bills.otherCents }}
             monthEnd={view.monthEnd}
             closed={plan.closed}
           />

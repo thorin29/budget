@@ -158,8 +158,9 @@ function BankCheck({ check, debtCents, nextMonth, budgets }: { check: BankCheckP
  */
 export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?: BankCheckParts | null }) {
   const by = (t: string) => plan.groups.filter((g) => g.tier === t).reduce((s, g) => s + g.spentCents, 0);
-  const billsPaid = plan.bills.paidCents;
-  const billsDue = Math.max(0, plan.bills.totalCents - billsPaid);
+  const billsPaid = plan.bills.listPaidCents;
+  const billsDue = Math.max(0, plan.bills.listCents - billsPaid);
+  const other = plan.bills.otherCents;
   const debtPaid = plan.debt.source === "paid" ? plan.debt.cents : 0;
   const debtDue = plan.debt.cents - debtPaid;
   const income = Math.max(0, plan.income.totalCents);
@@ -171,6 +172,7 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
     { key: "unp", label: "Unplanned", cents: spent.unp, color: "var(--series-5)", due: false },
     { key: "debtPaid", label: "Debt payment", cents: debtPaid, color: "var(--series-2)", due: false },
     { key: "billsPaid", label: "Bills", cents: billsPaid, color: "var(--series-1)", due: false },
+    { key: "otherPaid", label: "Charges that may be bills", cents: other, color: "var(--series-neutral)", due: false },
     { key: "debtDue", label: "Debt payment", cents: debtDue, color: "var(--series-2)", due: true },
     { key: "billsDue", label: "Bills", cents: billsDue, color: "var(--series-1)", due: true },
   ].filter((g) => g.cents > 0);
@@ -178,8 +180,8 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
   const left = income - out;
   const scale = Math.max(1, income || out);
   const pct = (c: number) => `${Math.min(100, Math.max(0, (c / scale) * 100))}%`;
-  const row = (label: string, color: string, value: ReactNode, bar: ReactNode, strong = false) => (
-    <li className="space-y-1">
+  const row = (label: string, color: string, value: ReactNode, bar: ReactNode, strong = false, extra = "") => (
+    <li className={`space-y-1 ${extra}`}>
       <span className="flex items-center justify-between gap-3 text-sm">
         <span className="flex items-center gap-2">
           <span aria-hidden className={`inline-block h-3 w-3 rounded-sm ${color === "transparent" ? "border-2 border-dashed border-muted" : ""}`} style={{ background: color }} />
@@ -239,7 +241,8 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
           {plan.debt.cents > 0
             ? row("Debt payment", "var(--series-2)", <><b>{money(debtPaid)}</b> <span className="text-xs text-muted">paid of {money(plan.debt.cents)}</span></>, <>{fill(debtPaid, "var(--series-2)")}{fill(debtDue, "var(--series-2)", 0.3)}</>)
             : null}
-          {row("Bills", "var(--series-1)", <><b>{money(billsPaid)}</b> <span className="text-xs text-muted">paid of {money(plan.bills.totalCents)}</span></>, <>{fill(billsPaid, "var(--series-1)")}{fill(billsDue, "var(--series-1)", 0.3)}</>)}
+          {row("Bills", "var(--series-1)", <><b>{money(billsPaid)}</b> <span className="text-xs text-muted">paid of {money(plan.bills.listCents)}</span></>, <>{fill(billsPaid, "var(--series-1)")}{fill(billsDue, "var(--series-1)", 0.3)}</>)}
+          {other > 0 ? row("Charges that may be bills", "var(--series-neutral)", <b>{money(other)}</b>, fill(other, "var(--series-neutral)")) : null}
           {!plan.closed && budgetLeftCents > 0 ? (
             <li className="space-y-1">
               <span className="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
@@ -266,11 +269,9 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
               </span>
             </li>
           ) : null}
-          <li className="border-t border-line pt-2.5">
-            {left >= 0
-              ? row("Remaining", "transparent", <b>{money(left)}</b>, fill(left, "var(--muted)", 0.5), true)
-              : row("Over income", "var(--danger)", <b className="text-danger">{money(-left)}</b>, fill(-left, "var(--danger)"), true)}
-          </li>
+          {left >= 0
+            ? row("Remaining", "transparent", <b>{money(left)}</b>, fill(left, "var(--muted)", 0.5), true, "border-t border-line pt-2.5")
+            : row("Over income", "var(--danger)", <b className="text-danger">{money(-left)}</b>, fill(-left, "var(--danger)"), true, "border-t border-line pt-2.5")}
         </ul>
       </div></div>
       {!plan.closed && check ? <BankCheck check={check} debtCents={debtDue} budgets={budgetLeft} nextMonth={new Date(Date.UTC(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), 1)).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })} /> : null}

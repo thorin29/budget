@@ -39,7 +39,7 @@ export function MonthList({
   footer,
 }: {
   sections: MonthSection[];
-  footer: { paidCents: number; budgetedCents: number };
+  footer: { paidCents: number; budgetedCents: number; also?: Array<[string, number]> };
 }) {
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -116,12 +116,23 @@ export function MonthList({
         );
       })}
 
-      <div className="tnum flex flex-wrap justify-between gap-2 px-5 py-3.5 text-sm">
-        <span className="font-semibold">Bills this month</span>
-        <span>
-          <strong>{formatCents(footer.paidCents)}</strong>
-          <span className="text-muted"> paid of {formatCents(footer.budgetedCents)}</span>
-        </span>
+      <div className="tnum px-5 py-3.5 text-sm">
+        <div className="flex flex-wrap justify-between gap-2">
+          <span className="font-semibold">Bills this month</span>
+          <span>
+            <strong>{formatCents(footer.paidCents)}</strong>
+            <span className="text-muted"> paid of {formatCents(footer.budgetedCents)}</span>
+          </span>
+        </div>
+        {footer.also?.some(([, c]) => c > 0) ? (
+          <p className="mt-1 text-xs text-muted">
+            Not in this total:{" "}
+            {footer.also
+              .filter(([, c]) => c > 0)
+              .map(([label, c]) => `${label} ${formatCents(c)}`)
+              .join(" · ")}
+          </p>
+        ) : null}
       </div>
     </div>
   );

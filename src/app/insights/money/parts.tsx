@@ -73,7 +73,7 @@ export function shade(base: string, index: number, count: number) {
 }
 
 /** Everyday spending by budget, biggest first, each bar in its tier's color. */
-export function SpendingChart({ groups, month }: { groups: PlanGroup[]; month: string }) {
+export function SpendingChart({ groups, month, from }: { groups: PlanGroup[]; month: string; from: "money" | "everyday" }) {
   const rows = groups.filter((g) => g.spentCents > 0).sort((a, b) => b.spentCents - a.spentCents);
   if (!rows.length) return <p className="text-sm text-muted">Nothing spent yet.</p>;
   const total = rows.reduce((t, g) => t + g.spentCents, 0);
@@ -90,7 +90,7 @@ export function SpendingChart({ groups, month }: { groups: PlanGroup[]; month: s
         {rows.map((g) => (
           <li key={g.id}>
             <Link
-              href={`/insights/money/budget/${encodeURIComponent(g.id)}?m=${month}`}
+              href={`/insights/money/budget/${encodeURIComponent(g.id)}?m=${month}&from=${from}`}
               className="grid grid-cols-[minmax(0,9rem)_minmax(0,1fr)_4.5rem_2.5rem] items-center gap-3 rounded-lg px-1 py-1 text-sm hover:bg-neutral-soft sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)_5.5rem_3rem]"
             >
               <span className="truncate font-medium">{g.name}</span>
