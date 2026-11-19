@@ -24,9 +24,8 @@ const TIERS: Array<{ tier: ForecastRow["tier"]; name: string }> = [
   { tier: "UNPLANNED", name: "Unplanned" },
   { tier: "SORT", name: "Needs sorting" },
 ];
-const GRID = "grid grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)_repeat(4,minmax(0,0.75fr))_minmax(0,1fr)] items-center gap-3";
-/** Unplanned in the total bar: the spent color in stripes, so solid → stripes → light reads as one run. */
-const STRIPES = "repeating-linear-gradient(135deg, var(--series-1) 0 4px, color-mix(in srgb, var(--series-1) 55%, transparent) 4px 8px)";
+const GRID = "grid grid-cols-[minmax(0,1.4fr)_minmax(0,2fr)_repeat(4,minmax(0,0.75fr))_minmax(0,0.9fr)] items-center gap-3";
+const TOTAL = "var(--foreground)";
 
 function Bar({ spent, forecast, limit, color, unplanned = 0, thick = false }: { spent: number; forecast: number; limit: number | null; color: string; unplanned?: number; thick?: boolean }) {
   const scale = Math.max(1, limit ?? 0, forecast, spent + unplanned);
@@ -34,8 +33,9 @@ function Bar({ spent, forecast, limit, color, unplanned = 0, thick = false }: { 
   return (
     <div className={`relative rounded-full bg-neutral-soft ${thick ? "h-3.5" : "h-2.5"}`}>
       <div className="absolute inset-y-0 left-0 rounded-full" style={{ width: pct(forecast), background: color, opacity: 0.3 }} />
-      <div className="absolute inset-y-0 left-0 rounded-l-full" style={{ width: pct(spent), background: color, borderRadius: unplanned > 0 ? undefined : "9999px" }} />
-      {unplanned > 0 ? <div className="absolute inset-y-0" style={{ left: pct(spent), width: pct(unplanned), background: STRIPES }} /> : null}
+      {/* With unplanned after it, the spent part ends square so the two meet on a straight line. */}
+      <div className={`absolute inset-y-0 left-0 ${unplanned > 0 ? "rounded-l-full" : "rounded-full"}`} style={{ width: pct(spent), background: color }} />
+      {unplanned > 0 ? <div className="absolute inset-y-0" style={{ left: pct(spent), width: pct(unplanned), background: COLOR.UNPLANNED }} /> : null}
       {limit ? <div className="absolute -inset-y-1 w-0.5 -translate-x-1/2 bg-foreground" style={{ left: pct(limit) }} title={`Budget ${money(limit)}`} /> : null}
     </div>
   );
@@ -80,7 +80,7 @@ export function ForecastCards({
             <div>
               <dt className="text-xs text-muted">Projected by {day(monthEnd)}</dt>
               <dd className={`tnum text-3xl font-bold ${end < 0 ? "text-danger" : "text-ok"}`}>{left(end)}</dd>
-              <dd className="text-xs text-muted">heading for {money(projected)} at this pace</dd>
+              <dd className="text-xs text-muted">Projected spend {money(projected)}</dd>
             </div>
           )}
         </dl>
@@ -103,7 +103,9 @@ export function ForecastCards({
             </div>
           </dl>
           <p className={`mt-2 text-sm ${cushion.changeCents < 0 ? "text-danger" : "text-ok"}`}>
-            {cushion.changeCents < 0 ? `Checking goes down ${money(-cushion.changeCents)} this month.` : `Checking goes up ${money(cushion.changeCents)} this month.`}
+            {cushion.changeCents < 0
+              ? `Checking goes down ${money(-cushion.changeCents)} this month: bills, the debt payment and projected spending come to ${money(-cushion.changeCents)} more than this month's income.`
+              : `Checking goes up ${money(cushion.changeCents)} this month: income is ${money(cushion.changeCents)} more than bills, the debt payment and projected spending.`}
             {cushion.monthsLeft !== null
               ? ` At this rate it reaches your planned cushion in about ${cushion.monthsLeft} month${cushion.monthsLeft === 1 ? "" : "s"}.`
               : ""}
@@ -120,21 +122,71 @@ export function ForecastCards({
   );
 }
 
-export function ForecastTable({ rows, totals, monthEnd, closed }: { rows: ForecastRow[]; totals: Totals; monthEnd: string; closed: boolean }) {
+export interface BillsLine {
+  billsCents: number;
+  billsPaidCents: number;
+  debtCents: number;
+  debtPaidCents: number;
+}
+
+export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows: ForecastRow[]; totals: Totals; bills: BillsLine; monthEnd: string; closed: boolean }) {
   const cell = (show: boolean, value: string) => (closed || !show ? "" : value);
+  const planned = bills.billsCents + bills.debtCents;
+  const paid = bills.billsPaidCents + bills.debtPaidCents;
+  // The whole month: bills and the debt payment in full, plus the budgets.
+  const all = {
+    spent: totals.spentCents + paid,
+    budget: totals.budgetCents + planned,
+    projected: totals.forecastCents + planned,
+    margin: totals.marginCents,
+  };
+  const swatch = (color: string, opacity = 1) => <span aria-hidden className="inline-block h-2.5 w-4 rounded-full" style={{ background: color, opacity }} />;
+  const billRow = (name: string, color: string, spent: number, total: number, strong = false) => (
+    <div key={name} className={`${GRID} border-b ${strong ? "border-line bg-neutral-soft/40 py-2 font-bold" : "border-line/60 py-1.5"} text-sm`}>
+      <span className={`flex min-w-0 items-center gap-2 ${strong ? "" : "pl-4"}`}>
+        <span aria-hidden className={`${strong ? "h-2.5 w-2.5" : "h-2 w-2"} shrink-0 rounded-sm`} style={{ background: color }} />
+        <span className="truncate">{name}</span>
+      </span>
+      <Bar spent={spent} forecast={total} limit={total} color={color} />
+      <span className="tnum text-right">{money(spent)}</span>
+      <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{money(total)}</span>
+      <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{money(total - spent)}</span>
+      <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{cell(true, money(total))}</span>
+      <span className="text-right text-muted">{closed ? (spent >= total ? "paid" : `${money(total - spent)} unpaid`) : "as planned"}</span>
+    </div>
+  );
   return (
     <Card>
+      <ul className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted">
+        <li className="flex items-center gap-1.5">{swatch("var(--series-1)")}Bills</li>
+        <li className="flex items-center gap-1.5">{swatch("var(--series-2)")}Debt payment</li>
+        <li className="flex items-center gap-1.5">{swatch(COLOR.ESSENTIAL)}Essentials</li>
+        <li className="flex items-center gap-1.5">{swatch(COLOR.FLEXIBLE)}Extras</li>
+        <li className="flex items-center gap-1.5">{swatch(COLOR.UNPLANNED)}Unplanned</li>
+        <li className="flex items-center gap-1.5">{swatch(TOTAL)}Total</li>
+        <li className="text-line">|</li>
+        <li>Solid = actual</li>
+        {closed ? null : <li className="flex items-center gap-1.5">{swatch("var(--series-neutral)")}Lighter = projection</li>}
+        <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-3 w-0.5 bg-foreground" />Line = budget</li>
+      </ul>
       <div className="overflow-x-auto overflow-y-hidden py-1 lg:overflow-visible">
         <div className="min-w-[820px]">
           <div className={`${GRID} border-b border-line pb-2 text-xs font-semibold uppercase tracking-wider text-muted`}>
             <span>Budget</span>
-            <span>{closed ? "Spent · line = budget" : "Spent, then projection · line = budget"}</span>
+            <span>{closed ? "Actual · Budget" : "Actual · Projection · Budget"}</span>
             <span className="text-right">Spent</span>
             <span className="text-right">Budget</span>
             <span className="text-right">Remaining</span>
-            <span className="text-right">{closed ? "" : "Projection"}</span>
-            <span className="text-right">{closed ? "Result" : `Projected by ${day(monthEnd)}`}</span>
+            <span className="text-right leading-tight">{closed ? "" : <>Projected<br />spend</>}</span>
+            <span className="text-right leading-tight">{closed ? "Result" : <>Projected<br />by {day(monthEnd)}</>}</span>
           </div>
+          {planned > 0 ? (
+            <div>
+              {billRow("Bills & debt", "var(--series-1)", paid, planned, true)}
+              {billRow("Bills", "var(--series-1)", bills.billsPaidCents, bills.billsCents)}
+              {bills.debtCents > 0 ? billRow("Debt payment", "var(--series-2)", bills.debtPaidCents, bills.debtCents) : null}
+            </div>
+          ) : null}
           {TIERS.map(({ tier, name }) => {
             const list = rows.filter((r) => r.tier === tier && (r.spentCents !== 0 || r.limitCents));
             if (!list.length) return null;
@@ -181,24 +233,18 @@ export function ForecastTable({ rows, totals, monthEnd, closed }: { rows: Foreca
           })}
           <div className={`${GRID} mt-1 border-t-2 border-line pt-3 text-sm font-bold`}>
             <span>Total</span>
-            <Bar spent={totals.spentCents - totals.unplannedCents} unplanned={totals.unplannedCents} forecast={closed ? totals.spentCents : totals.forecastCents} limit={totals.budgetCents} color="var(--series-1)" thick />
-            <span className="tnum text-right">{money(totals.spentCents)}</span>
-            <span className="tnum text-right">{money(totals.budgetCents)}</span>
-            <span className={`tnum text-right ${totals.budgetCents - totals.spentCents < 0 ? "text-danger" : ""}`}>{money(totals.budgetCents - totals.spentCents)}</span>
-            <span className="tnum text-right">{cell(true, money(totals.forecastCents))}</span>
+            <Bar spent={all.spent - totals.unplannedCents} unplanned={totals.unplannedCents} forecast={closed ? all.spent : all.projected} limit={all.budget} color={TOTAL} thick />
+            <span className="tnum text-right">{money(all.spent)}</span>
+            <span className="tnum text-right">{money(all.budget)}</span>
+            <span className={`tnum text-right ${all.budget - all.spent < 0 ? "text-danger" : ""}`}>{money(all.budget - all.spent)}</span>
+            <span className="tnum text-right">{cell(true, money(all.projected))}</span>
             {(() => {
-              const m = closed ? totals.budgetCents - totals.spentCents : totals.marginCents;
+              const m = closed ? all.budget - all.spent : all.margin;
               return <span className={`text-right ${m < 0 ? "text-danger" : "text-ok"}`}>{left(m)}</span>;
             })()}
           </div>
         </div>
       </div>
-      <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-muted">
-        <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-2 w-4 rounded-full bg-[var(--series-1)]" />Spent</li>
-        <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-2 w-4 rounded-full" style={{ background: STRIPES }} />Unplanned</li>
-        {closed ? null : <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-2 w-4 rounded-full bg-[var(--series-1)] opacity-30" />Projection at this pace</li>}
-        <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-3 w-0.5 bg-foreground" />Budget</li>
-      </ul>
     </Card>
   );
 }

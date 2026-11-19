@@ -3,6 +3,25 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.72.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Budget tab:**
+  - A **Bills & debt** group at the top: bills paid of the month's total, and the debt payment,
+    "as planned." The **Total** row now covers the whole month: bills, the debt payment, the
+    budgets and unplanned.
+  - One key at the top of the table: each group's color, solid = actual, lighter = projection,
+    line = budget.
+  - The Total bar is dark for actual and pink for unplanned, meeting on a straight edge.
+  - Column headers sit on two lines: "Projected spend" (the month's total at this pace) and
+    "Projected by Nov 30" (over or under).
+  - The bar column is headed "Actual · Projection · Budget." The top-left card says "Projected
+    spend $X."
+  - The checking sentence says why: "bills, the debt payment and projected spending come to $X
+    more than this month's income."
+
 ## [0.71.0]
 
 No migration. The phone app is unchanged.
