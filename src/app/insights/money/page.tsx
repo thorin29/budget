@@ -7,7 +7,7 @@ import { getInsights } from "@/server/insights";
 import { Card } from "@/components/ui";
 import { ComingUpRow } from "../coming-up";
 import { MonthPicker, TabHeading, pickMonth } from "../shared";
-import { BADGE, SpendingChart, exact, isSub, money, day, paidBills as paid, payState, sumBills as sum } from "./parts";
+import { BADGE, SpendingChart, exact, isSub, money, day, payState } from "./parts";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +39,6 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
     picked.isNow ? getUpcoming().catch(() => []) : Promise.resolve([]),
     getInsights(picked.year, picked.month).catch(() => null),
   ]);
-  const bills = plan.bills.items.filter((b) => !isSub(b));
   const subs = plan.bills.items.filter(isSub);
   const outTotal = plan.bills.totalCents + plan.debt.cents + plan.spentCents;
   const net = plan.income.totalCents - outTotal;
@@ -90,8 +89,13 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
             </span>
           </div>
           <ul className="mt-1 divide-y divide-line">
-            <OutRow href={to("bills")} title="Bills" cents={sum(bills)} badge={payState(paid(bills), sum(bills))} note={`${money(paid(bills))} paid of ${money(sum(bills))}${bills.some((b) => b.status === "overdue") ? " · some overdue" : ""}`} />
-            <OutRow href={to("subscriptions")} title={SUBSCRIPTIONS} cents={sum(subs)} badge={subs.length ? payState(paid(subs), sum(subs)) : undefined} note={`${subs.length} bill${subs.length === 1 ? "" : "s"}`} />
+            <OutRow
+              href={to("bills")}
+              title="Bills"
+              cents={plan.bills.listCents}
+              badge={payState(plan.bills.listPaidCents, plan.bills.listCents)}
+              note={`${money(plan.bills.listPaidCents)} paid${subs.length ? ` · includes ${subs.length} ${SUBSCRIPTIONS.toLowerCase()}` : ""}${plan.bills.items.some((b) => b.status === "overdue") ? " · some overdue" : ""}`}
+            />
             {plan.debt.cents > 0 ? (
               <OutRow
                 href={to("debt")}

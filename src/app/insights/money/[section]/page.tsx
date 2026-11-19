@@ -15,13 +15,13 @@ import { Card } from "@/components/ui";
 import { MonthPicker, TabHeading, pickMonth, monthLabel } from "../../shared";
 import { RepeatActions } from "../repeat-actions";
 import { ChargeActions, type BillChoice, type CategoryChoice } from "../charge-actions";
-import { BADGE, BillList, SpendingChart, TIERS, day, exact, isSub, monthName, paidBills, payState, sumBills } from "../parts";
+import { BADGE, BillList, SpendingChart, TIERS, day, exact, isSub, monthName, payState, sumBills } from "../parts";
 
 export const dynamic = "force-dynamic";
 
 const TITLES: Record<string, string> = {
   bills: "Bills",
-  subscriptions: SUBSCRIPTIONS,
+  subscriptions: "Bills",
   debt: "Debt payment",
   "maybe-bills": "Charges that may be bills",
   everyday: "Everyday spending",
@@ -56,19 +56,35 @@ export default async function MoneySectionPage({ params, searchParams }: { param
   let body: ReactNode;
 
   if (section === "bills" || section === "subscriptions") {
-    const rows = plan.bills.items.filter((b) => (section === "subscriptions" ? isSub(b) : !isSub(b)));
-    const total = sumBills(rows);
+    // One Bills total, the same as every other tab; subscriptions & autopay listed on their own.
+    const all = plan.bills.items;
+    const parts = [
+      { title: "Bills", rows: all.filter((b) => !isSub(b)) },
+      { title: SUBSCRIPTIONS, rows: all.filter(isSub) },
+    ].filter((p) => p.rows.length);
     body = (
       <Card>
         <Head
-          title={TITLES[section]}
-          cents={total}
-          badge={rows.length ? payState(paidBills(rows), total) : undefined}
-          note={`${exact(paidBills(rows))} paid · ${long}${rows.some((b) => b.status === "overdue") ? " · some overdue" : ""}`}
+          title="Bills"
+          cents={plan.bills.listCents}
+          badge={all.length ? payState(plan.bills.listPaidCents, plan.bills.listCents) : undefined}
+          note={`${exact(plan.bills.listPaidCents)} paid · ${long}${all.some((b) => b.status === "overdue") ? " · some overdue" : ""}`}
         />
-        <div className="mt-3">
-          <BillList rows={rows} />
-        </div>
+        {parts.length ? (
+          parts.map((p) => (
+            <div key={p.title} className="mt-4">
+              <p className="flex justify-between text-xs font-bold uppercase tracking-wider text-muted">
+                <span>{p.title}</span>
+                <span className="tnum">{exact(sumBills(p.rows))}</span>
+              </p>
+              <div className="mt-1">
+                <BillList rows={p.rows} />
+              </div>
+            </div>
+          ))
+        ) : (
+          <p className="mt-3 text-sm text-muted">None this month.</p>
+        )}
       </Card>
     );
   } else if (section === "debt") {

@@ -3,6 +3,15 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.79.1]
+
+No migration. The phone app is unchanged.
+
+### Fixed
+- The Money tab's **Bills** line left out Subscriptions & autopay, so it didn't match the Bills
+  figure on the other tabs. It's now one Bills line with the same total; its page lists bills and
+  subscriptions & autopay under their own headings.
+
 ## [0.79.0]
 
 No migration. The phone app is unchanged.
