@@ -3,6 +3,14 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.74.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Budget tab:** under **Total**, a second line, **Total without bills & debt**: the budgets and
+  unplanned spending only, with the same bar and columns.
+
 ## [0.73.0]
 
 No migration. The phone app is unchanged.

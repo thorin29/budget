@@ -223,18 +223,31 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
               </div>
             );
           })}
-          <div className={`${GRID} mt-1 border-t-2 border-line pt-3 text-sm font-bold`}>
-            <span>Total</span>
-            <Bar spent={all.spent - totals.unplannedCents} unplanned={totals.unplannedCents} forecast={closed ? all.spent : all.projected} limit={all.budget} color={TOTAL} thick />
-            <span className="tnum text-right">{money(all.spent)}</span>
-            <span className="tnum text-right">{money(all.budget)}</span>
-            <span className={`tnum text-right ${all.budget - all.spent < 0 ? "text-danger" : ""}`}>{money(all.budget - all.spent)}</span>
-            <span className="tnum text-right">{cell(true, money(all.projected))}</span>
-            {(() => {
-              const m = closed ? all.budget - all.spent : all.margin;
-              return <span className={`text-right ${m < 0 ? "text-danger" : "text-ok"}`}>{left(m)}</span>;
-            })()}
-          </div>
+          {[
+            { key: "all", name: "Total", spent: all.spent, budget: all.budget, projected: all.projected, margin: all.margin, first: true },
+            {
+              key: "spending",
+              name: "Total without bills & debt",
+              spent: totals.spentCents,
+              budget: totals.budgetCents,
+              projected: totals.forecastCents,
+              margin: totals.marginCents,
+              first: false,
+            },
+          ].map((t) => {
+            const m = closed ? t.budget - t.spent : t.margin;
+            return (
+              <div key={t.key} className={`${GRID} text-sm font-bold ${t.first ? "mt-1 border-t-2 border-line pt-3 pb-1" : "py-1"}`}>
+                <span>{t.name}</span>
+                <Bar spent={t.spent - totals.unplannedCents} unplanned={totals.unplannedCents} forecast={closed ? t.spent : t.projected} limit={t.budget} color={TOTAL} thick />
+                <span className="tnum text-right">{money(t.spent)}</span>
+                <span className="tnum text-right">{money(t.budget)}</span>
+                <span className={`tnum text-right ${t.budget - t.spent < 0 ? "text-danger" : ""}`}>{money(t.budget - t.spent)}</span>
+                <span className="tnum text-right">{cell(true, money(t.projected))}</span>
+                <span className={`text-right ${m < 0 ? "text-danger" : "text-ok"}`}>{left(m)}</span>
+              </div>
+            );
+          })}
         </div>
       </div>
     </Card>
