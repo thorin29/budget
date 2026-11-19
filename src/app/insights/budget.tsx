@@ -144,7 +144,7 @@ export function CardBudget({ plan }: { plan: BudgetPlan }) {
       </ul>
       <p className="mt-4 text-xs text-muted">
         Light blue is bills (striped: bills still to come), blue is spending, the line is the card&rsquo;s budget. Spending room is shared
-        out by how each card has been used; bills on a card come from Bill setup (&ldquo;Charged to&rdquo;) or where they were paid.
+        out by how each card has been used; bills on a card come from Bills &amp; income (&ldquo;Charged to&rdquo;) or where they were paid.
       </p>
     </Card>
   );

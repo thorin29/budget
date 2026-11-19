@@ -35,7 +35,9 @@ export default async function BudgetPage({ searchParams }: { searchParams: Promi
         const totals = forecastTotals(rows);
         const [y, mo] = [Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7))];
         const monthEnd = new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10);
-        const nextMonth = new Date(Date.UTC(y, mo, 1)).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+        const monthStart = `${plan.month}-01`;
+        const nextMonthStart = new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 10);
+        const nextMonthName = new Date(Date.UTC(y, mo, 1)).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
         let cushion = null;
         if (current && cash?.check) {
           const carry = carryOver(plan, cash.check);
@@ -43,7 +45,7 @@ export default async function BudgetPage({ searchParams }: { searchParams: Promi
           const net = plan.income.totalCents - plan.bills.totalCents - plan.debt.cents - totals.forecastCents;
           cushion = cushionOf(carry.nowCents, left, net, minimum);
         }
-        return { rows, totals, monthEnd, nextMonth, cushion };
+        return { rows, totals, monthEnd, monthStart, nextMonthStart, nextMonthName, cushion };
       })()
     : null;
 
@@ -53,7 +55,16 @@ export default async function BudgetPage({ searchParams }: { searchParams: Promi
       <TabHeading title="Budget" />
       {plan && view ? (
         <>
-          <ForecastCards totals={view.totals} cushion={view.cushion} minimumCents={minimum} monthEnd={view.monthEnd} nextMonth={view.nextMonth} closed={plan.closed} />
+          <ForecastCards
+            totals={view.totals}
+            cushion={view.cushion}
+            minimumCents={minimum}
+            monthEnd={view.monthEnd}
+            monthStart={view.monthStart}
+            nextMonthStart={view.nextMonthStart}
+            nextMonthName={view.nextMonthName}
+            closed={plan.closed}
+          />
           <ForecastTable rows={view.rows} totals={view.totals} monthEnd={view.monthEnd} closed={plan.closed} />
         </>
       ) : null}

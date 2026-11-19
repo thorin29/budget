@@ -13,7 +13,7 @@ export function SettingsNav() {
         href="/line-items"
         className="shrink-0 rounded-xl px-3 py-2 transition hover:bg-surface/60 lg:py-2.5"
       >
-        <span className="block text-sm font-semibold text-muted">Bill setup</span>
+        <span className="block text-sm font-semibold text-muted">Bills &amp; income</span>
         <span className="hidden text-xs text-subtle lg:block">Every bill and paycheck you plan for</span>
       </Link>
       {SECTIONS.map((s) => {

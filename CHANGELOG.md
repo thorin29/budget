@@ -3,6 +3,27 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.71.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Budget tab:**
+  - The top-left card shows what's **left today** (green, or red when over) and what's
+    **projected** by month end.
+  - The checking card reads as balances: the 1st of this month, the 1st of next month
+    (projected), and the end of next month at this spending rate. Under them, one plain
+    sentence: "Checking goes down $X this month. At this rate it reaches your planned cushion
+    in about N months." Then "Planned checking cushion $X."
+  - The table has a **Remaining** column (budget minus spent). "Forecast" is now
+    **Projection**, and the last column is "Projected by Nov 30."
+  - In the Total bar, unplanned shows as stripes of the spent color, so solid, stripes and light
+    read as one run.
+  - The table no longer scrolls on a wide screen. The note and the "Change budgets" link under
+    it are gone, and "Unplanned, so far" is just "Unplanned."
+- **Tracker** has a table icon.
+- The Settings menu item and page are **Bills & income** again.
+
 ## [0.70.0]
 
 No migration. The phone app is unchanged.
