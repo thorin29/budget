@@ -37,7 +37,7 @@ export default async function BudgetPage({ searchParams }: { searchParams: Promi
         const monthEnd = new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10);
         const monthStart = `${plan.month}-01`;
         const nextMonthStart = new Date(Date.UTC(y, mo, 1)).toISOString().slice(0, 10);
-        const nextMonthName = new Date(Date.UTC(y, mo, 1)).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
+        const nextMonthName = new Date(Date.UTC(y, mo, 1)).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
         let cushion = null;
         if (current && cash?.check) {
           const carry = carryOver(plan, cash.check);

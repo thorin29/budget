@@ -6,10 +6,11 @@ import { SUBSCRIPTIONS, unbilledRepeats } from "@/server/subscriptions";
 import { getUpcoming } from "@/server/yearly";
 import { getInsights } from "@/server/insights";
 import { Card } from "@/components/ui";
-import { Txns } from "../month-plan";
 import { ComingUpRow } from "../coming-up";
 import { MonthPicker, TabHeading, pickMonth } from "../shared";
 import { RepeatActions } from "./repeat-actions";
+import { ChargeActions, type BillChoice, type CategoryChoice } from "./charge-actions";
+import { getEnvelopeSetup } from "@/server/envelopes";
 
 export const dynamic = "force-dynamic";
 
@@ -91,11 +92,12 @@ const KINDS: Array<{ tier: PlanGroup["tier"]; label: string }> = [
 export default async function MoneyPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
   const { m } = await searchParams;
   const picked = pickMonth(m);
-  const [plan, repeats, upcoming, insights] = await Promise.all([
+  const [plan, repeats, upcoming, insights, setup] = await Promise.all([
     getMonthPlan(picked.year, picked.month),
     picked.isNow ? unbilledRepeats().catch(() => []) : Promise.resolve([]),
     picked.isNow ? getUpcoming().catch(() => []) : Promise.resolve([]),
     getInsights(picked.year, picked.month).catch(() => null),
+    getEnvelopeSetup().catch(() => null),
   ]);
   const isSub = (b: PlanBill) => (b.category ?? "").toLowerCase() === SUBSCRIPTIONS.toLowerCase();
   const bills = plan.bills.items.filter((b) => !isSub(b));
@@ -104,16 +106,23 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
   const paid = (rows: PlanBill[]) => rows.filter((b) => b.status === "paid").reduce((t, b) => t + b.cents, 0);
   const outTotal = plan.bills.totalCents + plan.debt.cents + plan.spentCents;
   const net = plan.income.totalCents - outTotal;
-  // A charge in a bill's category (a church gift and the Church bill): offer to record it as that bill.
-  const matches = Object.fromEntries(
-    plan.bills.other.map((t) => [
-      t.id,
-      plan.bills.items
-        .filter((b) => b.status !== "skipped" && t.category && b.category === t.category)
-        .filter((b, i, all) => all.findIndex((x) => x.lineItemId === b.lineItemId && x.from === b.from) === i)
-        .map((b) => ({ id: b.lineItemId, name: b.from ? `${b.name} (${monthName(b.from)})` : b.name, ym: b.from })),
-    ]),
-  );
+  // Bills a charge could pay: this month's (and any carried past due), best guesses first.
+  const billOptions = plan.bills.items.filter((b, i, all) => b.status !== "skipped" && all.findIndex((x) => x.lineItemId === b.lineItemId && x.from === b.from) === i);
+  const words = (t: string) => new Set(t.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2));
+  const choicesFor = (t: (typeof plan.bills.other)[number]): BillChoice[] => {
+    const tw = words(t.name);
+    return billOptions
+      .map((b) => ({
+        id: b.lineItemId,
+        name: b.from ? `${b.name} (${monthName(b.from)})` : b.name,
+        ym: b.from,
+        suggested: (!!t.category && b.category === t.category) || [...words(b.name)].some((w) => tw.has(w)) || Math.abs(b.cents - t.cents) <= 50,
+      }))
+      .sort((x, y) => Number(y.suggested) - Number(x.suggested) || x.name.localeCompare(y.name));
+  };
+  const everyday: CategoryChoice[] = (setup?.groups ?? [])
+    .filter((g) => g.tier !== "BILLS")
+    .flatMap((g) => g.categories.map((c) => ({ id: c.id, name: c.name, group: g.name })));
   const outSoFar = plan.bills.paidCents + (plan.debt.source === "paid" ? plan.debt.cents : 0) + plan.spentCents;
   // Only people with money moving this month; an old running balance on its own isn't news.
   const managed = (insights?.managed ?? []).filter((x) => x.monthInCents !== 0 || x.monthOutCents !== 0);
@@ -167,33 +176,41 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
               title={SUBSCRIPTIONS}
               cents={sum(subs)}
               badge={subs.length ? payState(paid(subs), sum(subs)) : undefined}
-              note={`${subs.length} bill${subs.length === 1 ? "" : "s"}${repeats.length ? ` · ${repeats.length} more repeating in the bank` : ""}`}
-              open={repeats.length > 0}
+              note={`${subs.length} bill${subs.length === 1 ? "" : "s"}`}
             >
               <BillList rows={subs} />
-              {repeats.length ? (
-                <>
-                  <p className="mt-2 text-xs font-semibold">Repeating charges that aren&rsquo;t bills yet</p>
-                  <p className="text-xs text-muted">Charges that come every month on their own. Make each one a bill so it&rsquo;s planned, or cancel what you don&rsquo;t use.</p>
-                  <ul className="mt-1 divide-y divide-line text-xs">
-                    {repeats.map((r) => (
-                      <li key={r.merchantKey} className="flex flex-wrap items-center justify-between gap-2 py-1.5">
-                        <span className="min-w-0 truncate">
-                          {r.merchant} <span className="text-muted">· about {exact(r.typicalCents)} around day {r.typicalDay} · {r.months} months · {r.account}</span>
-                        </span>
-                        <RepeatActions merchantKey={r.merchantKey} />
-                      </li>
-                    ))}
-                  </ul>
-                </>
-              ) : null}
             </OutRow>
             {plan.debt.cents > 0 ? (
               <OutRow title={`Debt payment${plan.debt.name ? `: ${plan.debt.name}` : ""}`} cents={plan.debt.cents} badge={plan.debt.source === "paid" ? "paid" : "due"} note={plan.debt.source === "paid" ? undefined : plan.debt.dueOn ? `Due ${day(plan.debt.dueOn)}` : undefined} />
             ) : null}
-            {plan.bills.other.length ? (
-              <OutRow title="Bill-category charges not on the bill list" cents={plan.bills.otherCents} badge="actual" open>
-                <Txns rows={plan.bills.other} matches={matches} />
+            {plan.bills.other.length || repeats.length ? (
+              <OutRow
+                title="Charges that may be bills"
+                cents={plan.bills.otherCents}
+                badge="actual"
+                note="Charges in a bill category that aren't on the bill list, and charges that repeat every month"
+                open
+              >
+                <ul className="divide-y divide-line text-xs">
+                  {plan.bills.other.map((t, i) => (
+                    <li key={`${t.id}:${i}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5">
+                      <span className="min-w-0 flex-1 truncate">
+                        <span className="tnum text-muted">{day(t.date)}</span> {t.name}
+                        {t.pending ? <span className="text-muted"> · pending</span> : null}
+                      </span>
+                      {t.cents > 0 && !t.split && !t.pending ? <ChargeActions txnId={t.id} bills={choicesFor(t)} categories={everyday} /> : null}
+                      <span className="tnum w-20 shrink-0 text-right">{exact(t.cents)}</span>
+                    </li>
+                  ))}
+                  {repeats.map((r) => (
+                    <li key={r.merchantKey} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5">
+                      <span className="min-w-0 flex-1 truncate">
+                        {r.merchant} <span className="text-muted">· repeats: about {exact(r.typicalCents)} around day {r.typicalDay}, {r.months} months · {r.account}</span>
+                      </span>
+                      <RepeatActions merchantKey={r.merchantKey} />
+                    </li>
+                  ))}
+                </ul>
               </OutRow>
             ) : null}
             <OutRow title="Everyday spending" cents={plan.spentCents} badge="actual" note="Essentials, Extras and Unplanned, by transaction date">
@@ -208,25 +225,14 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
                         <span className="tnum">{exact(groups.reduce((t, g) => t + g.spentCents, 0))}</span>
                       </p>
                       {groups.map((g) => (
-                        <details key={g.id} className="group/g">
-                          <summary className="flex cursor-pointer list-none justify-between gap-3 py-0.5 text-xs font-semibold">
-                            <span className="group-open/g:underline">{g.name}</span>
-                            <span className="tnum">{exact(g.spentCents)}</span>
-                          </summary>
-                          <div className="pl-3">
-                            {g.categories.map((c) => (
-                              <details key={c.id ?? "none"} className="group/c">
-                                <summary className="flex cursor-pointer list-none justify-between gap-3 py-0.5 text-xs">
-                                  <span className="group-open/c:underline">{c.name}</span>
-                                  <span className="tnum">{exact(c.spentCents)}</span>
-                                </summary>
-                                <div className="pl-3">
-                                  <Txns rows={c.transactions} />
-                                </div>
-                              </details>
-                            ))}
-                          </div>
-                        </details>
+                        <Link
+                          key={g.id}
+                          href={`/insights/money/budget/${encodeURIComponent(g.id)}?m=${plan.month}`}
+                          className="flex justify-between gap-3 rounded py-0.5 text-xs font-semibold hover:underline"
+                        >
+                          <span>{g.name} ›</span>
+                          <span className="tnum">{exact(g.spentCents)}</span>
+                        </Link>
                       ))}
                     </div>
                   );

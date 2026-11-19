@@ -34,7 +34,10 @@ const RULES: Array<{ category: GuessCategory; pattern: RegExp; moneyIn?: boolean
   { category: { name: "Fast food", aliases: ["Quick service"] }, pattern: w("mcdonald s?", "chick fil a", "taco bell", "wendy s?", "burger king", "in n out", "whataburger", "sonic drive", "popeyes", "kfc", "arby s?", "jack in the box", "five guys", "raising cane s?", "canes", "wingstop", "subway", "jersey mike s?", "jimmy john s?", "firehouse subs", "chipotle", "qdoba", "panda express", "panera", "domino s?", "pizza hut", "papa john s?", "little caesars", "shake shack", "culver s?", "zaxby s?", "doordash", "uber eats", "grubhub", "cava", "sweetgreen", "steak n shake") },
   { category: { name: "Restaurants", aliases: ["Sit-down", "Eating out", "Dining out"] }, pattern: w("restaurant", "cafe", "grill", "diner", "steakhouse", "bbq", "sushi", "bistro", "trattoria", "cucina", "kitchen", "eatery", "tavern", "pub", "brewery", "cantina", "taqueria", "olive garden", "chili s", "applebee s?", "cheesecake factory", "texas roadhouse", "outback", "red lobster", "buffalo wild wings", "cheddar s", "pizza", "pizzeria") },
   { category: FUEL, pattern: w("fuel", "gas station", "shell", "exxon", "exxonmobil", "mobil", "chevron", "valero", "texaco", "phillips 66", "circle k", "7 eleven", "murphy usa", "sunoco", "speedway", "citgo", "conoco", "sinclair", "marathon petro") },
-  { category: { name: "Auto", aliases: ["Car", "Vehicle", "Transportation"] }, pattern: w("auto parts", "autozone", "o reilly", "oreilly", "advance auto", "jiffy lube", "car wash", "tires?", "toll", "tollway", "parking", "dmv") },
+  // A car wash ("auto spa") is upkeep, not personal care; tolls and parking are getting around.
+  { category: { name: "Car wash", aliases: ["Car care"] }, pattern: w("car wash", "carwash", "auto spa", "auto wash", "express wash", "wash club") },
+  { category: { name: "Parking & tolls", aliases: ["Tolls", "Parking"] }, pattern: w("ntta", "tolls?", "tollway", "toll tag", "txtag", "ez tag", "parking", "parkwhiz", "parkmobile", "spothero") },
+  { category: { name: "Auto", aliases: ["Car", "Vehicle", "Transportation"] }, pattern: w("auto parts", "autozone", "o reilly", "oreilly", "advance auto", "jiffy lube", "tires?", "dmv") },
   { category: { name: "Home", aliases: ["Home improvement"] }, pattern: w("home depot", "lowe s", "lowes", "ikea", "wayfair", "hardware", "homegoods", "homesense", "pottery barn", "kirkland s?", "world market", "container store", "pest", "nursery", "tractor supply") },
   { category: { name: "Phone", aliases: ["Cell phone", "Mobile", "Wireless"] }, pattern: w("verizon", "vzwrlss", "at t", "t mobile", "mint mobile", "visible", "cricket", "boost mobile", "us cellular", "google fi", "metro by t mobile", "wireless") },
   { category: { name: "Utilities", aliases: ["Utility", "Bills"] }, pattern: w("electric", "energy", "water utility", "water dept", "utility", "utilities", "internet", "comcast", "xfinity", "spectrum", "sewer", "trash", "waste", "frontier") },
@@ -98,7 +101,7 @@ export function isIncomeCategory(name: string | null | undefined): boolean {
 
 /** Day-to-day spending that repeats without being a bill (groceries, fuel…), by category name or alias. */
 const EVERYDAY = new Set(
-  RULES.filter((r) => ["Groceries", "Target & Walmart", "Costco & Sam's Club", "Fast food", "Restaurants", "Coffee & treats", "Kohl's", "Clothing", "Fuel", "Shopping", "Personal care", "Entertainment", "Travel", "Cash", "Fees", "Auto"].includes(r.category.name))
+  RULES.filter((r) => ["Groceries", "Target & Walmart", "Costco & Sam's Club", "Fast food", "Restaurants", "Coffee & treats", "Kohl's", "Clothing", "Fuel", "Shopping", "Personal care", "Entertainment", "Travel", "Cash", "Fees", "Auto", "Car wash", "Parking & tolls"].includes(r.category.name))
     .flatMap((r) => [r.category.name, ...r.category.aliases])
     .map((n) => n.toLowerCase()),
 );

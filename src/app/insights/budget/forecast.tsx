@@ -73,20 +73,18 @@ export function ForecastCards({
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
-        <p className="text-sm text-muted">Spending · {money(totals.budgetCents)} budgeted for Essentials and Extras · unplanned costs count against it</p>
+        <p className="text-sm text-muted">Budget remaining</p>
         <dl className="mt-2 grid grid-cols-2 gap-4">
           <div>
-            <dt className="text-xs text-muted">{closed ? "Left at month end" : "Left today"}</dt>
+            <dt className="text-xs text-muted">{closed ? "Month end" : "Today"}</dt>
             <dd className={`tnum text-3xl font-bold ${today < 0 ? "text-danger" : "text-ok"}`}>{today < 0 ? `${money(-today)} over` : money(today)}</dd>
-            <dd className="text-xs text-muted">
-              {money(spent)} spent{totals.unplannedCents ? `, ${money(totals.unplannedCents)} of it unplanned` : ""}
-            </dd>
+            <dd className="text-xs text-muted">Current spend + unplanned</dd>
           </div>
           {closed ? null : (
             <div>
               <dt className="text-xs text-muted">Projected by {day(monthEnd)}</dt>
               <dd className={`tnum text-3xl font-bold ${end < 0 ? "text-warn" : "text-ok"}`}>{left(end)}</dd>
-              <dd className="text-xs text-muted">Projected spend {money(projected)}, unplanned included</dd>
+              <dd className="text-xs text-muted">Projected spend + unplanned</dd>
             </div>
           )}
         </dl>
@@ -164,7 +162,6 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
         <li className="flex items-center gap-1.5">{swatch("var(--muted)")}Solid = actual</li>
         {closed ? null : <li className="flex items-center gap-1.5">{swatch("var(--muted)", 0.3)}Lighter = projection</li>}
         <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-3 w-0.5 bg-foreground" />Line = budget</li>
-        <li>Click a group to show or hide its budgets.</li>
       </ul>
       <div className="overflow-x-auto overflow-y-hidden py-1 lg:overflow-visible">
         <div className="min-w-[820px]">
@@ -205,7 +202,7 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
                   <Bar spent={spent} forecast={budgeted ? forecast : spent} limit={limit} color={COLOR[tier]} />
                   <span className="tnum text-right">{money(spent)}</span>
                   <span className="tnum text-right">{limit === null ? "none" : money(limit)}</span>
-                  <span className={`tnum text-right ${limit !== null && limit - spent < 0 ? "text-danger" : ""}`}>{limit === null ? "—" : money(limit - spent)}</span>
+                  <span className={`tnum text-right ${(limit ?? 0) - spent < 0 ? "text-danger" : ""}`}>{money((limit ?? 0) - spent)}</span>
                   <span className="tnum text-right">{cell(limit !== null, money(forecast))}</span>
                   <span className={`text-right ${tone(margin, closed)}`}>{margin === null ? "—" : left(margin)}</span>
                 </summary>
@@ -220,7 +217,7 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
                       <Bar spent={r.spentCents} forecast={budgeted ? r.forecastCents : r.spentCents} limit={r.limitCents} color={COLOR[tier]} />
                       <span className="tnum text-right text-muted">{money(r.spentCents)}</span>
                       <span className="tnum text-right text-muted">{r.limitCents ? money(r.limitCents) : "none"}</span>
-                      <span className={`tnum text-right ${r.limitCents && r.limitCents - r.spentCents < 0 ? "text-danger" : "text-muted"}`}>{r.limitCents ? money(r.limitCents - r.spentCents) : "—"}</span>
+                      <span className={`tnum text-right ${(r.limitCents ?? 0) - r.spentCents < 0 ? "text-danger" : "text-muted"}`}>{money((r.limitCents ?? 0) - r.spentCents)}</span>
                       <span className="tnum text-right text-muted">{cell(!!r.limitCents, money(r.forecastCents))}</span>
                       <span className={`text-right font-semibold ${tone(m, closed)}`} title={r.monthly ? "A monthly charge, already in: counted once" : undefined}>
                         {m === null ? "—" : left(m)}

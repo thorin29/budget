@@ -3,6 +3,34 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.77.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Money tab, "Charges that may be bills":** one list of charges in a bill category that aren't
+  on the bill list, plus charges that repeat every month (moved here from Subscriptions &
+  autopay). Each bill-category charge offers three choices:
+  - **Link to a bill:** pick from this month's bills, best guesses starred (same category, a
+    shared word in the name, or the same amount). It pays the right month, or links to a payment
+    already recorded without a charge, and refuses a bill that already has its charge.
+  - **New bill:** refused when the merchant is already some bill's, with a pointer to Link.
+  - **Not a bill:** pick an everyday category; this charge and the merchant's later ones move
+    there.
+  The old one-click "It's <bill>" guess is gone.
+- **Everyday spending** no longer offers "Make it a bill" on every charge. Each budget opens its
+  own page: its categories with bars, then each category's charges, newest first, with the
+  merchants that add up to the most named on top.
+- **Budget tab:**
+  - The top-left card is "Budget remaining," with "Today" ("Current spend + unplanned") and
+    "Projected by Nov 30" ("Projected spend + unplanned").
+  - Unplanned's Remaining shows what was spent as a negative.
+  - The "Click a group" hint is gone, and the checking card says "End of Dec."
+
+### Fixed
+- A car wash named an "auto spa" is filed as **Car wash** (in the Fuel budget), not Personal
+  care. New tolls and parking charges guess **Parking & tolls**, not Auto.
+
 ## [0.76.0]
 
 No migration. The phone app is unchanged.

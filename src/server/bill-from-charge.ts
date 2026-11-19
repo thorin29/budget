@@ -49,6 +49,9 @@ export async function addChargeAsBill(txnId: string, name?: string): Promise<{ l
 
   // The merchant's recent charges give the usual amount and day.
   const key = merchantKey(txn.merchant);
+  // A merchant already tied to a bill gets linked to it, not a second bill.
+  const already = (await prisma.billRule.findFirst({ where: { merchantKey: key, lineItem: { active: true } }, select: { lineItem: { select: { name: true } } } })) as { lineItem: { name: string } } | null;
+  if (already) throw new ValidationError({ transactionId: [`${already.lineItem.name} is already the bill for this merchant: use Link to a bill`] });
   const recent = (await prisma.bankTransaction.findMany({
     where: { postedOn: { gte: new Date(Date.now() - 200 * DAY) }, kind: "NORMAL", amount: { lt: 0 } },
     select: { merchant: true, amount: true, postedOn: true },

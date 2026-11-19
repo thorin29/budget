@@ -21,7 +21,7 @@ export const DEFAULT_GROUPS: DefaultGroup[] = [
   { name: "Paid as bills", tier: "BILLS", match: /housing|mortgage|\brent\b|utilit|phone|internet|insurance|\bloans?\b|\btaxes\b|\bdebt\b|^payments?$|^giving$|^church$|tithe|donat|charit|saving|invest|crypto|retirement|subscriptions?|streaming|autopay/ },
   // Needed every month.
   { name: "Groceries & household", tier: "ESSENTIAL", match: /grocer|supermarket|warehouse|costco|sam's|target|walmart|^food$|household|toiletr|personal care/ },
-  { name: "Fuel", tier: "ESSENTIAL", match: /^fuel$|^gas$|gasoline|\bfuel\b|transit|parking|\btolls?\b/ },
+  { name: "Fuel", tier: "ESSENTIAL", match: /^fuel$|^gas$|gasoline|\bfuel\b|transit|parking|\btolls?\b|car ?wash|car care/ },
   // Extras.
   { name: "Sports gear", tier: "FLEXIBLE", match: new RegExp(`(${SPORTS}).*(gear|equipment|store)|(gear|equipment)`) },
   { name: "Eating out", tier: "FLEXIBLE", match: /fast food|restaurants?|dining|eating out|coffee|treats|takeout|bars?$/ },
