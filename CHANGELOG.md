@@ -3,6 +3,15 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.80.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Overview tiles** are shorter. The Money tile lists Checking (current month only), Income and
+  Expenses for the month, with no line under it. Expenses matches the Money tab's total. The
+  Trends tile reads "<Month>: income − expenses."
+
 ## [0.79.1]
 
 No migration. The phone app is unchanged.

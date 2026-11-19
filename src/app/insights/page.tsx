@@ -15,52 +15,68 @@ export const dynamic = "force-dynamic";
 
 const money = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(Math.round(cents / 100)).toLocaleString("en-US")}`;
 
-/** A tile for another tab: its headline number, one line, and a link. */
-function Tile({ href, title, value, line, tone = "plain" }: { href: string; title: string; value: string; line: string; tone?: "plain" | "danger" | "ok" | "warn" }) {
+/** A tile for another tab: its headline, then either one line or a few label/amount rows. */
+function Tile({ href, title, value, line, rows, tone = "plain" }: { href: string; title: string; value?: string; line?: string; rows?: Array<[string, number, string?]>; tone?: "plain" | "danger" | "ok" | "warn" }) {
   const color = tone === "danger" ? "text-danger" : tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : "";
   return (
-    <Link href={href} className="group block rounded-2xl border border-line bg-surface p-4 shadow-card transition hover:ring-1 hover:ring-accent">
+    <Link href={href} className="group block rounded-2xl border border-line bg-surface px-4 py-3 shadow-card transition hover:ring-1 hover:ring-accent">
       <span className="flex items-baseline justify-between text-sm font-semibold text-muted">
         {title}
         <span aria-hidden className="text-accent-text opacity-0 transition group-hover:opacity-100">
           ›
         </span>
       </span>
-      <span className={`tnum mt-1 block text-2xl font-bold ${color}`}>{value}</span>
-      <span className="mt-1 block text-xs text-muted">{line}</span>
+      {rows ? (
+        <span className="mt-1 block space-y-0.5">
+          {rows.map(([label, cents, cls]) => (
+            <span key={label} className="flex items-baseline justify-between gap-3 text-sm">
+              <span className="text-muted">{label}</span>
+              <span className={`tnum font-bold ${cls ?? ""}`}>{money(cents)}</span>
+            </span>
+          ))}
+        </span>
+      ) : (
+        <>
+          <span className={`tnum mt-0.5 block text-xl font-bold ${color}`}>{value}</span>
+          {line ? <span className="block truncate text-xs text-muted">{line}</span> : null}
+        </>
+      )}
     </Link>
   );
 }
 
-function Tiles({ plan, debt, last }: { plan: MonthPlanView; debt: DebtView | null; last: MonthPlanView | null }) {
-  const outSoFar = plan.bills.paidCents + plan.spentCents + (plan.debt.source === "paid" ? plan.debt.cents : 0);
+function Tiles({ plan, debt, last, checkingCents }: { plan: MonthPlanView; debt: DebtView | null; last: MonthPlanView | null; checkingCents: number | null }) {
   const over = plan.groups.filter((g) => g.overCents > 0);
+  const expenses = plan.bills.totalCents + plan.debt.cents + plan.spentCents;
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <Tile
         href="/insights/money"
         title="Money"
-        value={`${money(plan.income.receivedCents)} in`}
-        line={`${money(outSoFar)} out so far · ${money(plan.income.totalCents)} expected in`}
+        rows={[
+          ...(checkingCents !== null ? ([["Checking", checkingCents, checkingCents < 0 ? "text-danger" : ""]] as Array<[string, number, string]>) : []),
+          ["Income", plan.income.totalCents, "text-ok"],
+          ["Expenses", expenses, expenses > plan.income.totalCents ? "text-danger" : ""],
+        ]}
       />
       <Tile
         href="/insights/budget"
         title="Budget"
         value={over.length ? `${over.length} over` : "Within limits"}
-        line={over.length ? over.map((g) => g.name).slice(0, 3).join(", ") : `${money(plan.spentCents)} spent of the ${money(plan.poolCents)} pool`}
+        line={over.length ? over.map((g) => g.name).slice(0, 3).join(", ") : `${money(plan.spentCents)} spent of ${money(plan.poolCents)}`}
         tone={over.length ? "warn" : "ok"}
       />
       <Tile
         href="/insights/debt"
         title="Debt"
         value={debt ? money(debt.totalCents) : "—"}
-        line={debt ? `${money(debt.installmentCents)} in loans · ${money(debt.revolvingCents)} on cards` : "Owed on loans and cards"}
+        line={debt ? `${money(debt.installmentCents)} loans · ${money(debt.revolvingCents)} cards` : undefined}
       />
       <Tile
         href="/insights/trends"
         title="Trends"
         value={last ? (last.poolLeftCents < 0 ? `−${money(-last.poolLeftCents)}` : `+${money(last.poolLeftCents)}`) : "—"}
-        line={last ? `${monthLabel(Number(last.month.slice(0, 4)), Number(last.month.slice(5, 7)), "short")}: money in less everything out` : "How the months compare"}
+        line={last ? `${monthLabel(Number(last.month.slice(0, 4)), Number(last.month.slice(5, 7)), "long").split(" ")[0]}: income − expenses` : undefined}
         tone={last ? (last.poolLeftCents < 0 ? "danger" : "ok") : "plain"}
       />
     </div>
@@ -110,7 +126,7 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
               )}
             </div>
           </div>
-          <Tiles plan={plan} debt={debt} last={last} />
+          <Tiles plan={plan} debt={debt} last={last} checkingCents={current && cash?.check ? cash.check.checkingCents : null} />
         </>
       ) : (
         <Card>
