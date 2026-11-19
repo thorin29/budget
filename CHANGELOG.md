@@ -3,6 +3,19 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.68.0]
+
+No migration. The phone app is unchanged.
+
+### Fixed
+- **Earlier months catch up.** Bills from months back whose charges are in the bank history no
+  longer stay "unpaid" and "overdue." After each sync and at start, every month from a year back
+  to two months ago is checked, oldest first. An unpaid bill is recorded from an unlinked charge
+  when the match is sure: the merchant was confirmed for that bill before, the charge names the
+  bill, or it's the bill's amount to the cent. A same-category charge counts only at the exact
+  amount. Each charge is used once. Card-payment bills and bills set not to record on their own
+  are left alone. This month and last month still go through the Review page as before.
+
 ## [0.67.0]
 
 No migration; two one-time data fixes run on the first start (see below). The phone app is

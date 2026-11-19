@@ -13,6 +13,7 @@
  *     merchant it doesn't know yet still waits there for a Confirm.
  *  4. Card-payment bills: payments reaching the card are recorded for the
  *     month they pay, whatever the amount (src/server/card-bills.ts).
+ *  5. Earlier months catch up: a year back, the sure matches only (recordPastMonths).
  */
 
 import { prisma } from "@/lib/prisma";
@@ -138,13 +139,74 @@ export async function assignPaydayNumbers(): Promise<number> {
   return set;
 }
 
+/**
+ * 5. Earlier months catch up. The review list and step 3 only look at this month and what's
+ * carried from last month, so a bill from months back whose charge came in (or came in before
+ * the bill was set up) stays "unpaid." For each month from a year back to two months ago,
+ * oldest first, an unpaid bill is recorded from an unlinked charge when it's sure: the merchant
+ * was confirmed for the bill before, the charge names the bill, or it's the bill's amount to the
+ * cent (a same-category charge counts only at the exact amount). Charges are used once.
+ */
+export async function recordPastMonths(monthsBack = 12): Promise<number> {
+  const { getMonthView } = await import("./month");
+  const { suggestMatches } = await import("@/lib/bill-match");
+  const now = new Date();
+  const nowN = now.getUTCFullYear() * 12 + now.getUTCMonth();
+  const first = nowN - monthsBack;
+  const lastN = nowN - 2;
+  if (lastN < first) return 0;
+  const from = new Date(Date.UTC(Math.floor(first / 12), first % 12, 1) - 20 * DAY);
+  const [rows, rules, dismissals, cardItems] = await Promise.all([
+    prisma.bankTransaction.findMany({
+      where: { postedOn: { gte: from }, pending: false, kind: { not: "IGNORED" }, actual: { is: null }, account: { hidden: false } },
+      select: { id: true, postedOn: true, amount: true, merchant: true, description: true, account: { select: { type: true } }, category: { select: { name: true, managedForOthers: true } } },
+    }) as Promise<Array<{ id: string; postedOn: Date; amount: { toString(): string }; merchant: string; description: string; account: { type: AccountType }; category: { name: string; managedForOthers: boolean } | null }>>,
+    prisma.billRule.findMany({ select: { lineItemId: true, merchantKey: true } }) as Promise<Array<{ lineItemId: string; merchantKey: string }>>,
+    prisma.reviewDismissal.findMany({ where: { kind: "match" }, select: { key: true } }) as Promise<Array<{ key: string }>>,
+    prisma.lineItem.findMany({ where: { OR: [{ paysCardId: { not: null } }, { autoRecord: false }] }, select: { id: true } }) as Promise<Array<{ id: string }>>,
+  ]);
+  const ruleMap = new Map<string, Set<string>>();
+  for (const r of rules) ruleMap.set(r.merchantKey, new Set([...(ruleMap.get(r.merchantKey) ?? []), r.lineItemId]));
+  const dismissed = new Set(dismissals.map((d) => d.key));
+  const skip = new Set(cardItems.map((i) => i.id));
+  const used = new Set<string>();
+  const txns: MatchTxn[] = rows
+    .filter((t) => !t.category?.managedForOthers)
+    .map((t) => ({ t, cents: toCents(t.amount) }))
+    .filter(({ t, cents }) => SPENDING_TYPES.includes(t.account.type) || (cents > 0 && t.account.type === "SAVINGS"))
+    .map(({ t, cents }) => ({ id: t.id, postedOn: iso(t.postedOn), amountCents: cents, merchant: t.merchant, description: t.description, merchantKey: merchantKey(t.merchant), category: t.category?.name ?? null }));
+  let recorded = 0;
+  for (let n = first; n <= lastN; n++) {
+    const [y, m] = [Math.floor(n / 12), (n % 12) + 1];
+    const view = await getMonthView(y, m);
+    const open = [...view.halves[0].entries, ...view.halves[1].entries, ...view.surplusItems, ...view.income].filter(
+      (e) => e.actualCents === null && !e.skipped && e.budgetedCents > 0 && !skip.has(e.lineItemId),
+    );
+    if (!open.length) continue;
+    const bills = open.map((b) => ({ lineItemId: b.lineItemId, year: b.year, month: b.month, name: b.name, kind: b.kind, dueDay: b.dueDay, budgetedCents: b.budgetedCents, category: b.categoryName }));
+    const free = txns.filter((t) => !used.has(t.id));
+    for (const s of suggestMatches(bills, free, ruleMap, dismissed)) {
+      const t = free.find((x) => x.id === s.txnId)!;
+      const bill = bills.find((b) => b.lineItemId === s.lineItemId)!;
+      const exact = Math.abs(Math.abs(t.amountCents) - bill.budgetedCents) <= 50;
+      if (s.reason === "category" && !exact) continue;
+      await recordActual(s.lineItemId, s.year, s.month, Math.abs(t.amountCents), undefined, new Date(`${t.postedOn}T00:00:00Z`));
+      await prisma.actualEntry.update({ where: { lineItemId_year_month: { lineItemId: s.lineItemId, year: s.year, month: s.month } }, data: { source: "auto" } });
+      await linkActual(s.lineItemId, s.year, s.month, t.id, t.merchant);
+      used.add(t.id);
+      recorded += 1;
+    }
+  }
+  return recorded;
+}
+
 export async function runBillAutomation(): Promise<AutomationResult> {
   await assignPaydayNumbers();
   const linked = await linkRecordedPayments();
   const { learnCardLinks, recordCardPayments } = await import("./card-bills");
   const cardsLinked = await learnCardLinks();
   const dueDaysMoved = await learnDueDays();
-  const recorded = await recordExactMatches();
+  const recorded = (await recordExactMatches()) + (await recordPastMonths());
   const cardPayments = await recordCardPayments();
   const { closePaidOffBills } = await import("./payoff");
   await closePaidOffBills();
