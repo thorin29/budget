@@ -217,10 +217,15 @@ export async function linkActual(lineItemId: string, year: number, month: number
 }
 
 /**
- * "This charge is that bill": records the charge as the bill's payment for the month it posted,
- * or links it to a payment already recorded that month without a charge.
+ * "This charge is that bill". Which month it pays:
+ *  - the month asked for (a past-due bill carried into this month), else
+ *  - a payment of this bill recorded in the last two months with no charge linked (a payment
+ *    once linked to a pending charge loses its link when the bank replaces that charge with the
+ *    posted one), the same amount first, else
+ *  - the month the charge posted.
+ * A recorded payment without a charge gets linked; otherwise the payment is recorded from it.
  */
-export async function matchChargeToBill(txnId: string, lineItemId: string, userId: string): Promise<{ name: string }> {
+export async function matchChargeToBill(txnId: string, lineItemId: string, userId: string, ym: string | null = null): Promise<{ name: string; month: string }> {
   const txn = (await prisma.bankTransaction.findUnique({
     where: { id: txnId },
     select: { id: true, merchant: true, amount: true, postedOn: true, actual: { select: { id: true } } },
@@ -229,15 +234,31 @@ export async function matchChargeToBill(txnId: string, lineItemId: string, userI
   if (txn.actual) throw new ValidationError({ txnId: ["That charge is already recorded as a payment"] });
   const item = (await prisma.lineItem.findUnique({ where: { id: lineItemId }, select: { name: true } })) as { name: string } | null;
   if (!item) throw new NotFoundError("Bill");
-  const [year, month] = [txn.postedOn.getUTCFullYear(), txn.postedOn.getUTCMonth() + 1];
+  const cents = Math.abs(toCents(txn.amount));
+  const posted = txn.postedOn.getUTCFullYear() * 12 + txn.postedOn.getUTCMonth();
+  const recent = (await prisma.actualEntry.findMany({
+    where: { lineItemId, bankTransactionId: null },
+    select: { year: true, month: true, amount: true },
+  })) as Array<{ year: number; month: number; amount: { toString(): string } }>;
+  const open = recent
+    .filter((a) => {
+      const n = a.year * 12 + a.month - 1;
+      return n <= posted && n >= posted - 2;
+    })
+    .sort((a, b) => Number(toCents(b.amount) === cents) - Number(toCents(a.amount) === cents) || b.year * 12 + b.month - (a.year * 12 + a.month));
+  let [year, month] = [txn.postedOn.getUTCFullYear(), txn.postedOn.getUTCMonth() + 1];
+  const asked = ym ? /^(\d{4})-(\d{2})$/.exec(ym) : null;
+  if (asked) [year, month] = [Number(asked[1]), Number(asked[2])];
+  else if (open.length) [year, month] = [open[0].year, open[0].month];
+  const label = new Date(Date.UTC(year, month - 1, 1)).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" });
   const existing = (await prisma.actualEntry.findUnique({
     where: { lineItemId_year_month: { lineItemId, year, month } },
     select: { bankTransactionId: true },
   })) as { bankTransactionId: string | null } | null;
-  if (existing?.bankTransactionId) throw new ValidationError({ lineItemId: [`${item.name} is already paid this month with another charge`] });
+  if (existing?.bankTransactionId) throw new ValidationError({ lineItemId: [`${item.name} for ${label} is already paid with another charge`] });
   if (existing) await linkActual(lineItemId, year, month, txn.id, txn.merchant);
-  else await confirmMatch({ lineItemId, year, month, txnId: txn.id, amountCents: Math.abs(toCents(txn.amount)), paidOn: txn.postedOn, userId });
-  return { name: item.name };
+  else await confirmMatch({ lineItemId, year, month, txnId: txn.id, amountCents: cents, paidOn: txn.postedOn, userId });
+  return { name: item.name, month: label };
 }
 
 export async function dismissMatch(lineItemId: string, txnId: string): Promise<void> {

@@ -50,9 +50,11 @@ function Tabs({ active }: { active?: "spending" | "year" }) {
 export function InsightsTabs({ active, right }: { active?: "spending" | "year"; right?: ReactNode } = {}) {
   return (
     <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-      <Suspense fallback={<div className="h-10" />}>
-        <Tabs active={active} />
-      </Suspense>
+      <div className="min-w-0 max-w-full">
+        <Suspense fallback={<div className="h-10" />}>
+          <Tabs active={active} />
+        </Suspense>
+      </div>
       {right}
     </div>
   );

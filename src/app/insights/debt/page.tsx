@@ -4,7 +4,9 @@ import { getMonthPlan } from "@/server/month-plan";
 import { getDebt } from "@/server/debt";
 import { debtChart } from "@/server/plan-charts";
 import { Card } from "@/components/ui";
-import { DebtChartCard } from "../plan-charts";
+import { LoanPanel, ZeroPanel } from "../plan-charts";
+import { PayoffSwitcher } from "./payoff-switcher";
+import { payoffSchedule } from "@/lib/payoff";
 import { TabHeading } from "../shared";
 import { LoanForm } from "./loan-form";
 
@@ -24,27 +26,44 @@ export default async function DebtPage() {
   const firstWord = (n: string) => n.toLowerCase().match(/[a-z0-9]+/)?.[0] ?? n;
   const bills = debt.installment.filter((d) => d.kind === "bill");
   const twins = bills.flatMap((d, i) => bills.slice(i + 1).filter((e) => e.paymentCents === d.paymentCents && firstWord(e.name) === firstWord(d.name)).map((e) => [d, e] as const));
+  const today = debt.today;
+  const short = (n: string) => n.replace(/\s*\(.*?\)\s*/g, " ").trim().split(/\s+/).slice(0, 2).join(" ");
+  const tabs = debt.installment.flatMap((d) => {
+    if (d.kind === "zero") return chart ? [{ key: d.id, label: short(d.name), panel: <ZeroPanel debt={chart} /> }] : [];
+    return [{
+      key: d.id,
+      label: short(d.name),
+      panel: <LoanPanel name={d.name} balanceCents={d.balanceCents} paymentCents={d.paymentCents} aprBps={d.aprBps} interestLeftCents={d.interestLeftCents} schedule={payoffSchedule(d.balanceCents, d.paymentCents, d.aprBps, today)} />,
+    }];
+  });
+  // The 0% balance first: it's the one with a deadline.
+  tabs.sort((x, y) => Number(debt.installment.find((d) => d.id === y.key)?.kind === "zero") - Number(debt.installment.find((d) => d.id === x.key)?.kind === "zero"));
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <InsightsTabs />
       <TabHeading title="Debt" />
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <p className="text-sm font-semibold text-muted">Total owed</p>
-          <p className="tnum mt-1 text-3xl font-bold">{money(debt.totalCents)}</p>
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-muted">Loans (installment)</p>
-          <p className="tnum mt-1 text-3xl font-bold">{money(debt.installmentCents)}</p>
-        </Card>
-        <Card>
-          <p className="text-sm font-semibold text-muted">Cards (revolving)</p>
-          <p className="tnum mt-1 text-3xl font-bold">{money(debt.revolvingCents)}</p>
-          <p className="mt-1 text-xs text-muted">{fees ? `${exact(fees)} in interest and fees this year` : "No interest or fees this year"}</p>
-        </Card>
-      </div>
+      <Card>
+        <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-3">
+          <div>
+            <dt className="text-xs font-semibold text-muted">Total owed</dt>
+            <dd className="tnum text-2xl font-bold">{money(debt.totalCents)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold text-muted">Loans (installment)</dt>
+            <dd className="tnum text-2xl font-bold">{money(debt.installmentCents)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs font-semibold text-muted">Cards (revolving)</dt>
+            <dd className="tnum text-2xl font-bold">
+              {money(debt.revolvingCents)} <span className={`text-xs font-semibold ${fees ? "text-danger" : "text-muted"}`}>{fees ? `${exact(fees)} interest and fees this year` : "no interest or fees this year"}</span>
+            </dd>
+          </div>
+        </dl>
+      </Card>
 
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
+      <div className="space-y-4">
       <Card>
         <h2 className="text-base font-bold">Loans</h2>
         {debt.installment.length ? (
@@ -62,7 +81,7 @@ export default async function DebtPage() {
               <tbody className="divide-y divide-line">
                 {debt.installment.map((d) => (
                   <tr key={d.id} className="align-top">
-                    <td className="py-2.5 pr-3">
+                    <td className="py-2 pr-3">
                       <span className="font-semibold">{d.name}</span>
                       <span className="block text-xs text-muted">
                         {d.kind === "zero" ? `0% until ${day(d.endsOn!)}, ${d.endsOn!.slice(0, 4)}` : d.source === "bank" ? "Balance from the bank" : d.asOf ? `Balance as of ${day(d.asOf)}, less payments since` : ""}
@@ -70,10 +89,10 @@ export default async function DebtPage() {
                       </span>
                       {d.kind === "bill" && d.aprBps === null ? <LoanForm id={d.id} balance={false} /> : null}
                     </td>
-                    <td className="tnum py-2.5 pr-3 text-right font-semibold">{money(d.balanceCents)}</td>
-                    <td className="tnum py-2.5 pr-3 text-right">{money(d.paymentCents)}/mo</td>
-                    <td className="tnum py-2.5 pr-3 text-right">{d.aprBps === null ? <span className="text-muted">?</span> : pct(d.aprBps)}</td>
-                    <td className={`py-2.5 text-right ${d.neverEnds || (d.endsOn && d.lastMonth && d.lastMonth > d.endsOn.slice(0, 7)) ? "text-danger" : ""}`}>
+                    <td className="tnum py-2 pr-3 text-right font-semibold">{money(d.balanceCents)}</td>
+                    <td className="tnum py-2 pr-3 text-right">{money(d.paymentCents)}/mo</td>
+                    <td className="tnum py-2 pr-3 text-right">{d.aprBps === null ? <span className="text-muted">?</span> : pct(d.aprBps)}</td>
+                    <td className={`py-2 text-right ${d.neverEnds || (d.endsOn && d.lastMonth && d.lastMonth > d.endsOn.slice(0, 7)) ? "text-danger" : ""}`}>
                       {d.neverEnds ? "Never: the payment is below the interest" : d.lastMonth ? monthYear(d.lastMonth) : "—"}
                       {d.paymentsLeft ? <span className="block text-xs text-muted">{d.paymentsLeft} payments</span> : null}
                     </td>
@@ -115,12 +134,11 @@ export default async function DebtPage() {
         </Card>
       ) : null}
 
-      <div className="grid gap-4 lg:grid-cols-2">
       <Card>
         <h2 className="text-base font-bold">Credit cards</h2>
         <ul className="mt-2 divide-y divide-line">
           {debt.revolving.map((c) => (
-            <li key={c.id} className="py-2.5">
+            <li key={c.id} className="py-2">
               <details className="group">
                 <summary className="cursor-pointer list-none">
                   <span className="flex flex-wrap items-baseline justify-between gap-3 text-sm">
@@ -159,7 +177,8 @@ export default async function DebtPage() {
         </ul>
       </Card>
 
-      {chart ? <DebtChartCard debt={chart} /> : null}
+      </div>
+      {tabs.length ? <PayoffSwitcher tabs={tabs} /> : null}
       </div>
     </div>
   );

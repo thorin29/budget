@@ -59,7 +59,7 @@ export function MakeBill({ id }: { id: string }) {
 }
 
 /** "It's Church": records this charge as that bill's payment. */
-function MatchBill({ txnId, bill }: { txnId: string; bill: { id: string; name: string } }) {
+function MatchBill({ txnId, bill }: { txnId: string; bill: { id: string; name: string; ym?: string | null } }) {
   const [state, setState] = useState<EnvelopeState | null>(null);
   const [pending, start] = useTransition();
   if (state?.ok) return <span className="shrink-0 text-ok">Recorded</span>;
@@ -69,14 +69,14 @@ function MatchBill({ txnId, bill }: { txnId: string; bill: { id: string; name: s
       disabled={pending}
       title={state && !state.ok ? state.message : `Record this charge as ${bill.name}'s payment`}
       className={`shrink-0 font-semibold hover:underline ${state && !state.ok ? "text-danger" : "text-accent-text"}`}
-      onClick={() => start(async () => setState(await matchChargeToBillAction(txnId, bill.id)))}
+      onClick={() => start(async () => setState(await matchChargeToBillAction(txnId, bill.id, bill.ym ?? null)))}
     >
       {pending ? "Recording…" : state && !state.ok ? state.message : `It's ${bill.name}`}
     </button>
   );
 }
 
-export function Txns({ rows, bills = true, matches }: { rows: PlanTxn[]; bills?: boolean; matches?: Record<string, Array<{ id: string; name: string }>> }) {
+export function Txns({ rows, bills = true, matches }: { rows: PlanTxn[]; bills?: boolean; matches?: Record<string, Array<{ id: string; name: string; ym?: string | null }>> }) {
   if (!rows.length) return <p className="text-xs text-muted">Nothing yet.</p>;
   return (
     <ul className="divide-y divide-line text-xs">

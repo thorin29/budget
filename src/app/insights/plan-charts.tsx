@@ -344,7 +344,8 @@ export function PaceChart({ plan }: { plan: MonthPlanView }) {
 
 // ---------------------------------------------------------------- the 0% balance
 
-export function DebtChartCard({ debt }: { debt: DebtChart }) {
+/** The 0% balance against its offer end: so far, at this payment, and at the payment that clears it. */
+export function ZeroPanel({ debt }: { debt: DebtChart }) {
   const W = 480, H = 220, L = 60, R = 12, T = 12, B = 24;
   const start = debt.points[0]?.date ?? debt.projected[0]?.date;
   const endDate = new Date(Date.UTC(Number(debt.endsOn.slice(0, 4)), Number(debt.endsOn.slice(5, 7)) - 1 + 2, 1)).toISOString().slice(0, 10);
@@ -357,12 +358,12 @@ export function DebtChartCard({ debt }: { debt: DebtChart }) {
   const late = !clears || clears > debt.endsOn;
   const owedAtEnd = debt.projected.filter((p) => p.date <= debt.endsOn).at(-1)?.cents ?? debt.balanceCents;
   return (
-    <Card>
-      <h2 className="text-base font-bold">Is the 0% balance on track?</h2>
+    <div>
+      <p className="text-sm font-semibold">Is the 0% balance on track?</p>
       <p className="mt-0.5 text-xs text-muted">
         {debt.name ? `${debt.name}: ` : ""}
         {money(debt.balanceCents)} owed; the offer ends {day(debt.endsOn)}, {debt.endsOn.slice(0, 4)}.{" "}
-        <b className={late ? "text-warn" : "text-ok"}>
+        <b className={`block ${late ? "text-warn" : "text-ok"}`}>
           {late
             ? `At ${money(debt.monthlyCents)} a month about ${money(owedAtEnd)} is still owed when it ends${debt.targetCents ? `; ${money(debt.targetCents)} a month clears it` : ""}.`
             : `At ${money(debt.monthlyCents)} a month it clears in ${monthShort(clears!, true)}, before the offer ends.`}
@@ -401,7 +402,56 @@ export function DebtChartCard({ debt }: { debt: DebtChart }) {
         <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block w-5 border-t-2 border-dashed border-[var(--series-1)]" />At {money(debt.monthlyCents)} a month</li>
         {debt.targetCents ? <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block w-5 border-t-2 border-dotted border-[var(--series-3)]" />At {money(debt.targetCents)} a month</li> : null}
       </ul>
-    </Card>
+    </div>
+  );
+}
+
+/** A loan's balance from today to paid off, at its payment and rate. */
+export function LoanPanel({ name, balanceCents, paymentCents, aprBps, interestLeftCents, schedule }: { name: string; balanceCents: number; paymentCents: number; aprBps: number | null; interestLeftCents: number | null; schedule: Array<{ date: string; cents: number }> }) {
+  const W = 480, H = 220, L = 60, R = 12, T = 12, B = 24;
+  const last = schedule[schedule.length - 1];
+  const done = last && last.cents === 0;
+  const start = schedule[0]?.date ?? "";
+  const end = last?.date ?? start;
+  const t0 = at(start), t1 = Math.max(at(end), t0 + 1);
+  const hi = Math.max(1, balanceCents);
+  const x = (d: string) => L + ((at(d) - t0) / (t1 - t0)) * (W - L - R);
+  const y = (c: number) => T + ((hi - c) / hi) * (H - T - B);
+  const path = schedule.map((p, i) => `${i ? "L" : "M"}${x(p.date)} ${y(p.cents)}`).join("");
+  // A dot each January, to read the years off the line.
+  const years = schedule.filter((p, i) => i > 0 && p.date.slice(5, 7) === "01");
+  return (
+    <div>
+      <p className="text-sm font-semibold">{name}</p>
+      <p className="mt-0.5 text-xs text-muted">
+        {money(balanceCents)} owed at {money(paymentCents)} a month{aprBps ? ` and ${(aprBps / 100).toFixed(2)}%` : ", no interest"}.
+        <b className={`block ${done ? "text-ok" : "text-danger"}`}>
+          {done ? `Paid off ${monthShort(end, true)}${interestLeftCents ? `, with about ${money(interestLeftCents)} of interest still to pay` : ""}.` : "At this payment the balance never reaches zero."}
+        </b>
+      </p>
+      <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" role="img" aria-label={`${name}: ${money(balanceCents)} owed${done ? `, paid off ${monthShort(end, true)}` : ""}`}>
+        {ticks(0, hi).map((t) => (
+          <g key={t}>
+            <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} stroke="var(--border)" />
+            <text x={L - 6} y={y(t) + 4} textAnchor="end" fontSize="11" className="fill-muted">
+              {money(t)}
+            </text>
+          </g>
+        ))}
+        <path d={path} fill="none" stroke="var(--series-1)" strokeWidth="2.5" />
+        {years.map((p) => (
+          <circle key={p.date} cx={x(p.date)} cy={y(p.cents)} r="2.5" fill="var(--series-1)">
+            <title>{`${monthShort(p.date, true)}: ${money(p.cents)} owed`}</title>
+          </circle>
+        ))}
+        <text x={L} y={H - 6} fontSize="11" className="fill-muted">
+          {monthShort(start, true)}
+        </text>
+        <text x={W - R} y={H - 6} textAnchor="end" fontSize="11" className="fill-muted">
+          {monthShort(end, true)}
+        </text>
+      </svg>
+    </div>
   );
 }
 

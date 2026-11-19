@@ -17,6 +17,8 @@ const money = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(Math.roun
 const exact = (cents: number) => `${cents < 0 ? "−" : ""}$${(Math.abs(cents) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
+const monthName = (ym: string) => new Date(`${ym}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
+
 const STATUS: Record<string, { label: string; cls: string }> = {
   paid: { label: "Paid", cls: "bg-ok-soft text-ok" },
   due: { label: "Due", cls: "bg-neutral-soft text-muted ring-1 ring-line" },
@@ -25,14 +27,27 @@ const STATUS: Record<string, { label: string; cls: string }> = {
 };
 
 /** A line of money out that opens to what's in it. */
-function OutRow({ title, cents, note, children, open = false }: { title: string; cents: number; note?: string; children?: ReactNode; open?: boolean }) {
+const BADGE: Record<string, { label: string; cls: string }> = {
+  ...STATUS,
+  partly: { label: "Partly paid", cls: "bg-warn-soft text-warn" },
+  actual: { label: "Actual", cls: "bg-ok-soft text-ok" },
+};
+
+/** Paid, due or partly paid, from what's paid of the total. */
+const payState = (paidCents: number, totalCents: number) => (totalCents <= 0 || paidCents >= totalCents ? "paid" : paidCents <= 0 ? "due" : "partly");
+
+function OutRow({ title, cents, note, badge, children, open = false }: { title: string; cents: number; note?: string; badge?: string; children?: ReactNode; open?: boolean }) {
+  const b = badge ? BADGE[badge] : null;
   const head = (
     <span className="flex items-baseline justify-between gap-3">
       <span className="min-w-0">
         <span className={`block text-sm font-semibold ${children ? "group-open:underline" : ""}`}>{title}</span>
         {note ? <span className="block text-xs text-muted">{note}</span> : null}
       </span>
-      <span className="tnum shrink-0 text-sm font-semibold">{money(cents)}</span>
+      <span className="flex shrink-0 items-center gap-2">
+        {b ? <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${b.cls}`}>{b.label}</span> : null}
+        <span className="tnum text-sm font-semibold">{money(cents)}</span>
+      </span>
     </span>
   );
   if (!children) return <li className="py-2.5">{head}</li>;
@@ -95,8 +110,8 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
       t.id,
       plan.bills.items
         .filter((b) => b.status !== "skipped" && t.category && b.category === t.category)
-        .filter((b, i, all) => all.findIndex((x) => x.lineItemId === b.lineItemId) === i)
-        .map((b) => ({ id: b.lineItemId, name: b.name })),
+        .filter((b, i, all) => all.findIndex((x) => x.lineItemId === b.lineItemId && x.from === b.from) === i)
+        .map((b) => ({ id: b.lineItemId, name: b.from ? `${b.name} (${monthName(b.from)})` : b.name, ym: b.from })),
     ]),
   );
   const outSoFar = plan.bills.paidCents + (plan.debt.source === "paid" ? plan.debt.cents : 0) + plan.spentCents;
@@ -145,12 +160,13 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
             </span>
           </div>
           <ul className="mt-1 divide-y divide-line">
-            <OutRow title="Bills" cents={sum(bills)} note={`${money(paid(bills))} paid${bills.some((b) => b.status === "overdue") ? " · some overdue" : ""}`}>
+            <OutRow title="Bills" cents={sum(bills)} badge={payState(paid(bills), sum(bills))} note={`${money(paid(bills))} paid of ${money(sum(bills))}${bills.some((b) => b.status === "overdue") ? " · some overdue" : ""}`}>
               <BillList rows={bills} />
             </OutRow>
             <OutRow
               title={SUBSCRIPTIONS}
               cents={sum(subs)}
+              badge={subs.length ? payState(paid(subs), sum(subs)) : undefined}
               note={`${subs.length} bill${subs.length === 1 ? "" : "s"}${repeats.length ? ` · ${repeats.length} more repeating in the bank` : ""}`}
               open={repeats.length > 0}
             >
@@ -173,14 +189,14 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
               ) : null}
             </OutRow>
             {plan.debt.cents > 0 ? (
-              <OutRow title={`Debt payment${plan.debt.name ? `: ${plan.debt.name}` : ""}`} cents={plan.debt.cents} note={plan.debt.source === "paid" ? "Paid" : plan.debt.dueOn ? `Due ${day(plan.debt.dueOn)}` : undefined} />
+              <OutRow title={`Debt payment${plan.debt.name ? `: ${plan.debt.name}` : ""}`} cents={plan.debt.cents} badge={plan.debt.source === "paid" ? "paid" : "due"} note={plan.debt.source === "paid" ? undefined : plan.debt.dueOn ? `Due ${day(plan.debt.dueOn)}` : undefined} />
             ) : null}
             {plan.bills.other.length ? (
-              <OutRow title="Bill-category charges not on the bill list" cents={plan.bills.otherCents} open>
+              <OutRow title="Bill-category charges not on the bill list" cents={plan.bills.otherCents} badge="actual" open>
                 <Txns rows={plan.bills.other} matches={matches} />
               </OutRow>
             ) : null}
-            <OutRow title="Everyday spending" cents={plan.spentCents} note="Essentials, Extras and Unplanned, by transaction date">
+            <OutRow title="Everyday spending" cents={plan.spentCents} badge="actual" note="Essentials, Extras and Unplanned, by transaction date">
               <div className="space-y-2">
                 {KINDS.map(({ tier, label }) => {
                   const groups = plan.groups.filter((g) => g.tier === tier && g.spentCents !== 0);

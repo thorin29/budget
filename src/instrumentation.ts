@@ -2,6 +2,7 @@
  * Runs once when the server starts:
  *  - seals any identifying text still stored in plain text (needs BANK_SYNC_KEY);
  *  - types feed accounts and links the bills balance to its bank account;
+ *  - runs any one-time fixes to saved data (src/server/data-fixes.ts);
  *  - starts the daily bank sync check, which does nothing until bank sync is
  *    connected. BANK_SYNC_SCHEDULER=off turns the automatic sync off; "Sync
  *    now" in Settings still works.
@@ -22,6 +23,8 @@ export async function register(): Promise<void> {
         // transfer with only one side in the feed) applies to rows already received.
         const { refreshTransfers } = await import("./server/bank/sync");
         await refreshTransfers(new Date(Date.now() - 120 * 86_400_000));
+        const { runDataFixes } = await import("./server/data-fixes");
+        await runDataFixes();
         const { applyCategories } = await import("./server/categorize");
         await applyCategories();
         const { runBillAutomation } = await import("./server/bills-auto");

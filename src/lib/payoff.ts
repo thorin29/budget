@@ -107,3 +107,23 @@ export function payoffStatus(input: PayoffInput): PayoffStatus | null {
     latestPaidMonth: latest?.month ?? null,
   };
 }
+
+/**
+ * The balance month by month at this payment and rate, from today until it reaches zero (at
+ * most 40 years). The first point is today; then one at the end of each month, this one first.
+ */
+export function payoffSchedule(balanceCents: number, paymentCents: number, aprBps: number | null, today: string): Array<{ date: string; cents: number }> {
+  const out = [{ date: today, cents: Math.max(0, balanceCents) }];
+  if (balanceCents <= 0 || paymentCents <= 0) return out;
+  const r = aprBps && aprBps > 0 ? aprBps / 10_000 / 12 : 0;
+  let owed = balanceCents;
+  const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
+  for (let k = 1; owed > 0 && k <= 480; k++) {
+    const interest = Math.round(owed * r);
+    if (paymentCents <= interest) break;
+    owed = Math.max(0, owed + interest - paymentCents);
+    // Each payment at the end of its month, this month first (the same count as the payoff date).
+    out.push({ date: new Date(Date.UTC(y, m - 1 + k, 0)).toISOString().slice(0, 10), cents: owed });
+  }
+  return out;
+}

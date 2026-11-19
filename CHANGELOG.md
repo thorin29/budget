@@ -3,6 +3,40 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.67.0]
+
+No migration; two one-time data fixes run on the first start (see below). The phone app is
+unchanged.
+
+### Added
+- **Debt: one Payoff card with a button for each loan.** The 0% balance keeps its "on track?"
+  chart. Every other loan shows its balance from today to paid off, at its payment and rate, with
+  a dot each January. The "At $X a month…" line now starts on its own line.
+
+### Changed
+- **The Debt page fits on one screen:** the three totals in one strip; Loans, Loans missing a
+  balance and Credit cards on the left; Payoff on the right.
+- **Money tab expenses carry a badge like income:** Paid, Due or Partly paid for bills,
+  Subscriptions & autopay and the debt payment ("$4,000 paid of $6,500"), and Actual for
+  bill-category charges and everyday spending.
+- **"It's Church" picks the right month.** A payment of the bill recorded in the last two months
+  without a charge gets this charge linked to it. That happens when a payment was linked to a
+  pending charge the bank later replaced with the posted one. A past-due bill carried into this
+  month says which month it's for. Otherwise the charge pays the month it posted.
+- **Subscriptions are bills.** The default budgets no longer have a separate Subscriptions budget;
+  subscription, streaming and autopay categories go with the bills.
+
+### Data fixes (run once on the first start)
+- **Parking & tolls:** a new category in the Fuel budget. Every toll and parking charge (NTTA,
+  toll tags, ParkWhiz, ParkMobile, SpotHero, "parking") moves into it, and the merchants are
+  remembered so later charges follow.
+- **Subscriptions into bills:** an existing Subscriptions budget's categories move to the bills
+  group, and the budget is removed.
+
+### Fixed
+- The Insights tabs no longer push the page sideways on a phone now that the month picker shares
+  their row.
+
 ## [0.66.0]
 
 No migration. The phone app is unchanged.

@@ -18,7 +18,7 @@ const SPORTS = "hockey|soccer|baseball|softball|football|basketball|lacrosse|vol
 
 export const DEFAULT_GROUPS: DefaultGroup[] = [
   // Spending in these categories is paid through the bills.
-  { name: "Paid as bills", tier: "BILLS", match: /housing|mortgage|\brent\b|utilit|phone|internet|insurance|\bloans?\b|\btaxes\b|\bdebt\b|^payments?$|^giving$|^church$|tithe|donat|charit|saving|invest|crypto|retirement/ },
+  { name: "Paid as bills", tier: "BILLS", match: /housing|mortgage|\brent\b|utilit|phone|internet|insurance|\bloans?\b|\btaxes\b|\bdebt\b|^payments?$|^giving$|^church$|tithe|donat|charit|saving|invest|crypto|retirement|subscriptions?|streaming|autopay/ },
   // Needed every month.
   { name: "Groceries & household", tier: "ESSENTIAL", match: /grocer|supermarket|warehouse|costco|sam's|target|walmart|^food$|household|toiletr|personal care/ },
   { name: "Fuel", tier: "ESSENTIAL", match: /^fuel$|^gas$|gasoline|\bfuel\b|transit|parking|\btolls?\b/ },
@@ -27,7 +27,6 @@ export const DEFAULT_GROUPS: DefaultGroup[] = [
   { name: "Eating out", tier: "FLEXIBLE", match: /fast food|restaurants?|dining|eating out|coffee|treats|takeout|bars?$/ },
   { name: "Clothing", tier: "FLEXIBLE", match: /cloth|apparel|shoes|kohl/ },
   { name: "Shopping", tier: "FLEXIBLE", match: /shopping|^home$|electronics|furniture|decor/ },
-  { name: "Subscriptions", tier: "FLEXIBLE", match: /subscriptions?|streaming|memberships?/ },
   { name: "Fitness", tier: "FLEXIBLE", match: /fitness|gym/ },
   { name: "Gifts & trips", tier: "FLEXIBLE", match: /gifts?|occasions?|holiday|christmas|travel|vacation|trips?/ },
   // Irregular: no limit, never averaged.
