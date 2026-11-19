@@ -3,6 +3,15 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.69.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **"This month" is now "Bills & income"** in the sidebar, since it moves between months. The
+  page where bills and income are set up, under Settings, is now **Bill setup**, and the links to
+  it say so.
+
 ## [0.68.0]
 
 No migration. The phone app is unchanged.

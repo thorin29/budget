@@ -107,7 +107,7 @@ export default async function DebtPage() {
         {twins.map(([x, y]) => (
           <p key={`${x.id}-${y.id}`} className="mt-3 rounded-xl bg-warn-soft px-3.5 py-2.5 text-sm text-warn">
             <b>{x.name}</b> and <b>{y.name}</b> both pay {money(x.paymentCents)} a month. If they&rsquo;re the same loan, delete one in{" "}
-            <Link href="/line-items" className="font-semibold underline">Bills &amp; income</Link> so its payment isn&rsquo;t counted twice.
+            <Link href="/line-items" className="font-semibold underline">Bill setup</Link> so its payment isn&rsquo;t counted twice.
           </p>
         ))}
       </Card>
@@ -118,7 +118,7 @@ export default async function DebtPage() {
           <p className="mt-0.5 text-xs text-muted">
             These bills look like loans. Enter what&rsquo;s left to pay and the interest rate (APR) from the lender&rsquo;s statement or website, and the payoff date is
             worked out. A loan account linked from the bank keeps its own balance: set that on the bill in{" "}
-            <Link href="/line-items" className="font-semibold text-accent-text hover:underline">Bills &amp; income</Link>.
+            <Link href="/line-items" className="font-semibold text-accent-text hover:underline">Bill setup</Link>.
           </p>
           <ul className="mt-2 divide-y divide-line">
             {debt.needsDetails.map((l) => (

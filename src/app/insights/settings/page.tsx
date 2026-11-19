@@ -21,7 +21,7 @@ export default async function InsightsSettingsPage() {
         <h2 className="text-base font-bold">Elsewhere</h2>
         <ul className="mt-2 space-y-1 text-sm">
           <li>
-            <Link href="/line-items" className="font-semibold text-accent-text hover:underline">Bills &amp; income</Link>{" "}
+            <Link href="/line-items" className="font-semibold text-accent-text hover:underline">Bill setup</Link>{" "}
             <span className="text-muted">· every bill and paycheck, schedules, and loan balances</span>
           </li>
           <li>

@@ -16,7 +16,7 @@ interface NavItem {
 const MAIN: NavItem[] = [
   {
     href: "/month",
-    label: "This month",
+    label: "Bills & income",
     // "What can I pay?" opens from the month's 45-day card.
     match: ["/month", "/projection"],
     icon: "calendar-blank",
@@ -51,7 +51,7 @@ const MAIN: NavItem[] = [
 const SETTINGS: NavItem = {
   href: "/settings",
   label: "Settings",
-  // Bills & income (line items) lives under Settings.
+  // Bill setup (line items) lives under Settings.
   match: ["/settings", "/setup", "/import", "/line-items"],
   icon: "gear-six",
 };

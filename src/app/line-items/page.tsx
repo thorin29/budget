@@ -152,7 +152,7 @@ export default async function LineItemsPage({
         ← Settings
       </Link>
       <PageHeading
-        title="Bills & income"
+        title="Bill setup"
         description="The recurring things that make up a month. The usual amount lives here; a single month that differs is changed on the month view."
         action={
           <div className="flex items-center gap-2">
