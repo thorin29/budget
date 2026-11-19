@@ -89,20 +89,22 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
   const paid = (rows: PlanBill[]) => rows.filter((b) => b.status === "paid").reduce((t, b) => t + b.cents, 0);
   const outTotal = plan.bills.totalCents + plan.debt.cents + plan.spentCents;
   const net = plan.income.totalCents - outTotal;
+  const outSoFar = plan.bills.paidCents + (plan.debt.source === "paid" ? plan.debt.cents : 0) + plan.spentCents;
+  // Only people with money moving this month; an old running balance on its own isn't news.
+  const managed = (insights?.managed ?? []).filter((x) => x.monthInCents !== 0 || x.monthOutCents !== 0);
 
   return (
     <div className="space-y-6">
       <InsightsTabs />
       <TabHeading
         title="Money"
-        description="What came in and what went out, as it happens. No budget amounts here, only bills and what was actually spent."
         picker={{ path: "/insights/money", year: picked.year, month: picked.month }}
       />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
         <Card>
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-base font-bold">Money in</h2>
+            <h2 className="text-base font-bold">Income</h2>
             <span className="tnum text-sm">
               <b>{money(plan.income.receivedCents)}</b> <span className="text-muted">of {money(plan.income.totalCents)} expected</span>
             </span>
@@ -123,16 +125,16 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
             ))}
           </ul>
           <p className={`mt-3 flex justify-between border-t border-line pt-2 text-sm font-semibold ${net < 0 ? "text-danger" : ""}`}>
-            <span>In minus out{plan.closed ? "" : ", counting bills still due"}</span>
+            <span>Income minus expenses{plan.closed ? "" : ", expected"}</span>
             <span className="tnum">{money(net)}</span>
           </p>
         </Card>
 
         <Card>
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-base font-bold">Money out</h2>
+            <h2 className="text-base font-bold">Expenses</h2>
             <span className="tnum text-sm">
-              <b>{money(outTotal)}</b> <span className="text-muted">bills in full, spending so far</span>
+              <b>{money(outSoFar)}</b> <span className="text-muted">of {money(outTotal)} expected</span>
             </span>
           </div>
           <ul className="mt-1 divide-y divide-line">
@@ -171,7 +173,7 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
                 <Txns rows={plan.bills.other} />
               </OutRow>
             ) : null}
-            <OutRow title="Everyday spending" cents={plan.spentCents} note="Groceries, fuel, eating out, repairs and the rest, by transaction date">
+            <OutRow title="Everyday spending" cents={plan.spentCents} note="Essentials, Extras and Unplanned, by transaction date">
               <div className="space-y-2">
                 {KINDS.map(({ tier, label }) => {
                   const groups = plan.groups.filter((g) => g.tier === tier && g.spentCents !== 0);
@@ -226,14 +228,14 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
         </Card>
       ) : null}
 
-      {insights?.managed.length ? (
+      {managed.length ? (
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-base font-bold">Managed for others</h2>
             <span className="text-xs text-muted">Kept out of your spending and income</span>
           </div>
           <ul className="mt-3 divide-y divide-line text-sm">
-            {insights.managed.map((x) => (
+            {managed.map((x) => (
               <li key={x.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
                 <span>
                   <Link href={`/transactions?category=${x.id}`} className="font-semibold hover:underline">
@@ -245,7 +247,7 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
                 </span>
                 <span className="text-right">
                   <span className="tnum block font-bold">{exact(Math.abs(x.heldCents))}</span>
-                  <span className="text-xs text-muted">{x.heldCents >= 0 ? "held for others" : "fronted by you"}</span>
+                  <span className="text-xs text-muted">{x.heldCents >= 0 ? "held for others, all time" : "fronted by you, all time"}</span>
                 </span>
               </li>
             ))}

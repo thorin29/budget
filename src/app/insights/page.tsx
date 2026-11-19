@@ -81,6 +81,15 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
   const current = !!(plan && cash && plan.month === cash.today.slice(0, 7));
   const outlook: OutlookView | null = current && cash?.check ? await getOutlook(cash.today, plan!.debt.cents).catch((error: unknown) => (console.error("Outlook:", error), null)) : null;
   const carry = plan && cash?.check ? carryOver(plan, cash.check) : null;
+  // The bank balance as things stand: card payments leave on their due dates, nothing set aside.
+  const bank =
+    cash && outlook
+      ? (() => {
+          const upTo = cash.steps.filter((st) => st.date <= outlook.to);
+          const low = upTo.reduce((l, st) => (st.balanceCents < l.cents ? { cents: st.balanceCents, on: st.date } : l), { cents: cash.startCents, on: cash.today });
+          return { lowCents: low.cents, lowOn: low.on, endCents: upTo.length ? upTo[upTo.length - 1].balanceCents : cash.startCents, endOn: outlook.to };
+        })()
+      : null;
   const thisMonth = plan ? monthLabel(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), "long").split(" ")[0] : "";
 
   return (
@@ -96,7 +105,7 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
             <IncomeVsExpenses plan={plan} check={cash?.check} />
             <div className="flex flex-col gap-4">
               {outlook && carry ? (
-                <OutlookCards outlook={outlook} carry={carry} thisMonth={thisMonth} />
+                <OutlookCards outlook={outlook} carry={carry} thisMonth={thisMonth} bank={bank} />
               ) : (
                 <PlanHero plan={plan} />
               )}

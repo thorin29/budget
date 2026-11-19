@@ -3,6 +3,24 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.63.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Available to spend shows the projected bank balance:** the lowest point with its date, and
+  the balance on the last date. Bills and card payments leave on their due dates, from what's
+  charged so far. It replaces the always-yes check.
+- **Money tab:**
+  - The cards are now **Income** and **Expenses**.
+  - Expenses reads "$X of $Y expected," like Income: paid and spent so far, out of the bills in
+    full, the debt payment and spending.
+  - The footer reads "Income minus expenses."
+  - Everyday spending is described as "Essentials, Extras and Unplanned."
+  - The description under the title is gone.
+- **Managed for others** only shows people with money moving in the month you're viewing. The
+  balance is labeled as all time.
+
 ## [0.62.0]
 
 No migration. The phone app is unchanged.

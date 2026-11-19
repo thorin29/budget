@@ -183,7 +183,7 @@ export function HowItAddsUp({ plan }: { plan: MonthPlanView }) {
             </Link>
           </Step>
         ) : null}
-        <Step sign="=" label="The pool for everything else" cents={plan.poolCents} strong note="Groceries, fuel, clothes, eating out, repairs and the rest" />
+        <Step sign="=" label="The pool for everything else" cents={plan.poolCents} strong note="Essentials, Extras and Unplanned spending" />
         <Step sign="−" label={plan.closed ? "Spent" : "Spent so far"} cents={plan.spentCents} note="On cards and from checking, by transaction date">
           <ul className="space-y-1 text-xs">
             <li className="flex justify-between"><span>Essentials</span><span className="tnum">{exact(byTier("ESSENTIAL"))}</span></li>

@@ -192,7 +192,14 @@ export interface CarryOver {
   owedCents: number;
 }
 
-export function OutlookCards({ outlook, carry, thisMonth }: { outlook: OutlookView; carry: CarryOver; thisMonth: string }) {
+export interface BankPath {
+  lowCents: number;
+  lowOn: string;
+  endCents: number;
+  endOn: string;
+}
+
+export function OutlookCards({ outlook, carry, thisMonth, bank }: { outlook: OutlookView; carry: CarryOver; thisMonth: string; bank: BankPath | null }) {
   const { nowCents, budgetsCents } = carry;
   const [mode, setMode] = useState<Case>("worst");
   const start = mode === "worst" ? budgetsCents : nowCents;
@@ -256,7 +263,7 @@ export function OutlookCards({ outlook, carry, thisMonth }: { outlook: OutlookVi
           ) : null}
         </div>
       </Card>
-      <AvailableCard a={a} mode={mode} stretches={parts} carry={carry} thisMonth={thisMonth} className="flex-1" />
+      <AvailableCard a={a} mode={mode} stretches={parts} carry={carry} thisMonth={thisMonth} bank={bank} className="flex-1" />
     </>
   );
 }
