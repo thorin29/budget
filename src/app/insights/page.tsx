@@ -8,7 +8,7 @@ import { PlanHero } from "./month-plan";
 import { IncomeVsExpenses, carryOver } from "./plan-charts";
 import { OutlookCards } from "./outlook";
 import { getOutlook, type OutlookView } from "@/server/outlook";
-import { TabHeading, monthLabel, pickMonth, shiftMonth } from "./shared";
+import { MonthPicker, TabHeading, monthLabel, pickMonth, shiftMonth } from "./shared";
 
 export const dynamic = "force-dynamic";
 
@@ -94,11 +94,8 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
 
   return (
     <div className="space-y-6">
-      <InsightsTabs />
-      <TabHeading
-        title="Overview"
-        picker={{ path: "/insights", year: picked.year, month: picked.month }}
-      />
+      <InsightsTabs right={<MonthPicker {...{ path: "/insights", year: picked.year, month: picked.month }} />} />
+      <TabHeading title="Overview" />
       {plan ? (
         <>
           <div className="grid gap-4 lg:grid-cols-2">

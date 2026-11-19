@@ -23,10 +23,7 @@ export default async function UncategorizedPage() {
       <Link href="/insights" className="text-sm text-muted hover:text-foreground">
         ← Insights
       </Link>
-      <PageHeading
-        title="Sort uncategorized"
-        description={`${whole(totalCents)} over the last 12 months has no category, from ${merchants.length} merchants, largest first. One choice per merchant settles every charge from it, past and future.`}
-      />
+      <PageHeading title="Sort uncategorized" />
       <Card>
         <ul className="space-y-1 text-sm text-muted">
           <li>

@@ -12,10 +12,7 @@ export default async function CashPage() {
   return (
     <div className="space-y-6">
       <InsightsTabs />
-      <TabHeading
-        title="Cash"
-        description="Whether checking covers every bill and full card payment on its due date, through next month, and what each paycheck has to pay."
-      />
+      <TabHeading title="Cash" />
       {cash ? <CashTimingCard cash={cash} /> : null}
     </div>
   );

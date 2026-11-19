@@ -3,6 +3,33 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.65.0]
+
+No migration. The phone app is unchanged. This zip also carries everything from 0.64.0.
+
+### Fixed
+- **Debt:** a bill whose end month has passed no longer shows as a loan, even if a balance was
+  entered on it.
+
+## [0.64.0]
+
+No migration. The phone app is unchanged.
+
+### Fixed
+- **Card interest and fees** only count what the card itself charged: interest, and late,
+  past-due, annual, member, foreign-transaction, cash-advance, balance-transfer, over-limit and
+  returned-payment fees, read from the bank's description. Spending in a category with "fee" in
+  its name, like sports or school fees, was being counted.
+
+### Changed
+- **Insights tabs:** the month picker sits on the same row as the tabs. The page title (kept for
+  screen readers) and the line under it are gone on every tab.
+- **Debt:**
+  - The explanations under Loans, Credit cards and the installment total are gone.
+  - When two loans pay the same amount and start with the same word, a note asks whether
+    they're the same loan entered twice.
+- **Sort uncategorized:** the line under the title is gone.
+
 ## [0.63.0]
 
 No migration. The phone app is unchanged.

@@ -21,10 +21,13 @@ export default async function DebtPage() {
   const debtCents = plan?.debt.cents ?? 0;
   const [debt, chart] = await Promise.all([getDebt(debtCents), plan ? debtChart(plan.today, debtCents, plan.debt.targetCents).catch(() => null) : null]);
   const fees = debt.revolving.reduce((t, c) => t + c.interestFeesCents, 0);
+  const firstWord = (n: string) => n.toLowerCase().match(/[a-z0-9]+/)?.[0] ?? n;
+  const bills = debt.installment.filter((d) => d.kind === "bill");
+  const twins = bills.flatMap((d, i) => bills.slice(i + 1).filter((e) => e.paymentCents === d.paymentCents && firstWord(e.name) === firstWord(d.name)).map((e) => [d, e] as const));
   return (
     <div className="space-y-6">
       <InsightsTabs />
-      <TabHeading title="Debt" description="Everything owed: loans paid down to zero, and the credit cards. Balances come from the bank where it shows them." />
+      <TabHeading title="Debt" />
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Card>
@@ -34,7 +37,6 @@ export default async function DebtPage() {
         <Card>
           <p className="text-sm font-semibold text-muted">Loans (installment)</p>
           <p className="tnum mt-1 text-3xl font-bold">{money(debt.installmentCents)}</p>
-          <p className="mt-1 text-xs text-muted">A set balance, paid down to zero</p>
         </Card>
         <Card>
           <p className="text-sm font-semibold text-muted">Cards (revolving)</p>
@@ -45,7 +47,6 @@ export default async function DebtPage() {
 
       <Card>
         <h2 className="text-base font-bold">Loans</h2>
-        <p className="mt-0.5 text-xs text-muted">With the interest rate, the payoff date counts interest. A balance you typed counts down by the payments recorded since; update it now and then for a loan with interest.</p>
         {debt.installment.length ? (
           <div className="mt-3 overflow-x-auto">
             <table className="w-full min-w-[560px] text-sm">
@@ -84,6 +85,12 @@ export default async function DebtPage() {
         ) : (
           <p className="mt-2 text-sm text-muted">No loans with a balance yet.</p>
         )}
+        {twins.map(([x, y]) => (
+          <p key={`${x.id}-${y.id}`} className="mt-3 rounded-xl bg-warn-soft px-3.5 py-2.5 text-sm text-warn">
+            <b>{x.name}</b> and <b>{y.name}</b> both pay {money(x.paymentCents)} a month. If they&rsquo;re the same loan, delete one in{" "}
+            <Link href="/line-items" className="font-semibold underline">Bills &amp; income</Link> so its payment isn&rsquo;t counted twice.
+          </p>
+        ))}
       </Card>
 
       {debt.needsDetails.length ? (
@@ -111,7 +118,6 @@ export default async function DebtPage() {
       <div className="grid gap-4 lg:grid-cols-2">
       <Card>
         <h2 className="text-base font-bold">Credit cards</h2>
-        <p className="mt-0.5 text-xs text-muted">Revolving debt: the balance moves with spending and payments. Paid in full means this statement is paid, so no interest is charged.</p>
         <ul className="mt-2 divide-y divide-line">
           {debt.revolving.map((c) => (
             <li key={c.id} className="py-2.5">

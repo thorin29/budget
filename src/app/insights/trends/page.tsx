@@ -5,7 +5,7 @@ import type { Suggestion } from "@/lib/insight-suggestions";
 import { getMonthPlan } from "@/server/month-plan";
 import { planHistory } from "@/server/plan-charts";
 import { HistoryChart } from "../plan-charts";
-import { TabHeading, monthLabel, monthParam, pickMonth } from "../shared";
+import { MonthPicker, TabHeading, monthLabel, monthParam, pickMonth } from "../shared";
 import { formatCents } from "@/lib/money";
 import { Card, EmptyState, StatCard, buttonClass } from "@/components/ui";
 
@@ -253,12 +253,8 @@ export default async function TrendsPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="space-y-6">
-      <InsightsTabs />
-      <TabHeading
-        title="Trends"
-        description="How the months compare: money in against out, where it went, what changed. Transfers between your accounts and money managed for others are left out."
-        picker={{ path: "/insights/trends", year: picked.year, month: picked.month }}
-      />
+      <InsightsTabs right={<MonthPicker {...{ path: "/insights/trends", year: picked.year, month: picked.month }} />} />
+      <TabHeading title="Trends" />
       {history.length >= 2 ? <HistoryChart rows={history} /> : null}
 
       {!data.hasData ? (

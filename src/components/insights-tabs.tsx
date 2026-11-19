@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Suspense } from "react";
+import { Suspense, type ReactNode } from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 
 /**
@@ -26,7 +26,7 @@ function Tabs({ active }: { active?: "spending" | "year" }) {
   const m = params?.get("m");
   const current = active === "year" ? "/year" : TABS.filter((t) => pathname === t.href || (t.href !== "/insights" && pathname.startsWith(t.href))).at(-1)?.href ?? "/insights";
   return (
-    <nav aria-label="Insights" className="-mx-1 mb-4 overflow-x-auto px-1">
+    <nav aria-label="Insights" className="-mx-1 overflow-x-auto px-1">
       <div className="inline-flex gap-1 rounded-xl bg-neutral-soft p-1">
         {TABS.map((t) => {
           const on = t.href === current;
@@ -46,10 +46,14 @@ function Tabs({ active }: { active?: "spending" | "year" }) {
   );
 }
 
-export function InsightsTabs({ active }: { active?: "spending" | "year" } = {}) {
+/** The tabs, with the month picker (or anything else) at the right end of the same row. */
+export function InsightsTabs({ active, right }: { active?: "spending" | "year"; right?: ReactNode } = {}) {
   return (
-    <Suspense fallback={<div className="mb-4 h-10" />}>
-      <Tabs active={active} />
-    </Suspense>
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+      <Suspense fallback={<div className="h-10" />}>
+        <Tabs active={active} />
+      </Suspense>
+      {right}
+    </div>
   );
 }

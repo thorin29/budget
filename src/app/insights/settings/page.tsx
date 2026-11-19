@@ -14,10 +14,7 @@ export default async function InsightsSettingsPage() {
   return (
     <div className="space-y-6">
       <InsightsTabs />
-      <TabHeading
-        title="Settings"
-        description="How the plan is set up: each budget's monthly limit, which categories go in which budget, and the 0% debt payment."
-      />
+      <TabHeading title="Settings" />
       <Limits plan={plan} />
       <EnvelopeSetupForm setup={setup} debt={{ cents: plan.debt.cents, automatic: plan.debt.source !== "set", targetCents: plan.debt.targetCents }} />
       <Card>

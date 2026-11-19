@@ -25,7 +25,11 @@ function localToday(): string {
 /** Bills that look like loans by name or category. */
 const LOAN_WORDS = /\b(loans?|mortgage|student|mohela|navient|nelnet|sallie|great lakes|aidvantage|(car|auto|truck|vehicle) (note|payment|finance)|financ\w*|ortho\w*|braces|payment plan|installment|lease|heloc)\b/i;
 /** Card charges that are interest or fees. */
-const INTEREST_FEE = /\b(interest|finance charge|late fee|annual fee|membership fee|foreign (transaction )?fee|cash advance fee|over ?limit fee|returned payment fee|fees?)\b/i;
+/**
+ * Interest and fees the card itself charged, from the bank's description. Not the category: a
+ * league or school fee paid with the card is spending, not a card fee.
+ */
+export const INTEREST_FEE = /\b(interest( charge)?|finance charge|late fee|past due fee|annual fee|member(ship)? fee|foreign (transaction )?fee|cash advance fee|balance transfer fee|over ?limit fee|returned payment fee)\b/i;
 const NOT_LOAN = "loan";
 
 export interface InstallmentDebt {
@@ -100,8 +104,11 @@ export async function getDebt(debtPaymentCents: number): Promise<DebtView> {
   ]);
 
   const ym = (y: number | null, m: number | null) => (y && m ? `${y}-${String(m).padStart(2, "0")}` : null);
+  // A bill that has ended (its last month is behind us) isn't a loan any more, even with a balance on it.
+  const nowYm = Number(today.slice(0, 4)) * 12 + Number(today.slice(5, 7));
+  const ended = (y: number | null, m: number | null) => y !== null && y * 12 + (m ?? 12) < nowYm;
   const installment: InstallmentDebt[] = payoffs
-    .filter((p) => !p.paidOff)
+    .filter((p) => !p.paidOff && !ended(p.endYear, p.endMonth))
     .map((p) => ({
       kind: "bill" as const, id: p.lineItemId, name: p.name, balanceCents: p.remainingCents, paymentCents: p.plannedCents, aprBps: p.aprBps,
       paymentsLeft: p.paymentsLeft, lastMonth: ym(p.lastYear, p.lastMonth), neverEnds: p.neverEnds, interestLeftCents: p.interestLeftCents,
@@ -137,7 +144,7 @@ export async function getDebt(debtPaymentCents: number): Promise<DebtView> {
       const s = status.get(c.id);
       const balanceCents = s ? s.owedNowCents : Math.max(0, -(c.balance === null ? 0 : toCents(c.balance)));
       const charged = fees
-        .filter((f) => f.accountId === c.id && (/interest|fees?/i.test(f.category?.name ?? "") || INTEREST_FEE.test(`${f.description} ${f.merchant}`)))
+        .filter((f) => f.accountId === c.id && INTEREST_FEE.test(f.description))
         .map((f) => ({ date: iso(f.postedOn), name: f.merchant || f.description, cents: -toCents(f.amount) }));
       return {
         id: c.id,

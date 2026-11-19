@@ -8,7 +8,7 @@ import { getInsights } from "@/server/insights";
 import { Card } from "@/components/ui";
 import { Txns } from "../month-plan";
 import { ComingUpRow } from "../coming-up";
-import { TabHeading, pickMonth } from "../shared";
+import { MonthPicker, TabHeading, pickMonth } from "../shared";
 import { RepeatActions } from "./repeat-actions";
 
 export const dynamic = "force-dynamic";
@@ -95,11 +95,8 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-6">
-      <InsightsTabs />
-      <TabHeading
-        title="Money"
-        picker={{ path: "/insights/money", year: picked.year, month: picked.month }}
-      />
+      <InsightsTabs right={<MonthPicker {...{ path: "/insights/money", year: picked.year, month: picked.month }} />} />
+      <TabHeading title="Money" />
 
       <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
         <Card>
