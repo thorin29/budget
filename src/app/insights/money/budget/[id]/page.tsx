@@ -7,29 +7,32 @@ import Link from "next/link";
 import { InsightsTabs } from "@/components/insights-tabs";
 import { getMonthPlan } from "@/server/month-plan";
 import { Card } from "@/components/ui";
+import { TIERS, shade } from "../../parts";
 import { MonthPicker, TabHeading, pickMonth, monthLabel } from "../../../shared";
 
 export const dynamic = "force-dynamic";
 
 const exact = (cents: number) => `${cents < 0 ? "−" : ""}$${(Math.abs(cents) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-const COLOR: Record<string, string> = { ESSENTIAL: "var(--series-3)", FLEXIBLE: "var(--series-4)", UNPLANNED: "var(--series-5)", SORT: "var(--series-neutral)" };
 
 export default async function BudgetSpendingPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ m?: string }> }) {
   const [{ id }, { m }] = await Promise.all([params, searchParams]);
   const picked = pickMonth(m);
   const plan = await getMonthPlan(picked.year, picked.month).catch(() => null);
   const group = plan?.groups.find((g) => g.id === decodeURIComponent(id)) ?? null;
-  const color = group ? COLOR[group.tier] ?? "var(--series-1)" : "var(--series-1)";
+  // The same shade the spending chart gives this budget.
+  const tier = TIERS.find((t) => t.tier === group?.tier);
+  const peers = (plan?.groups ?? []).filter((g) => g.tier === group?.tier && g.spentCents > 0).sort((a, b) => b.spentCents - a.spentCents);
+  const color = group && tier ? shade(tier.color, Math.max(0, peers.findIndex((g) => g.id === group.id)), peers.length) : "var(--series-1)";
   const top = group ? Math.max(1, ...group.categories.map((c) => c.spentCents)) : 1;
-  const back = `/insights/money?m=${plan?.month ?? ""}`;
+  const back = `/insights/money/everyday?m=${plan?.month ?? ""}`;
 
   return (
     <div className="space-y-4">
       <InsightsTabs right={<MonthPicker path={`/insights/money/budget/${id}`} year={picked.year} month={picked.month} />} />
       <TabHeading title={group?.name ?? "Spending"} />
       <Link href={back} className="inline-block text-sm text-muted hover:text-foreground">
-        ← Money
+        ← Everyday spending
       </Link>
       {!group ? (
         <Card>

@@ -1,128 +1,49 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 import { InsightsTabs } from "@/components/insights-tabs";
-import { getMonthPlan, type PlanBill, type PlanGroup } from "@/server/month-plan";
+import { getMonthPlan } from "@/server/month-plan";
 import { SUBSCRIPTIONS, unbilledRepeats } from "@/server/subscriptions";
 import { getUpcoming } from "@/server/yearly";
 import { getInsights } from "@/server/insights";
 import { Card } from "@/components/ui";
 import { ComingUpRow } from "../coming-up";
 import { MonthPicker, TabHeading, pickMonth } from "../shared";
-import { RepeatActions } from "./repeat-actions";
-import { ChargeActions, type BillChoice, type CategoryChoice } from "./charge-actions";
-import { getEnvelopeSetup } from "@/server/envelopes";
+import { BADGE, SpendingChart, exact, isSub, money, day, paidBills as paid, payState, sumBills as sum } from "./parts";
 
 export const dynamic = "force-dynamic";
 
-const money = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(Math.round(cents / 100)).toLocaleString("en-US")}`;
-const exact = (cents: number) => `${cents < 0 ? "−" : ""}$${(Math.abs(cents) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-const day = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
-
-const monthName = (ym: string) => new Date(`${ym}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" });
-
-const STATUS: Record<string, { label: string; cls: string }> = {
-  paid: { label: "Paid", cls: "bg-ok-soft text-ok" },
-  due: { label: "Due", cls: "bg-neutral-soft text-muted ring-1 ring-line" },
-  overdue: { label: "Overdue", cls: "bg-danger-soft text-danger" },
-  skipped: { label: "Not this month", cls: "bg-neutral-soft text-muted" },
-};
-
-/** A line of money out that opens to what's in it. */
-const BADGE: Record<string, { label: string; cls: string }> = {
-  ...STATUS,
-  partly: { label: "Partly paid", cls: "bg-warn-soft text-warn" },
-  actual: { label: "Actual", cls: "bg-ok-soft text-ok" },
-};
-
-/** Paid, due or partly paid, from what's paid of the total. */
-const payState = (paidCents: number, totalCents: number) => (totalCents <= 0 || paidCents >= totalCents ? "paid" : paidCents <= 0 ? "due" : "partly");
-
-function OutRow({ title, cents, note, badge, children, open = false }: { title: string; cents: number; note?: string; badge?: string; children?: ReactNode; open?: boolean }) {
+/** A line of money out that opens its own page. */
+function OutRow({ href, title, cents, note, badge }: { href: string; title: string; cents: number; note?: string; badge?: string }) {
   const b = badge ? BADGE[badge] : null;
-  const head = (
-    <span className="flex items-baseline justify-between gap-3">
-      <span className="min-w-0">
-        <span className={`block text-sm font-semibold ${children ? "group-open:underline" : ""}`}>{title}</span>
-        {note ? <span className="block text-xs text-muted">{note}</span> : null}
-      </span>
-      <span className="flex shrink-0 items-center gap-2">
-        {b ? <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${b.cls}`}>{b.label}</span> : null}
-        <span className="tnum text-sm font-semibold">{money(cents)}</span>
-      </span>
-    </span>
-  );
-  if (!children) return <li className="py-2.5">{head}</li>;
   return (
-    <li className="py-2.5">
-      <details className="group" open={open}>
-        <summary className="cursor-pointer list-none">{head}</summary>
-        <div className="mt-2 rounded-xl bg-neutral-soft px-3 py-2">{children}</div>
-      </details>
+    <li>
+      <Link href={href} className="-mx-2 flex items-baseline justify-between gap-3 rounded-lg px-2 py-2.5 hover:bg-neutral-soft">
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold">{title} ›</span>
+          {note ? <span className="block text-xs text-muted">{note}</span> : null}
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {b ? <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${b.cls}`}>{b.label}</span> : null}
+          <span className="tnum text-sm font-semibold">{money(cents)}</span>
+        </span>
+      </Link>
     </li>
   );
 }
 
-function BillList({ rows }: { rows: PlanBill[] }) {
-  if (!rows.length) return <p className="text-xs text-muted">None this month.</p>;
-  return (
-    <ul className="divide-y divide-line text-xs">
-      {rows.map((b) => (
-        <li key={`${b.lineItemId}:${b.dueOn}`} className="flex items-center justify-between gap-3 py-1">
-          <span className="min-w-0 truncate">
-            <span className="tnum text-muted">{day(b.dueOn)}</span> {b.name}
-            {b.from ? <span className="text-muted"> · from an earlier month</span> : null}
-          </span>
-          <span className="flex shrink-0 items-center gap-2">
-            <span className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${STATUS[b.status].cls}`}>{STATUS[b.status].label}</span>
-            <span className="tnum">{exact(b.cents)}</span>
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-const KINDS: Array<{ tier: PlanGroup["tier"]; label: string }> = [
-  { tier: "ESSENTIAL", label: "Essentials" },
-  { tier: "FLEXIBLE", label: "Extras" },
-  { tier: "UNPLANNED", label: "Unplanned" },
-  { tier: "SORT", label: "Needs sorting" },
-];
-
 export default async function MoneyPage({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
   const { m } = await searchParams;
   const picked = pickMonth(m);
-  const [plan, repeats, upcoming, insights, setup] = await Promise.all([
+  const [plan, repeats, upcoming, insights] = await Promise.all([
     getMonthPlan(picked.year, picked.month),
     picked.isNow ? unbilledRepeats().catch(() => []) : Promise.resolve([]),
     picked.isNow ? getUpcoming().catch(() => []) : Promise.resolve([]),
     getInsights(picked.year, picked.month).catch(() => null),
-    getEnvelopeSetup().catch(() => null),
   ]);
-  const isSub = (b: PlanBill) => (b.category ?? "").toLowerCase() === SUBSCRIPTIONS.toLowerCase();
   const bills = plan.bills.items.filter((b) => !isSub(b));
   const subs = plan.bills.items.filter(isSub);
-  const sum = (rows: PlanBill[]) => rows.reduce((t, b) => t + b.cents, 0);
-  const paid = (rows: PlanBill[]) => rows.filter((b) => b.status === "paid").reduce((t, b) => t + b.cents, 0);
   const outTotal = plan.bills.totalCents + plan.debt.cents + plan.spentCents;
   const net = plan.income.totalCents - outTotal;
-  // Bills a charge could pay: this month's (and any carried past due), best guesses first.
-  const billOptions = plan.bills.items.filter((b, i, all) => b.status !== "skipped" && all.findIndex((x) => x.lineItemId === b.lineItemId && x.from === b.from) === i);
-  const words = (t: string) => new Set(t.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length > 2));
-  const choicesFor = (t: (typeof plan.bills.other)[number]): BillChoice[] => {
-    const tw = words(t.name);
-    return billOptions
-      .map((b) => ({
-        id: b.lineItemId,
-        name: b.from ? `${b.name} (${monthName(b.from)})` : b.name,
-        ym: b.from,
-        suggested: (!!t.category && b.category === t.category) || [...words(b.name)].some((w) => tw.has(w)) || Math.abs(b.cents - t.cents) <= 50,
-      }))
-      .sort((x, y) => Number(y.suggested) - Number(x.suggested) || x.name.localeCompare(y.name));
-  };
-  const everyday: CategoryChoice[] = (setup?.groups ?? [])
-    .filter((g) => g.tier !== "BILLS")
-    .flatMap((g) => g.categories.map((c) => ({ id: c.id, name: c.name, group: g.name })));
+  const to = (section: string) => `/insights/money/${section}?m=${plan.month}`;
   const outSoFar = plan.bills.paidCents + (plan.debt.source === "paid" ? plan.debt.cents : 0) + plan.spentCents;
   // Only people with money moving this month; an old running balance on its own isn't news.
   const managed = (insights?.managed ?? []).filter((x) => x.monthInCents !== 0 || x.monthOutCents !== 0);
@@ -169,79 +90,42 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
             </span>
           </div>
           <ul className="mt-1 divide-y divide-line">
-            <OutRow title="Bills" cents={sum(bills)} badge={payState(paid(bills), sum(bills))} note={`${money(paid(bills))} paid of ${money(sum(bills))}${bills.some((b) => b.status === "overdue") ? " · some overdue" : ""}`}>
-              <BillList rows={bills} />
-            </OutRow>
-            <OutRow
-              title={SUBSCRIPTIONS}
-              cents={sum(subs)}
-              badge={subs.length ? payState(paid(subs), sum(subs)) : undefined}
-              note={`${subs.length} bill${subs.length === 1 ? "" : "s"}`}
-            >
-              <BillList rows={subs} />
-            </OutRow>
+            <OutRow href={to("bills")} title="Bills" cents={sum(bills)} badge={payState(paid(bills), sum(bills))} note={`${money(paid(bills))} paid of ${money(sum(bills))}${bills.some((b) => b.status === "overdue") ? " · some overdue" : ""}`} />
+            <OutRow href={to("subscriptions")} title={SUBSCRIPTIONS} cents={sum(subs)} badge={subs.length ? payState(paid(subs), sum(subs)) : undefined} note={`${subs.length} bill${subs.length === 1 ? "" : "s"}`} />
             {plan.debt.cents > 0 ? (
-              <OutRow title={`Debt payment${plan.debt.name ? `: ${plan.debt.name}` : ""}`} cents={plan.debt.cents} badge={plan.debt.source === "paid" ? "paid" : "due"} note={plan.debt.source === "paid" ? undefined : plan.debt.dueOn ? `Due ${day(plan.debt.dueOn)}` : undefined} />
+              <OutRow
+                href={to("debt")}
+                title={`Debt payment${plan.debt.name ? `: ${plan.debt.name}` : ""}`}
+                cents={plan.debt.cents}
+                badge={plan.debt.source === "paid" ? "paid" : "due"}
+                note={plan.debt.source === "paid" ? undefined : plan.debt.dueOn ? `Due ${day(plan.debt.dueOn)}` : undefined}
+              />
             ) : null}
             {plan.bills.other.length || repeats.length ? (
               <OutRow
+                href={to("maybe-bills")}
                 title="Charges that may be bills"
                 cents={plan.bills.otherCents}
                 badge="actual"
-                note="Charges in a bill category that aren't on the bill list, and charges that repeat every month"
-                open
-              >
-                <ul className="divide-y divide-line text-xs">
-                  {plan.bills.other.map((t, i) => (
-                    <li key={`${t.id}:${i}`} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5">
-                      <span className="min-w-0 flex-1 truncate">
-                        <span className="tnum text-muted">{day(t.date)}</span> {t.name}
-                        {t.pending ? <span className="text-muted"> · pending</span> : null}
-                      </span>
-                      {t.cents > 0 && !t.split && !t.pending ? <ChargeActions txnId={t.id} bills={choicesFor(t)} categories={everyday} /> : null}
-                      <span className="tnum w-20 shrink-0 text-right">{exact(t.cents)}</span>
-                    </li>
-                  ))}
-                  {repeats.map((r) => (
-                    <li key={r.merchantKey} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 py-1.5">
-                      <span className="min-w-0 flex-1 truncate">
-                        {r.merchant} <span className="text-muted">· repeats: about {exact(r.typicalCents)} around day {r.typicalDay}, {r.months} months · {r.account}</span>
-                      </span>
-                      <RepeatActions merchantKey={r.merchantKey} />
-                    </li>
-                  ))}
-                </ul>
-              </OutRow>
+                note={`${plan.bills.other.length + repeats.length} to sort`}
+              />
             ) : null}
-            <OutRow title="Everyday spending" cents={plan.spentCents} badge="actual" note="Essentials, Extras and Unplanned, by transaction date">
-              <div className="space-y-2">
-                {KINDS.map(({ tier, label }) => {
-                  const groups = plan.groups.filter((g) => g.tier === tier && g.spentCents !== 0);
-                  if (!groups.length) return null;
-                  return (
-                    <div key={tier}>
-                      <p className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-muted">
-                        <span>{label}</span>
-                        <span className="tnum">{exact(groups.reduce((t, g) => t + g.spentCents, 0))}</span>
-                      </p>
-                      {groups.map((g) => (
-                        <Link
-                          key={g.id}
-                          href={`/insights/money/budget/${encodeURIComponent(g.id)}?m=${plan.month}`}
-                          className="flex justify-between gap-3 rounded py-0.5 text-xs font-semibold hover:underline"
-                        >
-                          <span>{g.name} ›</span>
-                          <span className="tnum">{exact(g.spentCents)}</span>
-                        </Link>
-                      ))}
-                    </div>
-                  );
-                })}
-              </div>
-            </OutRow>
+            <OutRow href={to("everyday")} title="Everyday spending" cents={plan.spentCents} badge="actual" note="Essentials, Extras and Unplanned" />
           </ul>
         </Card>
       </div>
+
+      <Card>
+        <div className="flex flex-wrap items-baseline justify-between gap-2">
+          <h2 className="text-base font-bold">Spending by budget</h2>
+          <span className="tnum text-sm">
+            <b>{money(plan.spentCents)}</b>
+          </span>
+        </div>
+        <div className="mt-3">
+          <SpendingChart groups={plan.groups} month={plan.month} />
+        </div>
+      </Card>
 
       {upcoming.length ? (
         <Card>

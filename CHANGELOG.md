@@ -3,6 +3,19 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.78.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Money tab, Expenses:** each line (Bills, Subscriptions & autopay, Debt payment, Charges that
+  may be bills, Everyday spending) opens its own page instead of unfolding in place. Everyday
+  spending's page opens each budget's page, and that page goes back to Everyday spending.
+- **Spending by budget:** a new chart under Income and Expenses, and at the top of Everyday
+  spending. Budgets run biggest first, colored by Essentials, Extras or Unplanned, with a darker
+  to lighter shade of that color for each smaller budget in the same group. A budget's own page
+  uses the same shade.
+
 ## [0.77.0]
 
 No migration. The phone app is unchanged.
