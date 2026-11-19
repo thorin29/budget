@@ -3,6 +3,15 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.73.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Budget tab:** the group rows (Bills & debt, Essentials, Extras, Unplanned) are shaded bands
+  with a gap above each, and the rows under them show their amounts lighter, so the totals read
+  across. The sentence about checking going up or down is gone; the planned cushion line stays.
+
 ## [0.72.0]
 
 No migration. The phone app is unchanged.

@@ -102,15 +102,7 @@ export function ForecastCards({
               <dd className={`tnum text-2xl font-bold ${cushion.nextCents < minimumCents ? "text-danger" : ""}`}>{money(cushion.nextCents)}</dd>
             </div>
           </dl>
-          <p className={`mt-2 text-sm ${cushion.changeCents < 0 ? "text-danger" : "text-ok"}`}>
-            {cushion.changeCents < 0
-              ? `Checking goes down ${money(-cushion.changeCents)} this month: bills, the debt payment and projected spending come to ${money(-cushion.changeCents)} more than this month's income.`
-              : `Checking goes up ${money(cushion.changeCents)} this month: income is ${money(cushion.changeCents)} more than bills, the debt payment and projected spending.`}
-            {cushion.monthsLeft !== null
-              ? ` At this rate it reaches your planned cushion in about ${cushion.monthsLeft} month${cushion.monthsLeft === 1 ? "" : "s"}.`
-              : ""}
-          </p>
-          <p className="mt-1 text-xs text-muted">
+          <p className="mt-2 text-xs text-muted">
             Planned checking cushion {money(minimumCents)}.{" "}
             <Link href="/insights/settings" className="text-accent-text hover:underline">
               Change
@@ -142,13 +134,13 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
   };
   const swatch = (color: string, opacity = 1) => <span aria-hidden className="inline-block h-2.5 w-4 rounded-full" style={{ background: color, opacity }} />;
   const billRow = (name: string, color: string, spent: number, total: number, strong = false) => (
-    <div key={name} className={`${GRID} border-b ${strong ? "border-line bg-neutral-soft/40 py-2 font-bold" : "border-line/60 py-1.5"} text-sm`}>
+    <div key={name} className={`${GRID} border-b ${strong ? "border-line bg-neutral-soft py-2 font-bold" : "border-line/60 py-1.5"} ${strong ? "rounded-lg px-2 -mx-2" : ""} text-sm`}>
       <span className={`flex min-w-0 items-center gap-2 ${strong ? "" : "pl-4"}`}>
         <span aria-hidden className={`${strong ? "h-2.5 w-2.5" : "h-2 w-2"} shrink-0 rounded-sm`} style={{ background: color }} />
         <span className="truncate">{name}</span>
       </span>
       <Bar spent={spent} forecast={total} limit={total} color={color} />
-      <span className="tnum text-right">{money(spent)}</span>
+      <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{money(spent)}</span>
       <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{money(total)}</span>
       <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{money(total - spent)}</span>
       <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{cell(true, money(total))}</span>
@@ -181,7 +173,7 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
             <span className="text-right leading-tight">{closed ? "Result" : <>Projected<br />by {day(monthEnd)}</>}</span>
           </div>
           {planned > 0 ? (
-            <div>
+            <div className="mt-2">
               {billRow("Bills & debt", "var(--series-1)", paid, planned, true)}
               {billRow("Bills", "var(--series-1)", bills.billsPaidCents, bills.billsCents)}
               {bills.debtCents > 0 ? billRow("Debt payment", "var(--series-2)", bills.debtPaidCents, bills.debtCents) : null}
@@ -196,8 +188,8 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
             const forecast = list.reduce((t, r) => t + r.forecastCents, 0);
             const margin = limit === null ? null : closed ? limit - spent : limit - forecast;
             return (
-              <div key={tier}>
-                <div className={`${GRID} border-b border-line bg-neutral-soft/40 py-2 text-sm font-bold`}>
+              <div key={tier} className="mt-2">
+                <div className={`${GRID} -mx-2 rounded-lg border-b border-line bg-neutral-soft px-2 py-2 text-sm font-bold`}>
                   <span className="flex items-center gap-2">
                     <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: COLOR[tier] }} />
                     {name}
@@ -218,7 +210,7 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
                         <span className="truncate">{r.name}</span>
                       </span>
                       <Bar spent={r.spentCents} forecast={budgeted ? r.forecastCents : r.spentCents} limit={r.limitCents} color={COLOR[tier]} />
-                      <span className="tnum text-right">{money(r.spentCents)}</span>
+                      <span className="tnum text-right text-muted">{money(r.spentCents)}</span>
                       <span className="tnum text-right text-muted">{r.limitCents ? money(r.limitCents) : "none"}</span>
                       <span className={`tnum text-right ${r.limitCents && r.limitCents - r.spentCents < 0 ? "text-danger" : "text-muted"}`}>{r.limitCents ? money(r.limitCents - r.spentCents) : "—"}</span>
                       <span className="tnum text-right text-muted">{cell(!!r.limitCents, money(r.forecastCents))}</span>
