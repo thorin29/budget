@@ -190,8 +190,6 @@ export interface CarryOver {
   incomeCents: number;
   /** Still owed this month: card balances, bills still due and the debt payment. */
   owedCents: number;
-  /** This month's income less its expenses. */
-  remainingCents: number;
 }
 
 export function OutlookCards({ outlook, carry, thisMonth }: { outlook: OutlookView; carry: CarryOver; thisMonth: string }) {

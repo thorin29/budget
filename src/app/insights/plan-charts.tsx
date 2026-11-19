@@ -45,7 +45,6 @@ export function carryOver(plan: MonthPlanView, check: BankCheckParts) {
     .filter((g) => (g.tier === "ESSENTIAL" || g.tier === "FLEXIBLE") && g.limitCents !== null)
     .reduce((a, g) => a + Math.max(0, g.leftCents ?? 0), 0);
   const nowCents = check.checkingCents + check.incomeCents - check.cardsCents - check.billsCents - debtDue;
-  const outCents = plan.bills.totalCents + plan.debt.cents + plan.groups.reduce((a, g) => a + g.spentCents, 0);
   return {
     nowCents,
     budgetsCents: nowCents - budgetLeftCents,
@@ -53,8 +52,6 @@ export function carryOver(plan: MonthPlanView, check: BankCheckParts) {
     checkingCents: check.checkingCents,
     incomeCents: check.incomeCents,
     owedCents: check.cardsCents + check.billsCents + debtDue,
-    /** The month's income less its expenses: "remaining" on the ring. */
-    remainingCents: plan.income.totalCents - outCents,
   };
 }
 

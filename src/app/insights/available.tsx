@@ -1,12 +1,13 @@
 "use client";
 
 /**
- * Available to spend: one figure, how long it holds, and two yes/no checks. "How it's worked out"
- * opens the breakdown, line by line from checking today to the tightest point. The worst/best
- * case choice comes from the Outlook card above it.
+ * Available to spend: what can go out on top of everything already owed and planned, with every
+ * card still paid in full and every bill paid through the date shown. "Details" opens the
+ * breakdown, line by line from the current balance; drag its title bar to move it. The
+ * worst/best case choice comes from the Outlook card above it.
  */
 
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { Card } from "@/components/ui";
 import type { Available } from "@/lib/available";
 import type { Case, CarryOver, Stretch } from "./outlook";
@@ -18,10 +19,13 @@ const sum = (ls: Array<{ cents: number }>) => ls.reduce((t, l) => t + l.cents, 0
 
 export function AvailableCard({ a, mode, stretches, carry, thisMonth, className = "" }: { a: Available; mode: Case; stretches: Stretch[]; carry: CarryOver; thisMonth: string; className?: string }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
+  const drag = useRef<{ x: number; y: number; ox: number; oy: number } | null>(null);
+
   // The stretches up to the tightest point: spending more than this runs short there.
   const tightAt = a.limit ? stretches.findIndex((s) => a.limit!.date >= s.from && a.limit!.date <= s.to) : -1;
   const rows: Array<[string, number]> = [
-    ["Checking today", carry.checkingCents],
+    ["Current balance", carry.checkingCents],
     [`${thisMonth} pay still coming`, carry.incomeCents],
     [`${thisMonth} bills, cards and debt still owed`, -carry.owedCents],
     ...(mode === "worst" ? ([[`${thisMonth} budgets left, used in full`, -carry.budgetLeftCents]] as Array<[string, number]>) : []),
@@ -31,17 +35,14 @@ export function AvailableCard({ a, mode, stretches, carry, thisMonth, className 
     const out = sum(s.bills) + sum(s.debt);
     if (out) rows.push([i === 0 && stretches.length > 1 ? `Bills before ${day(stretches[1].from)} pay` : `Bills ${day(s.from)}–${day(s.to)}`, -out]);
   }
-  const remaining = mode === "worst" ? carry.remainingCents - carry.budgetLeftCents : carry.remainingCents;
-  const withinIncome = a.cents <= Math.max(0, remaining);
   const figure = a.shortCents > 0 ? -a.shortCents : a.cents;
   const caseLabel = mode === "worst" ? "Worst case" : "Best case";
+  const covered = a.shortCents === 0;
 
-  const check = (label: string, value: string, ok: boolean) => (
-    <div className="flex items-baseline justify-between gap-3 py-1.5">
-      <dt className="text-muted">{label}</dt>
-      <dd className={`text-right font-semibold ${ok ? "text-ok" : "text-danger"}`}>{value}</dd>
-    </div>
-  );
+  const open = () => {
+    setOffset({ x: 0, y: 0 });
+    dialog.current?.showModal();
+  };
 
   return (
     <Card className={`flex flex-col ${className}`}>
@@ -54,24 +55,42 @@ export function AvailableCard({ a, mode, stretches, carry, thisMonth, className 
         <span className="text-sm text-muted">until {day(a.until)}</span>
       </div>
       <dl className="mt-3 divide-y divide-line border-t border-line text-sm">
-        {check(`Every bill through ${day(a.until)} paid if all of it is spent`, a.shortCents === 0 ? "Yes" : "No", a.shortCents === 0)}
-        {check(`Stays within ${thisMonth}'s income`, withinIncome ? "Yes" : remaining > 0 ? `Up to ${money(remaining)}` : "No", withinIncome)}
+        <div className="flex items-baseline justify-between gap-3 py-1.5">
+          <dt className="text-muted">Spend all of it and every card is still paid in full, with every bill paid through {day(a.until)}</dt>
+          <dd className={`text-right font-semibold ${covered ? "text-ok" : "text-danger"}`}>{covered ? "Yes" : "No"}</dd>
+        </div>
       </dl>
       <div className="mt-auto pt-3">
-        <button type="button" onClick={() => dialog.current?.showModal()} className="text-sm font-semibold text-accent-text hover:underline">
-          How it&rsquo;s worked out ›
+        <button type="button" onClick={open} className="text-sm font-semibold text-accent-text hover:underline">
+          Details ›
         </button>
       </div>
 
       <dialog
         ref={dialog}
         className="m-auto w-[min(92vw,30rem)] rounded-2xl border border-line bg-surface p-0 text-foreground shadow-card backdrop:bg-black/40"
+        style={{ transform: `translate(${offset.x}px, ${offset.y}px)` }}
         onClick={(e) => {
           if (e.target === dialog.current) dialog.current?.close();
         }}
       >
         <div className="p-5">
-          <div className="flex items-baseline justify-between gap-3">
+          <div
+            className="-mx-5 -mt-5 flex cursor-move touch-none select-none items-baseline justify-between gap-3 rounded-t-2xl px-5 pt-5 pb-1"
+            title="Drag to move"
+            onPointerDown={(e) => {
+              if ((e.target as HTMLElement).closest("button")) return;
+              drag.current = { x: e.clientX, y: e.clientY, ox: offset.x, oy: offset.y };
+              e.currentTarget.setPointerCapture(e.pointerId);
+            }}
+            onPointerMove={(e) => {
+              const d = drag.current;
+              if (d) setOffset({ x: d.ox + e.clientX - d.x, y: d.oy + e.clientY - d.y });
+            }}
+            onPointerUp={() => {
+              drag.current = null;
+            }}
+          >
             <h3 className="text-base font-bold">Available to spend · {caseLabel.toLowerCase()}</h3>
             <button type="button" onClick={() => dialog.current?.close()} className="text-sm text-muted hover:text-foreground" aria-label="Close">
               ✕
@@ -88,15 +107,8 @@ export function AvailableCard({ a, mode, stretches, carry, thisMonth, className 
               <dt>Available to spend, until {day(a.until)}</dt>
               <dd className={`tnum ${figure < 0 ? "text-danger" : "text-ok"}`}>{money(figure)}</dd>
             </div>
-            <div className="flex items-baseline justify-between gap-3 border-t border-line py-1.5">
-              <dt className="text-muted">{thisMonth}&rsquo;s income after its expenses</dt>
-              <dd className={`tnum font-semibold ${remaining < 0 ? "text-danger" : ""}`}>{money(remaining)}</dd>
-            </div>
           </dl>
-          <p className="mt-3 text-xs text-muted">
-            {mode === "worst" ? "Available funds using current and budgeted expenses." : "Available funds using current expenses only."} Spending more than this leaves a bill
-            {a.limit ? ` on ${day(a.limit.date)}` : ""} short.
-          </p>
+          <p className="mt-3 text-xs text-muted">{mode === "worst" ? "Available funds using current and budgeted expenses." : "Available funds using current expenses only."}</p>
         </div>
       </dialog>
     </Card>

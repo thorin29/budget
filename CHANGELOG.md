@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.62.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Available to spend** has one check: spend all of it and every card is still paid in full,
+  with every bill paid through the date shown. The "stays within this month's income" check and
+  the "income after its expenses" line are gone. This figure is about the current balance and
+  paying the cards in full, not the month's income on its own.
+- "How it's worked out" is now **Details**. The popup starts from **Current balance**, has no
+  "spending more than this leaves a bill short" sentence, and can be **dragged by its title bar**.
+
 ## [0.61.0]
 
 No migration. The phone app is unchanged.
