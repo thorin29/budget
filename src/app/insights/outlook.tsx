@@ -199,7 +199,7 @@ export function OutlookCards({ outlook, carry, thisMonth }: { outlook: OutlookVi
   const [mode, setMode] = useState<Case>("worst");
   const start = mode === "worst" ? budgetsCents : nowCents;
   const parts = stretches(outlook, start, thisMonth);
-  // The same choice on both cards; each needs its own radio group name.
+  // One choice for both cards: Outlook and Available to spend.
   const toggle = (name: string) => (
     <Segmented
       name={name}
@@ -258,7 +258,7 @@ export function OutlookCards({ outlook, carry, thisMonth }: { outlook: OutlookVi
           ) : null}
         </div>
       </Card>
-      <AvailableCard a={a} mode={mode} toggle={toggle("available-case")} stretches={parts} carry={carry} thisMonth={thisMonth} />
+      <AvailableCard a={a} mode={mode} stretches={parts} carry={carry} thisMonth={thisMonth} className="flex-1" />
     </>
   );
 }

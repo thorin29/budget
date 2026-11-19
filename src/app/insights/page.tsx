@@ -92,9 +92,9 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
       />
       {plan ? (
         <>
-          <div className="grid items-start gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 lg:grid-cols-2">
             <IncomeVsExpenses plan={plan} check={cash?.check} />
-            <div className="space-y-4">
+            <div className="flex flex-col gap-4">
               {outlook && carry ? (
                 <OutlookCards outlook={outlook} carry={carry} thisMonth={thisMonth} />
               ) : (

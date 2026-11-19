@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.61.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Available to spend is compact:** the figure with "until" its date, two checks ("every bill
+  paid if all of it is spent," "stays within this month's income"), and **How it's worked out**,
+  which opens the line-by-line breakdown in a popup.
+- **One Worst case / Best case toggle,** on the Outlook, drives both cards. The card shows which
+  case it is.
+- The right column stretches so Available to spend ends level with Income vs expenses.
+
 ## [0.60.0]
 
 No migration. The phone app is unchanged.
