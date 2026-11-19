@@ -35,6 +35,11 @@ export async function resetLimitsAction(): Promise<EnvelopeState> {
   return run(() => resetLimits(), "Limits are automatic again.");
 }
 
+export async function setCushionAction(cents: number | null): Promise<EnvelopeState> {
+  const { setCushion } = await import("@/server/envelopes");
+  return run(() => setCushion(cents), "Saved.");
+}
+
 export async function setDebtPaymentAction(cents: number | null): Promise<EnvelopeState> {
   return run(() => setDebtPayment(cents), "Saved.");
 }

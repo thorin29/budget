@@ -7,6 +7,7 @@ import { Card } from "@/components/ui";
 import { PlanHero } from "./month-plan";
 import { IncomeVsExpenses, carryOver } from "./plan-charts";
 import { OutlookCards } from "./outlook";
+import { cushionSetting } from "@/server/envelopes";
 import { getOutlook, type OutlookView } from "@/server/outlook";
 import { MonthPicker, TabHeading, monthLabel, pickMonth, shiftMonth } from "./shared";
 
@@ -81,6 +82,7 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
   const current = !!(plan && cash && plan.month === cash.today.slice(0, 7));
   const outlook: OutlookView | null = current && cash?.check ? await getOutlook(cash.today, plan!.debt.cents).catch((error: unknown) => (console.error("Outlook:", error), null)) : null;
   const carry = plan && cash?.check ? carryOver(plan, cash.check) : null;
+  const cushion = await cushionSetting();
   // The bank balance as things stand: card payments leave on their due dates, nothing set aside.
   const bank =
     cash && outlook
@@ -102,7 +104,7 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
             <IncomeVsExpenses plan={plan} check={cash?.check} />
             <div className="flex flex-col gap-4">
               {outlook && carry ? (
-                <OutlookCards outlook={outlook} carry={carry} thisMonth={thisMonth} bank={bank} />
+                <OutlookCards outlook={outlook} carry={carry} thisMonth={thisMonth} bank={bank} cushionCents={cushion} />
               ) : (
                 <PlanHero plan={plan} />
               )}

@@ -12,6 +12,7 @@ import { DEFAULT_GROUPS, OTHER_GROUP, defaultGroupFor } from "@/lib/envelope-def
 import { NotFoundError, ValidationError } from "./errors";
 
 const KEY_DEBT = "debtMonthlyCents";
+const KEY_CUSHION = "cushionCents";
 const KEY_SEEDED = "envelopesSeededAt";
 const KEY_PLACED = "envelopesPlacedAt";
 
@@ -88,6 +89,16 @@ export async function resetLimits(): Promise<void> {
 }
 
 /** What goes to the 0% debt each month; null for automatic (the bill for that card). */
+/** The least checking should keep once every card and bill is paid; 0 when not set. */
+export async function cushionSetting(): Promise<number> {
+  return (await setting<number>(KEY_CUSHION)) ?? 0;
+}
+
+export async function setCushion(value: number | null): Promise<void> {
+  if (value !== null && !cents.safeParse(value).success) throw new ValidationError({ cushion: ["Enter an amount"] });
+  await saveSetting(KEY_CUSHION, value);
+}
+
 export async function setDebtPayment(value: number | null): Promise<void> {
   if (value !== null && !cents.safeParse(value).success) throw new ValidationError({ debt: ["Enter an amount"] });
   await saveSetting(KEY_DEBT, value);

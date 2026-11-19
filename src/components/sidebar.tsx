@@ -16,7 +16,7 @@ interface NavItem {
 const MAIN: NavItem[] = [
   {
     href: "/month",
-    label: "Bills & income",
+    label: "Tracker",
     // "What can I pay?" opens from the month's 45-day card.
     match: ["/month", "/projection"],
     icon: "calendar-blank",

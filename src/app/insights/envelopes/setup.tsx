@@ -10,6 +10,7 @@ import {
   saveGroupAction,
   setCategoryGroupAction,
   setDebtPaymentAction,
+  setCushionAction,
   type EnvelopeState,
 } from "../envelope-actions";
 
@@ -137,6 +138,7 @@ function GroupCard({
 export function EnvelopeSetupForm({
   setup,
   debt,
+  cushionCents = 0,
 }: {
   setup: EnvelopeSetup;
   debt: {
@@ -144,12 +146,14 @@ export function EnvelopeSetupForm({
     automatic: boolean;
     targetCents: number | null;
   };
+  cushionCents?: number;
 }) {
   const [state, setState] = useState<EnvelopeState | null>(null);
   const [pending, start] = useTransition();
   const [debtText, setDebtText] = useState(
     debt.automatic ? "" : dollars(debt.cents),
   );
+  const [cushionText, setCushionText] = useState(cushionCents ? dollars(cushionCents) : "");
   const [newName, setNewName] = useState("");
   const [newTier, setNewTier] = useState<Tier>("FLEXIBLE");
   return (
@@ -191,6 +195,29 @@ export function EnvelopeSetupForm({
               )
             }
           >
+            Save
+          </Button>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="text-base font-bold">Minimum cushion</h2>
+        <p className="mt-0.5 max-w-prose text-xs text-muted">
+          The least checking should keep once every card and bill is paid. Available to spend holds it back, and the Budget tab counts how many months the
+          cushion lasts before reaching it.
+        </p>
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <span className="w-36">
+            <input
+              aria-label="Minimum cushion"
+              className={CONTROL}
+              inputMode="decimal"
+              placeholder="0"
+              value={cushionText}
+              onChange={(e) => setCushionText(e.target.value)}
+            />
+          </span>
+          <Button type="button" disabled={pending} onClick={() => start(async () => setState(await setCushionAction(toCents(cushionText))))}>
             Save
           </Button>
         </div>

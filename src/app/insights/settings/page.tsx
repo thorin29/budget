@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { InsightsTabs } from "@/components/insights-tabs";
-import { getEnvelopeSetup } from "@/server/envelopes";
+import { cushionSetting, getEnvelopeSetup } from "@/server/envelopes";
 import { getMonthPlan } from "@/server/month-plan";
 import { Card } from "@/components/ui";
 import { Limits } from "../month-plan";
@@ -10,13 +10,13 @@ import { TabHeading } from "../shared";
 export const dynamic = "force-dynamic";
 
 export default async function InsightsSettingsPage() {
-  const [setup, plan] = await Promise.all([getEnvelopeSetup(), getMonthPlan()]);
+  const [setup, plan, cushion] = await Promise.all([getEnvelopeSetup(), getMonthPlan(), cushionSetting()]);
   return (
     <div className="space-y-6">
       <InsightsTabs />
       <TabHeading title="Settings" />
       <Limits plan={plan} />
-      <EnvelopeSetupForm setup={setup} debt={{ cents: plan.debt.cents, automatic: plan.debt.source !== "set", targetCents: plan.debt.targetCents }} />
+      <EnvelopeSetupForm setup={setup} debt={{ cents: plan.debt.cents, automatic: plan.debt.source !== "set", targetCents: plan.debt.targetCents }} cushionCents={cushion} />
       <Card>
         <h2 className="text-base font-bold">Elsewhere</h2>
         <ul className="mt-2 space-y-1 text-sm">

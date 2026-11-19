@@ -25,6 +25,7 @@ export function AvailableCard({
   carry,
   thisMonth,
   bank,
+  cushionCents = 0,
   className = "",
 }: {
   a: Available;
@@ -33,6 +34,7 @@ export function AvailableCard({
   carry: CarryOver;
   thisMonth: string;
   bank: BankPath | null;
+  cushionCents?: number;
   className?: string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -46,6 +48,7 @@ export function AvailableCard({
     [`${thisMonth} pay still coming`, carry.incomeCents],
     [`${thisMonth} bills, cards and debt still owed`, -carry.owedCents],
     ...(mode === "worst" ? ([[`${thisMonth} budgets left, used in full`, -carry.budgetLeftCents]] as Array<[string, number]>) : []),
+    ...(cushionCents ? ([["Minimum cushion, kept in checking", -cushionCents]] as Array<[string, number]>) : []),
   ];
   for (const [i, s] of stretches.slice(0, tightAt + 1).entries()) {
     for (const p of s.pay) rows.push([`${p.name} (${day(p.date)})`, p.cents]);

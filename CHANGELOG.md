@@ -3,6 +3,28 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.70.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **The Budget tab is a forecast table.** Each budget shows spending so far (solid), where it's
+  heading by month end at its daily rate so far (lighter), and its budget (a line), with Spent,
+  Budget, Forecast and "By Nov 30" (over or under) on the right. Essentials, Extras and Unplanned
+  each get a total row. A budget made of one monthly charge counts once; unplanned costs count
+  as spent and aren't forecast. A **Total** row at the bottom adds unplanned to the bar in its own
+  color against the total budget. A past month shows how it ended.
+- **Two cards on top:**
+  - the budgets' forecast against Essentials plus Extras;
+  - the **checking cushion**: what checking holds once every card and bill is paid, at the start
+    of the month, forecast for the 1st of next month, and a month later if the next month goes
+    the same. It also says how many months it lasts at this rate before reaching the minimum.
+- **Minimum cushion** (Insights → Settings): the least checking should keep once every card and
+  bill is paid. Available to spend holds it back, and its Details list it.
+- The safe-to-spend card, the pace chart and the budget cards are gone from the
+  Budget tab; budgets are still changed in Settings.
+- **"Bills & income" in the sidebar is now "Tracker."**
+
 ## [0.69.0]
 
 No migration. The phone app is unchanged.

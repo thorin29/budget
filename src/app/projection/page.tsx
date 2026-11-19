@@ -44,7 +44,7 @@ export default async function ProjectionPage({
   return (
     <div className="mx-auto max-w-[1180px]">
       <Link href="/month" className="mb-2 inline-block text-sm text-muted hover:text-foreground">
-        ← Bills &amp; income
+        ← Tracker
       </Link>
       <PageHeading
         title="What can I pay?"
