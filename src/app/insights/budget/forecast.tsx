@@ -65,25 +65,28 @@ export function ForecastCards({
   nextMonthName: string;
   closed: boolean;
 }) {
-  const spent = totals.spentCents - totals.unplannedCents;
-  const projected = totals.forecastCents - totals.unplannedCents;
+  // Unplanned costs come out of the same money, so they count against the budgets here too.
+  const spent = totals.spentCents;
+  const projected = totals.forecastCents;
   const today = totals.budgetCents - spent;
   const end = totals.budgetCents - projected;
   return (
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
-        <p className="text-sm text-muted">Budgets · Essentials and Extras · {money(totals.budgetCents)}</p>
+        <p className="text-sm text-muted">Spending · {money(totals.budgetCents)} budgeted for Essentials and Extras · unplanned costs count against it</p>
         <dl className="mt-2 grid grid-cols-2 gap-4">
           <div>
             <dt className="text-xs text-muted">{closed ? "Left at month end" : "Left today"}</dt>
             <dd className={`tnum text-3xl font-bold ${today < 0 ? "text-danger" : "text-ok"}`}>{today < 0 ? `${money(-today)} over` : money(today)}</dd>
-            <dd className="text-xs text-muted">{money(spent)} spent</dd>
+            <dd className="text-xs text-muted">
+              {money(spent)} spent{totals.unplannedCents ? `, ${money(totals.unplannedCents)} of it unplanned` : ""}
+            </dd>
           </div>
           {closed ? null : (
             <div>
               <dt className="text-xs text-muted">Projected by {day(monthEnd)}</dt>
               <dd className={`tnum text-3xl font-bold ${end < 0 ? "text-warn" : "text-ok"}`}>{left(end)}</dd>
-              <dd className="text-xs text-muted">Projected spend {money(projected)}</dd>
+              <dd className="text-xs text-muted">Projected spend {money(projected)}, unplanned included</dd>
             </div>
           )}
         </dl>

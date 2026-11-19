@@ -3,6 +3,17 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.76.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Budget tab, top-left card:** unplanned costs now count against the Essentials and Extras
+  budgets. "Left today" is the budgets minus everything spent, unplanned included ("$3,900 spent,
+  $1,000 of it unplanned"). "Projected by Nov 30" adds unplanned so far to the projection. It
+  matches the "Total without bills & debt" row. The heading reads "Spending · $X budgeted for
+  Essentials and Extras · unplanned costs count against it."
+
 ## [0.75.0]
 
 No migration. The phone app is unchanged.
