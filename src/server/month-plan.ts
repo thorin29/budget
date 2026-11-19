@@ -232,7 +232,10 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     }
     billItems.push({ lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: amount(e), status: status(e), paidOn: e.paidOn, from: null, category: e.categoryName });
   }
-  for (const e of view.carried) {
+  // Past-due bills from earlier months count in the open month, where they're still owed. A
+  // closed month leaves them out: they already count in their own month, and adding them again
+  // would count a missed bill twice across the months.
+  for (const e of closed ? [] : view.carried) {
     if (e.kind === "INCOME" || isCardPayment(e.lineItemId) || e.actualCents !== null || e.skipped) continue;
     billItems.push({
       lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: e.budgetedCents, status: "overdue", paidOn: null,

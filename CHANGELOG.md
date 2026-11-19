@@ -3,6 +3,34 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.81.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Trends, rebuilt as three views** that each fit one screen, picked next to the month:
+  - **Categories** (opens first): where the month's everyday spending went, one bar per
+    category with a line at the usual (the three full months before) and ▲▼ against it. Sort by
+    biggest or most changed; a bar opens its charges. Top merchants beside it. The categories add
+    up to Everyday spending on the Money tab.
+  - **Months:** income against expenses for up to 12 months, income − expenses under each; the
+    open month is projected the Budget tab's way. "Everyday only" swaps expenses for everyday
+    spending. Beside it, the month against usual: income, bills, debt payment, everyday spending,
+    unplanned, and income − expenses.
+  - **Suggestions**, three across.
+  Every figure now comes from the month plan, the same source as the other tabs. Removed as
+  repeats: the four boxes at the top, "In minus out, by month" (worked out from bank deposits,
+  so it disagreed with the rest), "Everyday spending, by month" (now the Everyday only switch)
+  and "What changed" (now the ▲▼ on each bar).
+- **Overview:** the four tiles sit at the top. "Details" sits on the Projected bank balance
+  heading, and the line under the balances is gone.
+
+### Fixed
+- A month that's over no longer adds the previous month's unpaid bills to its own. They already
+  count in their own month, so a missed bill counted twice in history (Trends, the Overview's
+  Trends tile, past months on the Tracker). The open month still includes past-due bills, since
+  they're still owed.
+
 ## [0.80.0]
 
 No migration. The phone app is unchanged.

@@ -116,6 +116,7 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
       <TabHeading title="Overview" />
       {plan ? (
         <>
+          <Tiles plan={plan} debt={debt} last={last} checkingCents={current && cash?.check ? cash.check.checkingCents : null} />
           <div className="grid gap-4 lg:grid-cols-2">
             <IncomeVsExpenses plan={plan} check={cash?.check} />
             <div className="flex flex-col gap-4">
@@ -126,7 +127,6 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
               )}
             </div>
           </div>
-          <Tiles plan={plan} debt={debt} last={last} checkingCents={current && cash?.check ? cash.check.checkingCents : null} />
         </>
       ) : (
         <Card>

@@ -7,6 +7,80 @@ import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
 import { getMonthPlan, type MonthPlanView } from "./month-plan";
 import { payoffTrackers } from "./card-payments";
+import { forecastGroups, forecastTotals } from "@/lib/budget-forecast";
+
+/** The Budget tab's projection rows for a month: the one source for "projected spend" anywhere. */
+export function planForecastRows(plan: MonthPlanView) {
+  return forecastGroups(
+    plan.groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      tier: g.tier,
+      spentCents: g.spentCents,
+      limitCents: g.limitCents,
+      usualCents: g.usualCents,
+      charges: g.categories.reduce((t, c) => t + c.transactions.length, 0),
+    })),
+    Number(plan.today.slice(8, 10)),
+    plan.daysInMonth,
+    plan.closed,
+  );
+}
+
+/** The last [count] month plans through the given one, oldest first; months that fail are left out. */
+export async function recentPlans(current: MonthPlanView, count: number): Promise<MonthPlanView[]> {
+  const y = Number(current.month.slice(0, 4));
+  const m = Number(current.month.slice(5, 7));
+  const earlier = await Promise.all(
+    Array.from({ length: count - 1 }, (_, k) => {
+      const d = new Date(Date.UTC(y, m - 1 - (count - 1 - k), 1));
+      return getMonthPlan(d.getUTCFullYear(), d.getUTCMonth() + 1).catch(() => null);
+    }),
+  );
+  return [...earlier, current].filter((p): p is MonthPlanView => p !== null);
+}
+
+export interface TrendMonth {
+  /** YYYY-MM */
+  month: string;
+  incomeCents: number;
+  /** The Bills figure every tab shows: the bill list, card payments and the debt payment left out. */
+  billsCents: number;
+  /** Charges in a bill category that aren't on the bill list. */
+  otherCents: number;
+  debtCents: number;
+  /** Everyday spending: so far, or for the open month, projected to its end. */
+  everydayCents: number;
+  /** Everyday spending so far (the same as everydayCents once the month is over). */
+  everydaySoFarCents: number;
+  unplannedCents: number;
+  expensesCents: number;
+  /** Income less expenses. */
+  netCents: number;
+  /** The month is still open, so its everyday spending is projected. */
+  projected: boolean;
+}
+
+/** A month in the terms every tab uses, with the open month projected the Budget tab's way. */
+export function trendMonth(p: MonthPlanView): TrendMonth {
+  const projected = !p.closed && p.month === p.today.slice(0, 7);
+  const everyday = projected ? forecastTotals(planForecastRows(p)).forecastCents : p.spentCents;
+  const unplanned = p.groups.filter((g) => g.tier === "UNPLANNED" || g.tier === "SORT").reduce((t, g) => t + g.spentCents, 0);
+  const expenses = p.bills.listCents + p.bills.otherCents + p.debt.cents + everyday;
+  return {
+    month: p.month,
+    incomeCents: p.income.totalCents,
+    billsCents: p.bills.listCents,
+    otherCents: p.bills.otherCents,
+    debtCents: p.debt.cents,
+    everydayCents: everyday,
+    everydaySoFarCents: p.spentCents,
+    unplannedCents: unplanned,
+    expensesCents: expenses,
+    netCents: p.income.totalCents - expenses,
+    projected,
+  };
+}
 
 const DAY = 86_400_000;
 const iso = (d: Date) => d.toISOString().slice(0, 10);

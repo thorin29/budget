@@ -31,16 +31,17 @@ export function MonthPicker({ path, year, month }: { path: string; year: number;
   const prev = shiftMonth(year, month, -1);
   const next = shiftMonth(year, month, 1);
   const atNow = year === now.year && month === now.month;
+  const join = path.includes("?") ? "&" : "?";
   return (
     <div className="flex items-center gap-1 rounded-xl border border-line bg-surface p-1 text-sm">
-      <Link href={`${path}?m=${monthParam(prev)}`} className="rounded-lg px-2.5 py-1 text-muted hover:bg-neutral-soft">
+      <Link href={`${path}${join}m=${monthParam(prev)}`} className="rounded-lg px-2.5 py-1 text-muted hover:bg-neutral-soft">
         ‹ {monthLabel(prev.year, prev.month, "short")}
       </Link>
       <span className="px-2.5 py-1 font-semibold">{monthLabel(year, month)}</span>
       {atNow ? (
         <span className="px-2.5 py-1 text-muted/50">{monthLabel(next.year, next.month, "short")} ›</span>
       ) : (
-        <Link href={`${path}?m=${monthParam(next)}`} className="rounded-lg px-2.5 py-1 text-muted hover:bg-neutral-soft">
+        <Link href={`${path}${join}m=${monthParam(next)}`} className="rounded-lg px-2.5 py-1 text-muted hover:bg-neutral-soft">
           {monthLabel(next.year, next.month, "short")} ›
         </Link>
       )}

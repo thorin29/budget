@@ -2,7 +2,8 @@ import { InsightsTabs } from "@/components/insights-tabs";
 import { getMonthPlan } from "@/server/month-plan";
 import { getCashTiming } from "@/server/cash-timing";
 import { cushionSetting } from "@/server/envelopes";
-import { cushion as cushionOf, forecastGroups, forecastTotals } from "@/lib/budget-forecast";
+import { cushion as cushionOf, forecastTotals } from "@/lib/budget-forecast";
+import { planForecastRows } from "@/server/plan-charts";
 import { carryOver } from "../plan-charts";
 import { ForecastCards, ForecastTable } from "./forecast";
 import { MonthPicker, TabHeading, pickMonth } from "../shared";
@@ -18,20 +19,7 @@ export default async function BudgetPage({ searchParams }: { searchParams: Promi
 
   const view = plan
     ? (() => {
-        const rows = forecastGroups(
-          plan.groups.map((g) => ({
-            id: g.id,
-            name: g.name,
-            tier: g.tier,
-            spentCents: g.spentCents,
-            limitCents: g.limitCents,
-            usualCents: g.usualCents,
-            charges: g.categories.reduce((t, c) => t + c.transactions.length, 0),
-          })),
-          Number(plan.today.slice(8, 10)),
-          plan.daysInMonth,
-          plan.closed,
-        );
+        const rows = planForecastRows(plan);
         const totals = forecastTotals(rows);
         const [y, mo] = [Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7))];
         const monthEnd = new Date(Date.UTC(y, mo, 0)).toISOString().slice(0, 10);

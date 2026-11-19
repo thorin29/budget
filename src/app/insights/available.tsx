@@ -75,7 +75,12 @@ export function AvailableCard({
       </div>
       {bank ? (
         <div className="mt-4 border-t border-line pt-3">
-          <p className="text-xs font-semibold uppercase tracking-wide text-muted">Projected bank balance</p>
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted">Projected bank balance</p>
+            <button type="button" onClick={open} className="text-sm font-semibold text-accent-text hover:underline">
+              Details ›
+            </button>
+          </div>
           <dl className="mt-1 divide-y divide-line text-sm">
             <div className="flex items-baseline justify-between gap-3 py-1.5">
               <dt className="text-muted">Lowest, {day(bank.lowOn)}</dt>
@@ -86,14 +91,15 @@ export function AvailableCard({
               <dd className={`tnum font-semibold ${bank.endCents < 0 ? "text-danger" : ""}`}>{money(bank.endCents)}</dd>
             </div>
           </dl>
-          <p className="text-xs text-muted">With bills and card payments leaving on their due dates, from what&rsquo;s charged so far.</p>
         </div>
       ) : null}
-      <div className="mt-auto pt-3">
-        <button type="button" onClick={open} className="text-sm font-semibold text-accent-text hover:underline">
-          Details ›
-        </button>
-      </div>
+      {bank ? null : (
+        <div className="mt-auto pt-3">
+          <button type="button" onClick={open} className="text-sm font-semibold text-accent-text hover:underline">
+            Details ›
+          </button>
+        </div>
+      )}
 
       <dialog
         ref={dialog}
