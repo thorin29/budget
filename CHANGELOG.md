@@ -3,6 +3,17 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.66.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **"It's Church":** on the Money tab, a charge under "Bill-category charges not on the bill list"
+  that shares its category with a bill offers to record itself as that bill's payment, in place
+  of "Make it a bill." It records the payment for the month the charge posted, or links it to a
+  payment already recorded that month without a charge. It also learns the merchant, so later
+  charges match by themselves. The list opens on its own when it has charges in it.
+
 ## [0.65.0]
 
 No migration. The phone app is unchanged. This zip also carries everything from 0.64.0.

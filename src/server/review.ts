@@ -216,6 +216,30 @@ export async function linkActual(lineItemId: string, year: number, month: number
   await applyCategories([txnId]);
 }
 
+/**
+ * "This charge is that bill": records the charge as the bill's payment for the month it posted,
+ * or links it to a payment already recorded that month without a charge.
+ */
+export async function matchChargeToBill(txnId: string, lineItemId: string, userId: string): Promise<{ name: string }> {
+  const txn = (await prisma.bankTransaction.findUnique({
+    where: { id: txnId },
+    select: { id: true, merchant: true, amount: true, postedOn: true, actual: { select: { id: true } } },
+  })) as { id: string; merchant: string; amount: { toString(): string }; postedOn: Date; actual: { id: string } | null } | null;
+  if (!txn) throw new NotFoundError("Transaction");
+  if (txn.actual) throw new ValidationError({ txnId: ["That charge is already recorded as a payment"] });
+  const item = (await prisma.lineItem.findUnique({ where: { id: lineItemId }, select: { name: true } })) as { name: string } | null;
+  if (!item) throw new NotFoundError("Bill");
+  const [year, month] = [txn.postedOn.getUTCFullYear(), txn.postedOn.getUTCMonth() + 1];
+  const existing = (await prisma.actualEntry.findUnique({
+    where: { lineItemId_year_month: { lineItemId, year, month } },
+    select: { bankTransactionId: true },
+  })) as { bankTransactionId: string | null } | null;
+  if (existing?.bankTransactionId) throw new ValidationError({ lineItemId: [`${item.name} is already paid this month with another charge`] });
+  if (existing) await linkActual(lineItemId, year, month, txn.id, txn.merchant);
+  else await confirmMatch({ lineItemId, year, month, txnId: txn.id, amountCents: Math.abs(toCents(txn.amount)), paidOn: txn.postedOn, userId });
+  return { name: item.name };
+}
+
 export async function dismissMatch(lineItemId: string, txnId: string): Promise<void> {
   const key = `${lineItemId}:${txnId}`;
   await prisma.reviewDismissal.upsert({ where: { kind_key: { kind: "match", key } }, create: { kind: "match", key }, update: {} });

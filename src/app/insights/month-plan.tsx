@@ -11,7 +11,7 @@ import { useMemo, useState, useTransition, type ReactNode } from "react";
 import type { MonthPlanView, PlanGroup, PlanTxn } from "@/server/month-plan";
 import { monthPlan, whatIf, type MonthPlanIn } from "@/lib/month-plan";
 import { Button, Card, CONTROL, Select } from "@/components/ui";
-import { addChargeAsBillAction, resetLimitsAction, setLimitsAction, type EnvelopeState } from "./envelope-actions";
+import { addChargeAsBillAction, matchChargeToBillAction, resetLimitsAction, setLimitsAction, type EnvelopeState } from "./envelope-actions";
 
 const money = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(Math.round(cents / 100)).toLocaleString("en-US")}`;
 const exact = (cents: number) =>
@@ -58,7 +58,25 @@ export function MakeBill({ id }: { id: string }) {
   );
 }
 
-export function Txns({ rows, bills = true }: { rows: PlanTxn[]; bills?: boolean }) {
+/** "It's Church": records this charge as that bill's payment. */
+function MatchBill({ txnId, bill }: { txnId: string; bill: { id: string; name: string } }) {
+  const [state, setState] = useState<EnvelopeState | null>(null);
+  const [pending, start] = useTransition();
+  if (state?.ok) return <span className="shrink-0 text-ok">Recorded</span>;
+  return (
+    <button
+      type="button"
+      disabled={pending}
+      title={state && !state.ok ? state.message : `Record this charge as ${bill.name}'s payment`}
+      className={`shrink-0 font-semibold hover:underline ${state && !state.ok ? "text-danger" : "text-accent-text"}`}
+      onClick={() => start(async () => setState(await matchChargeToBillAction(txnId, bill.id)))}
+    >
+      {pending ? "Recording…" : state && !state.ok ? state.message : `It's ${bill.name}`}
+    </button>
+  );
+}
+
+export function Txns({ rows, bills = true, matches }: { rows: PlanTxn[]; bills?: boolean; matches?: Record<string, Array<{ id: string; name: string }>> }) {
   if (!rows.length) return <p className="text-xs text-muted">Nothing yet.</p>;
   return (
     <ul className="divide-y divide-line text-xs">
@@ -69,7 +87,13 @@ export function Txns({ rows, bills = true }: { rows: PlanTxn[]; bills?: boolean 
             {t.pending ? <span className="text-muted"> · pending</span> : null}
             {t.split ? <span className="text-muted"> · part of an order</span> : null}
           </span>
-          {bills && t.cents > 0 && !t.split && !t.pending ? <MakeBill id={t.id} /> : null}
+          {bills && t.cents > 0 && !t.split && !t.pending ? (
+            matches?.[t.id]?.length ? (
+              matches[t.id].map((b) => <MatchBill key={b.id} txnId={t.id} bill={b} />)
+            ) : (
+              <MakeBill id={t.id} />
+            )
+          ) : null}
           <span className="tnum shrink-0">{exact(t.cents)}</span>
         </li>
       ))}

@@ -30,6 +30,8 @@ function localToday(): string {
 
 export interface PlanTxn {
   id: string;
+  /** The charge's category, for bill-category charges not on the bill list. */
+  category?: string | null;
   /** YYYY-MM-DD */
   date: string;
   name: string;
@@ -290,7 +292,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
       const tier = tierOf.get(groupId);
       const row: PlanTxn = { id: t.id, date: iso(t.postedOn), name: t.merchant, cents: part.cents, pending: t.pending, split: t.splits.length > 0 };
       if (tier === "BILLS") {
-        if (inMonth) otherBills.push(row);
+        if (inMonth) otherBills.push({ ...row, category: part.categoryId ? (categoryName.get(part.categoryId) ?? null) : null });
         continue;
       }
       if (inMonth) {

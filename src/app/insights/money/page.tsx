@@ -89,6 +89,16 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
   const paid = (rows: PlanBill[]) => rows.filter((b) => b.status === "paid").reduce((t, b) => t + b.cents, 0);
   const outTotal = plan.bills.totalCents + plan.debt.cents + plan.spentCents;
   const net = plan.income.totalCents - outTotal;
+  // A charge in a bill's category (a church gift and the Church bill): offer to record it as that bill.
+  const matches = Object.fromEntries(
+    plan.bills.other.map((t) => [
+      t.id,
+      plan.bills.items
+        .filter((b) => b.status !== "skipped" && t.category && b.category === t.category)
+        .filter((b, i, all) => all.findIndex((x) => x.lineItemId === b.lineItemId) === i)
+        .map((b) => ({ id: b.lineItemId, name: b.name })),
+    ]),
+  );
   const outSoFar = plan.bills.paidCents + (plan.debt.source === "paid" ? plan.debt.cents : 0) + plan.spentCents;
   // Only people with money moving this month; an old running balance on its own isn't news.
   const managed = (insights?.managed ?? []).filter((x) => x.monthInCents !== 0 || x.monthOutCents !== 0);
@@ -166,8 +176,8 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
               <OutRow title={`Debt payment${plan.debt.name ? `: ${plan.debt.name}` : ""}`} cents={plan.debt.cents} note={plan.debt.source === "paid" ? "Paid" : plan.debt.dueOn ? `Due ${day(plan.debt.dueOn)}` : undefined} />
             ) : null}
             {plan.bills.other.length ? (
-              <OutRow title="Bill-category charges not on the bill list" cents={plan.bills.otherCents}>
-                <Txns rows={plan.bills.other} />
+              <OutRow title="Bill-category charges not on the bill list" cents={plan.bills.otherCents} open>
+                <Txns rows={plan.bills.other} matches={matches} />
               </OutRow>
             ) : null}
             <OutRow title="Everyday spending" cents={plan.spentCents} note="Essentials, Extras and Unplanned, by transaction date">

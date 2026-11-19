@@ -87,3 +87,16 @@ export async function notASubscriptionAction(key: string): Promise<EnvelopeState
   const { notASubscription } = await import("@/server/subscriptions");
   return run(() => notASubscription(String(key)), "Won't list it again.");
 }
+
+/** "This charge is that bill" from the Money tab's bill-category charges. */
+export async function matchChargeToBillAction(transactionId: string, lineItemId: string): Promise<EnvelopeState> {
+  try {
+    const user = await requireUser();
+    const { matchChargeToBill } = await import("@/server/review");
+    const { name } = await matchChargeToBill(String(transactionId), String(lineItemId), user.id);
+    revalidatePath("/", "layout");
+    return { ok: true, message: `Recorded as ${name}.` };
+  } catch (error) {
+    return failure(error);
+  }
+}
