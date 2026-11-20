@@ -3,7 +3,7 @@
 import { requireUser } from "@/server/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createLineItem, deleteLineItemForGood, getLineItem, updateLineItem } from "@/server/line-items";
+import { createLineItem, deleteLineItemForGood, getLineItem, mergeLineItem, updateLineItem } from "@/server/line-items";
 import { changeUsualAmount, dismissAmountSuggestion, keepEarlierAmount, matchPastToPayments } from "@/server/bill-amounts";
 import { ValidationError } from "@/server/errors";
 import { parseCents } from "@/lib/money";
@@ -157,5 +157,15 @@ export async function dismissAmountAction(id: string, cents: number): Promise<Am
     await requireUser();
     await dismissAmountSuggestion(String(id), Number(cents));
     return "Hidden.";
+  });
+}
+
+export async function mergeLineItemAction(fromId: string, intoId: string): Promise<AmountState> {
+  return quick(async () => {
+    await requireUser();
+    const r = await mergeLineItem(String(fromId), String(intoId));
+    const moved = [r.payments ? `${r.payments} ${r.payments === 1 ? "payment" : "payments"}` : "", r.months ? `${r.months} ${r.months === 1 ? "month's amount" : "months' amounts"}` : ""].filter(Boolean).join(" and ") || "nothing";
+    const left = r.skipped ? ` ${r.skipped} left out: the other line already had ${r.skipped === 1 ? "that month" : "those months"}.` : "";
+    return `Merged: moved ${moved}, and deleted the duplicate.${left}`;
   });
 }

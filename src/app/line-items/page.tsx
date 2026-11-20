@@ -1,6 +1,6 @@
 import { monthSplit } from "@/server/pay-split";
 import Link from "next/link";
-import { getLineItem, listLineItems } from "@/server/line-items";
+import { getLineItem, lineItemHistory, listLineItems } from "@/server/line-items";
 import { listAccounts } from "@/server/accounts";
 import { listCategories } from "@/server/categories";
 import { listPaySchedules } from "@/server/pay-schedule";
@@ -114,7 +114,7 @@ async function loadEditing(edit: string | undefined): Promise<LineItemDefaults |
 export default async function LineItemsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ edit?: string; show?: string }>;
+  searchParams: Promise<{ edit?: string; show?: string; merged?: string }>;
 }) {
   const query = await searchParams;
   const showInactive = query.show === "all";
@@ -132,6 +132,8 @@ export default async function LineItemsPage({
     >,
   ]);
   const payoffById = new Map(payoffs.map((p) => [p.lineItemId, p]));
+  const lineHistory = editing?.id ? await lineItemHistory(editing.id) : null;
+  const otherItems = editing?.id ? items.filter((i) => i.id !== editing.id && i.kind === editing.kind).map((i) => ({ id: i.id, name: i.name, active: i.active })) : [];
   const amountHistory = editing?.id ? { id: editing.id, ...(await billAmountHistory(editing.id).catch(() => null)) } : null;
 
   const accountName = new Map(accounts.map((a) => [a.id, a.name]));
@@ -169,6 +171,8 @@ export default async function LineItemsPage({
           </div>
         }
       />
+
+      {query.merged ? <p className="mb-3 rounded-xl bg-ok-soft px-4 py-2.5 text-sm text-ok">{query.merged.slice(0, 200)}</p> : null}
 
       {items.length === 0 ? (
         <EmptyState>
@@ -247,6 +251,8 @@ export default async function LineItemsPage({
             cards={accounts
               .filter((a) => a.kind === "CREDIT_CARD" && (a.active || a.id === editing.chargedToId))
               .map((a) => ({ id: a.id, name: a.name }))}
+            lineHistory={lineHistory}
+            otherItems={otherItems}
             amountHistory={amountHistory && "runs" in amountHistory ? (amountHistory as never) : null}
             paySchedules={paySchedules.map((p) => ({ id: p.id, name: p.name }))}
             loans={loans.map((l) => ({ id: l.id, name: l.nickname || displayAccountName(l.name) }))}

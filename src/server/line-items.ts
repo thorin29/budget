@@ -333,6 +333,64 @@ export async function deleteLineItemForGood(id: string, chargesTo: string | null
   return { deleted: true, charges: ids.length };
 }
 
+/** What's recorded against an item, so a person can tell whether deleting it loses anything. */
+export async function lineItemHistory(id: string): Promise<{ payments: number; paidCents: number; firstPaid: string | null; lastPaid: string | null; plannedMonths: number; firstPlanned: string | null; lastPlanned: string | null }> {
+  const ym = (r: { year: number; month: number }) => `${r.year}-${String(r.month).padStart(2, "0")}`;
+  const [actuals, plans] = (await Promise.all([
+    prisma.actualEntry.findMany({ where: { lineItemId: id }, select: { year: true, month: true, amount: true } }),
+    prisma.monthlyPlan.findMany({ where: { lineItemId: id }, select: { year: true, month: true } }),
+  ])) as [Array<{ year: number; month: number; amount: { toString(): string } }>, Array<{ year: number; month: number }>];
+  const a = actuals.map(ym).sort();
+  const p = plans.map(ym).sort();
+  return {
+    payments: actuals.length,
+    paidCents: actuals.reduce((t, r) => t + toCents(r.amount), 0),
+    firstPaid: a[0] ?? null,
+    lastPaid: a[a.length - 1] ?? null,
+    plannedMonths: plans.length,
+    firstPlanned: p[0] ?? null,
+    lastPlanned: p[p.length - 1] ?? null,
+  };
+}
+
+/**
+ * Moves one item's history into another (two lines for the same bill) and deletes it: its
+ * payments, its months' amounts and its bank-matching rules. A month both already have keeps the
+ * other item's entry. Returns what moved and what was left out that way.
+ */
+export async function mergeLineItem(fromId: string, intoId: string): Promise<{ payments: number; months: number; skipped: number }> {
+  if (fromId === intoId) throw new ValidationError({ intoId: ["Pick a different line"] });
+  await getLineItem(fromId);
+  await getLineItem(intoId);
+  const key = (r: { year: number; month: number }) => `${r.year}-${r.month}`;
+  const [fromActuals, intoActuals, fromPlans, intoPlans, fromRules, intoRules] = (await Promise.all([
+    prisma.actualEntry.findMany({ where: { lineItemId: fromId }, select: { id: true, year: true, month: true } }),
+    prisma.actualEntry.findMany({ where: { lineItemId: intoId }, select: { year: true, month: true } }),
+    prisma.monthlyPlan.findMany({ where: { lineItemId: fromId }, select: { id: true, year: true, month: true } }),
+    prisma.monthlyPlan.findMany({ where: { lineItemId: intoId }, select: { year: true, month: true } }),
+    prisma.billRule.findMany({ where: { lineItemId: fromId }, select: { id: true, merchantKey: true } }),
+    prisma.billRule.findMany({ where: { lineItemId: intoId }, select: { merchantKey: true } }),
+  ])) as [
+    Array<{ id: string; year: number; month: number }>, Array<{ year: number; month: number }>,
+    Array<{ id: string; year: number; month: number }>, Array<{ year: number; month: number }>,
+    Array<{ id: string; merchantKey: string }>, Array<{ merchantKey: string }>,
+  ];
+  const paid = new Set(intoActuals.map(key));
+  const planned = new Set(intoPlans.map(key));
+  const ruled = new Set(intoRules.map((r) => r.merchantKey));
+  const moveActuals = fromActuals.filter((r) => !paid.has(key(r))).map((r) => r.id);
+  const movePlans = fromPlans.filter((r) => !planned.has(key(r))).map((r) => r.id);
+  const moveRules = fromRules.filter((r) => !ruled.has(r.merchantKey)).map((r) => r.id);
+  await prisma.$transaction([
+    prisma.actualEntry.updateMany({ where: { id: { in: moveActuals } }, data: { lineItemId: intoId } }),
+    prisma.monthlyPlan.updateMany({ where: { id: { in: movePlans } }, data: { lineItemId: intoId } }),
+    prisma.billRule.updateMany({ where: { id: { in: moveRules } }, data: { lineItemId: intoId } }),
+    prisma.reviewDismissal.deleteMany({ where: { kind: "match", key: { startsWith: `${fromId}:` } } }),
+    prisma.lineItem.delete({ where: { id: fromId } }),
+  ]);
+  return { payments: moveActuals.length, months: movePlans.length, skipped: fromActuals.length - moveActuals.length + (fromPlans.length - movePlans.length) };
+}
+
 /** The form's card choice as columns: left alone when not sent. */
 function paysCardData(kind: string, choice: string | null | undefined): { paysCardId?: string | null; paysCardLocked?: boolean } {
   if (choice === undefined || choice === null) return {};

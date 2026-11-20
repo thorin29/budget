@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.91.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Bills & income → what's recorded on a line:** each bill's form shows its payments (count,
+  total, months) and the months with their own amount, or that it has nothing and deleting it
+  loses nothing.
+- **Merge a duplicate:** "Move into…" another line and "Merge and delete this line" moves the
+  payments, months' amounts and bank matching to the other line, then deletes this one. Lines
+  with the same name are listed first. A month both lines have keeps the other line's entry.
+
 ## [0.90.1]
 
 No migration. The phone app is unchanged.

@@ -6,6 +6,7 @@ import { ErrorBanner, Field, Segmented, Select, TextInput, buttonClass } from "@
 import type { FormState } from "./actions";
 import { DeleteLineItem } from "./row";
 import { AmountHistory, monthLabel, type AmountHistoryView } from "./amount-history";
+import { HistoryBox, type LineHistory } from "./history-box";
 
 const INITIAL: FormState = { ok: true };
 
@@ -116,6 +117,8 @@ export function LineItemForm({
   submitLabel,
   cancelHref = "/line-items",
   amountHistory = null,
+  lineHistory = null,
+  otherItems = [],
 }: {
   action: (state: FormState, form: FormData) => Promise<FormState>;
   defaults: LineItemDefaults;
@@ -129,6 +132,9 @@ export function LineItemForm({
   cancelHref?: string;
   /** An existing bill's payments in stretches, and where a new amount would start. */
   amountHistory?: AmountHistoryView | null;
+  /** What's recorded on this line, and the other lines its history could move into. */
+  lineHistory?: LineHistory | null;
+  otherItems?: Array<{ id: string; name: string; active: boolean }>;
 }) {
   const [state, submit, pending] = useActionState(action, INITIAL);
   const [amount, setAmount] = useState(defaults.plannedAmount);
@@ -274,6 +280,8 @@ export function LineItemForm({
             </div>
           </Field>
         </div>
+
+        {defaults.id && lineHistory ? <HistoryBox id={defaults.id} name={defaults.name} history={lineHistory} others={otherItems} back={cancelHref} /> : null}
 
         {amountHistory && !isIncome ? <AmountHistory h={amountHistory} /> : null}
 
