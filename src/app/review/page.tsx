@@ -1,71 +1,114 @@
-import Link from "next/link";
+/**
+ * Review in two columns: what needs a decision (bills that look paid, due days the bank moved,
+ * charges that repeat) on the left, and what the bank feed recorded on its own on the right,
+ * grouped by bill (open one for each month, each with its Undo).
+ */
+
 import { getReview } from "@/server/review";
-import { EmptyState, PageHeading, buttonClass } from "@/components/ui";
+import { Card } from "@/components/ui";
 import { recentAutomation } from "@/server/bills-auto";
+import { formatCents } from "@/lib/money";
 import { AutoRecordedRow, DueDayRow, LooksPaidCard, RepeatCard } from "./cards";
 
 export const dynamic = "force-dynamic";
 
+const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+
 export default async function ReviewPage() {
   const [review, auto] = await Promise.all([getReview(), recentAutomation()]);
+  const waiting = review.count + auto.moved.length;
+
+  // Recorded payments grouped by bill, newest month first, bills with the newest payment first.
+  const byBill = new Map<string, typeof auto.recorded>();
+  for (const r of auto.recorded) byBill.set(r.lineItemId, [...(byBill.get(r.lineItemId) ?? []), r]);
+  const groups = [...byBill.values()]
+    .map((list) => list.sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month)))
+    .sort((a, b) => (b[0].paidOn ?? "").localeCompare(a[0].paidOn ?? ""));
 
   return (
-    <div className="mx-auto max-w-3xl space-y-8">
-      <PageHeading
-        title="Review"
-        description="What the bank feed noticed. Charges from a merchant already tied to a bill are recorded on their own and listed here with an Undo; everything else waits for you."
-        action={
-          <Link href="/transactions" className={buttonClass("quiet")}>
-            Transactions
-          </Link>
-        }
-      />
-
-      {auto.recorded.length || auto.moved.length ? (
-        <section className="space-y-3">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Done for you</h2>
-          {auto.recorded.length ? (
-            <ul className="divide-y divide-line rounded-2xl border border-line bg-surface shadow-card">
-              {auto.recorded.map((r) => (
-                <AutoRecordedRow key={`${r.lineItemId}:${r.year}:${r.month}`} item={r} />
-              ))}
-            </ul>
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <h1 className="font-heading text-[28px] font-bold tracking-tight">Review</h1>
+        <p className="text-sm text-muted">Updated after each bank sync</p>
+      </div>
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
+        <Card className="space-y-3 p-4">
+          <div className="flex items-baseline justify-between">
+            <h2 className="text-base font-bold">Needs you</h2>
+            {waiting ? <span className="rounded-full bg-warn-soft px-2.5 py-0.5 text-xs font-bold text-warn">{waiting}</span> : null}
+          </div>
+          {waiting === 0 ? <p className="text-sm text-muted">All caught up.</p> : null}
+          {review.looksPaid.length ? (
+            <section>
+              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Bills that look paid</h3>
+              <ul className="space-y-2">
+                {review.looksPaid.map((item) => (
+                  <LooksPaidCard key={`${item.lineItemId}:${item.year}:${item.month}:${item.txnId}`} item={item} />
+                ))}
+              </ul>
+            </section>
           ) : null}
           {auto.moved.length ? (
-            <ul className="divide-y divide-line rounded-2xl border border-line bg-surface shadow-card">
-              {auto.moved.map((m) => (
-                <DueDayRow key={m.lineItemId} item={m} />
-              ))}
-            </ul>
+            <section>
+              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Due days the bank moved</h3>
+              <ul className="divide-y divide-line rounded-xl border border-line">
+                {auto.moved.map((m) => (
+                  <DueDayRow key={m.lineItemId} item={m} />
+                ))}
+              </ul>
+            </section>
           ) : null}
-        </section>
-      ) : null}
+          {review.repeats.length ? (
+            <section>
+              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Charges that repeat every month</h3>
+              <ul className="space-y-2">
+                {review.repeats.map((item) => (
+                  <RepeatCard key={item.merchantKey} item={item} />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+        </Card>
 
-      {review.count === 0 ? (
-        <EmptyState>All caught up. New suggestions appear after each morning&rsquo;s bank sync.</EmptyState>
-      ) : null}
-
-      {review.looksPaid.length ? (
-        <section className="space-y-3">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Bills that look paid</h2>
-          <ul className="space-y-3">
-            {review.looksPaid.map((item) => (
-              <LooksPaidCard key={`${item.lineItemId}:${item.year}:${item.month}:${item.txnId}`} item={item} />
-            ))}
-          </ul>
-        </section>
-      ) : null}
-
-      {review.repeats.length ? (
-        <section className="space-y-3">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-muted">Charges that repeat every month</h2>
-          <ul className="space-y-3">
-            {review.repeats.map((item) => (
-              <RepeatCard key={item.merchantKey} item={item} />
-            ))}
-          </ul>
-        </section>
-      ) : null}
+        <Card className="p-4">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-base font-bold">Done for you</h2>
+            <span className="text-xs text-muted">Recorded from the bank feed · open a bill for each month</span>
+          </div>
+          {groups.length ? (
+            <ul className="mt-2 divide-y divide-line">
+              {groups.map((list) => {
+                const latest = list[0];
+                return (
+                  <li key={latest.lineItemId} className="py-1">
+                    <details className="group">
+                      <summary className="flex cursor-pointer list-none flex-wrap items-baseline justify-between gap-2 rounded-lg px-1 py-1.5 hover:bg-neutral-soft">
+                        <span>
+                          <span aria-hidden className="mr-1.5 inline-block text-muted transition-transform group-open:rotate-90">›</span>
+                          <b>{latest.name}</b>{" "}
+                          <span className="text-xs text-muted">
+                            · {list.length} {list.length === 1 ? "month" : "months"} recorded
+                          </span>
+                        </span>
+                        <span className="tnum text-xs text-muted">
+                          latest {latest.paidOn ? short(latest.paidOn) : ""} · {formatCents(latest.amountCents)}
+                        </span>
+                      </summary>
+                      <ul className="mb-1 ml-4 max-h-[26rem] divide-y divide-line overflow-y-auto rounded-xl bg-neutral-soft">
+                        {list.map((r) => (
+                          <AutoRecordedRow key={`${r.lineItemId}:${r.year}:${r.month}`} item={r} />
+                        ))}
+                      </ul>
+                    </details>
+                  </li>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="mt-2 text-sm text-muted">Nothing recorded on its own yet.</p>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }

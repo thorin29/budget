@@ -3,6 +3,30 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.88.0]
+
+No migration. The phone app is unchanged. New optional setting: `RENTCAST_API_KEY` (see
+.env.example).
+
+### Changed
+- **Accounts:** a tile per group with its total (plus Empty and Hidden when there are any); the
+  chosen group's accounts as one table (balance, card terms, last activity); editing an account
+  (type, card name, statement and due days, 0% end, color, hide) opens in a panel beside it
+  instead of a form under every card. The bank feed's status is one line at the top.
+- **Transactions:** one month at a time (‹ ›), 20 rows a page, a search box with account and
+  category, and quick filters: Needs a category, Guessed (with counts), Money in, Transfers &
+  card payments. Beside it, the month's income received, everyday spending and bills paid, from
+  the month plan so they match Insights, and the top categories (each opens its charges).
+- **Review:** two columns. Needs you: bills that look paid, due days the bank moved, charges
+  that repeat. Done for you: grouped by bill ("Water · 12 months recorded"), each opening to its
+  months with Undo.
+- **Setup, categories without a budget:** each shows how often it was used in the last year, the
+  latest charges and a link to them, with Put it in… or Remove category. The alert reads as a link.
+- **Home value:** County appraisal always shows as a row, even after other estimates were saved.
+- **RentCast:** the key can come from `RENTCAST_API_KEY` in the server's environment (it never
+  touches the database). Lookups: one a month on their own, one a day by hand, and never more
+  than 5 in a calendar month (failed ones count), shown in Setup.
+
 ## [0.87.1]
 
 No migration. The phone app is unchanged.

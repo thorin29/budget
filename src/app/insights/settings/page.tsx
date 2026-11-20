@@ -1,5 +1,5 @@
 import { InsightsTabs } from "@/components/insights-tabs";
-import { cushionSetting, getEnvelopeSetup } from "@/server/envelopes";
+import { categoryUsage, cushionSetting, getEnvelopeSetup } from "@/server/envelopes";
 import { getMonthPlan } from "@/server/month-plan";
 import { homeValue } from "@/server/home-value";
 import { TabHeading } from "../shared";
@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function InsightsSettingsPage() {
   const [setup, plan, cushion, home] = await Promise.all([getEnvelopeSetup(), getMonthPlan(), cushionSetting(), homeValue().catch(() => null)]);
+  const usage = await categoryUsage(setup.ungrouped.map((c) => c.id)).catch(() => ({}));
   const byId = new Map(plan.groups.map((g) => [g.id, g]));
   const budgets: SetupBudget[] = setup.groups.map((g) => ({
     id: g.id,
@@ -23,7 +24,7 @@ export default async function InsightsSettingsPage() {
     <div className="space-y-4">
       <InsightsTabs />
       <TabHeading title="Setup" />
-      <SetupPanel budgets={budgets} ungrouped={setup.ungrouped} debt={{ cents: plan.debt.cents, automatic: plan.debt.source !== "set", targetCents: plan.debt.targetCents }} cushionCents={cushion} home={home} />
+      <SetupPanel budgets={budgets} ungrouped={setup.ungrouped} usage={usage} debt={{ cents: plan.debt.cents, automatic: plan.debt.source !== "set", targetCents: plan.debt.targetCents }} cushionCents={cushion} home={home} />
     </div>
   );
 }

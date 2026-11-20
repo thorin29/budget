@@ -186,12 +186,18 @@ export async function listBankTransactions({
   query,
   category,
   take = 200,
+  from,
+  to,
 }: {
   accountId?: string;
   query?: string;
   /** A category id, or "none" for uncategorized money out. */
   category?: string;
   take?: number;
+  /** Posted on or after this day (YYYY-MM-DD). */
+  from?: string;
+  /** Posted on or before this day (YYYY-MM-DD). */
+  to?: string;
 }): Promise<BankTransactionView[]> {
   const text = query?.trim().slice(0, 100).toLowerCase();
   const limit = Math.min(Math.max(take, 1), 1000);
@@ -200,6 +206,7 @@ export async function listBankTransactions({
     where: {
       ...(accountId ? { accountId } : {}),
       ...(category === "none" ? { categoryId: null, kind: "NORMAL" as const, amount: { lt: 0 } } : category ? { categoryId: category } : {}),
+      ...(from || to ? { postedOn: { ...(from ? { gte: new Date(`${from}T00:00:00Z`) } : {}), ...(to ? { lte: new Date(`${to}T00:00:00Z`) } : {}) } } : {}),
     },
     orderBy: [{ postedOn: "desc" }, { createdAt: "desc" }],
     take: text ? 20_000 : limit,

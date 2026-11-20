@@ -142,3 +142,13 @@ export async function saveHomeEstimatesAction(list: Array<{ source: string; cent
   });
   return state.ok ? { ok: true, message: msg } : state;
 }
+
+export async function deleteCategoryAction(id: string): Promise<EnvelopeState> {
+  const { deleteCategory } = await import("@/server/categories");
+  let msg = "Category removed.";
+  const state = await run(async () => {
+    const r = await deleteCategory(String(id));
+    if (!r.deleted) msg = "A bill still uses it, so it's turned off instead of removed.";
+  });
+  return state.ok ? { ok: true, message: msg } : state;
+}

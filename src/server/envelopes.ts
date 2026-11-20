@@ -166,3 +166,23 @@ export async function getEnvelopeSetup(): Promise<EnvelopeSetup> {
     ungrouped: mine.filter((c) => !c.groupId).map((c) => ({ id: c.id, name: c.name })),
   };
 }
+
+/** For categories without a budget: how much they've been used in the last year, and the latest charges. */
+export async function categoryUsage(ids: string[]): Promise<Record<string, { count: number; cents: number; latest: Array<{ date: string; merchant: string; cents: number }> }>> {
+  if (!ids.length) return {};
+  const rows = (await prisma.bankTransaction.findMany({
+    where: { categoryId: { in: ids }, postedOn: { gte: new Date(Date.now() - 365 * 86_400_000) } },
+    select: { categoryId: true, postedOn: true, merchant: true, amount: true },
+    orderBy: { postedOn: "desc" },
+  })) as Array<{ categoryId: string; postedOn: Date; merchant: string; amount: { toString(): string } }>;
+  const out: Record<string, { count: number; cents: number; latest: Array<{ date: string; merchant: string; cents: number }> }> = {};
+  for (const id of ids) out[id] = { count: 0, cents: 0, latest: [] };
+  for (const r of rows) {
+    const u = out[r.categoryId];
+    const cents = Math.round(Number(r.amount.toString()) * 100);
+    u.count += 1;
+    u.cents += cents;
+    if (u.latest.length < 3) u.latest.push({ date: r.postedOn.toISOString().slice(0, 10), merchant: r.merchant, cents });
+  }
+  return out;
+}

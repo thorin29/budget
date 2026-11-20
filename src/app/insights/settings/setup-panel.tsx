@@ -10,6 +10,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  deleteCategoryAction,
   deleteGroupAction,
   refreshHomeValueAction,
   resetGroupsAction,
@@ -34,6 +35,9 @@ export interface SetupBudget {
   categories: Array<{ id: string; name: string }>;
 }
 export interface SetupHome {
+  keyFromEnv: boolean;
+  callsThisMonth: number;
+  callsLimit: number;
   estimates: Array<{ source: string; cents: number; on: string }>;
   averageCents: number | null;
   address: string;
@@ -66,15 +70,19 @@ function Note({ state }: { state: EnvelopeState | null }) {
   return state ? <span className={`text-xs ${state.ok ? "text-ok" : "text-danger"}`}>{state.message}</span> : null;
 }
 
+export type Usage = Record<string, { count: number; cents: number; latest: Array<{ date: string; merchant: string; cents: number }> }>;
+
 export function SetupPanel({
   budgets,
   ungrouped,
+  usage,
   debt,
   cushionCents,
   home,
 }: {
   budgets: SetupBudget[];
   ungrouped: Array<{ id: string; name: string }>;
+  usage: Usage;
   debt: { cents: number; automatic: boolean; targetCents: number | null };
   cushionCents: number;
   home: SetupHome | null;
@@ -142,7 +150,7 @@ export function SetupPanel({
           {current ? (
             <BudgetDetail key={current.id} b={current} budgets={budgets} pending={pending} act={act} state={state} />
           ) : sel === "unsorted" ? (
-            <Unsorted ungrouped={ungrouped} budgets={budgets} pending={pending} act={act} state={state} />
+            <Unsorted ungrouped={ungrouped} usage={usage} budgets={budgets} pending={pending} act={act} state={state} />
           ) : sel === "home" ? (
             <HomeValue home={home} pending={pending} act={act} state={state} />
           ) : (
@@ -179,8 +187,8 @@ function TopBar({ debt, cushionCents, ungrouped, onUnsorted }: { debt: { cents: 
       </label>
       {pending ? <span className="text-xs text-muted">Saving…</span> : <Note state={state} />}
       {ungrouped ? (
-        <button type="button" onClick={onUnsorted} className="ml-auto rounded-full bg-warn-soft px-3 py-1 text-xs font-semibold text-warn">
-          {ungrouped} categor{ungrouped === 1 ? "y needs" : "ies need"} a budget →
+        <button type="button" onClick={onUnsorted} className="ml-auto rounded-full bg-warn-soft px-3 py-1 text-xs font-semibold text-warn underline decoration-dotted underline-offset-2 hover:decoration-solid">
+          {ungrouped} categor{ungrouped === 1 ? "y needs" : "ies need"} a budget: see {ungrouped === 1 ? "it" : "them"} →
         </button>
       ) : null}
     </div>
@@ -294,25 +302,53 @@ function BudgetDetail({ b, budgets, pending, act, state }: { b: SetupBudget; bud
   );
 }
 
-function Unsorted({ ungrouped, budgets, pending, act, state }: { ungrouped: Array<{ id: string; name: string }>; budgets: SetupBudget[]; pending: boolean; act: Act; state: EnvelopeState | null }) {
+function Unsorted({ ungrouped, usage, budgets, pending, act, state }: { ungrouped: Array<{ id: string; name: string }>; usage: Usage; budgets: SetupBudget[]; pending: boolean; act: Act; state: EnvelopeState | null }) {
+  const day = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const signed = (c: number) => `${c < 0 ? "−" : "+"}$${(Math.abs(c) / 100).toFixed(2)}`;
   return (
     <div className="space-y-3">
-      <h2 className="text-xl font-bold">Categories without a budget</h2>
+      <div>
+        <h2 className="text-xl font-bold">Categories without a budget</h2>
+        <p className="mt-1 text-sm text-muted">A category exists but isn&rsquo;t in any budget, so its spending isn&rsquo;t counted against one. Put it in a budget, or remove it if it isn&rsquo;t used.</p>
+      </div>
       {ungrouped.length ? (
         <ul className="divide-y divide-line text-sm">
-          {ungrouped.map((c) => (
-            <li key={c.id} className="flex items-center justify-between gap-3 py-2">
-              <span>{c.name}</span>
-              <select aria-label={`Budget for ${c.name}`} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm" value="" disabled={pending} onChange={(e) => e.target.value && act(() => setCategoryGroupAction(c.id, e.target.value))}>
-                <option value="">Put it in…</option>
-                {budgets.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.name}
-                  </option>
-                ))}
-              </select>
-            </li>
-          ))}
+          {ungrouped.map((c) => {
+            const u = usage[c.id];
+            return (
+              <li key={c.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
+                <span className="min-w-0">
+                  <b>{c.name}</b>
+                  <span className="block text-xs text-muted">
+                    {u && u.count ? (
+                      <>
+                        {u.count} transaction{u.count === 1 ? "" : "s"} in the last year ·{" "}
+                        {u.latest.map((l) => `${day(l.date)} ${l.merchant} ${signed(l.cents)}`).join(" · ")} ·{" "}
+                        <a href={`/transactions?category=${c.id}${u.latest[0] ? `&m=${u.latest[0].date.slice(0, 7)}` : ""}`} className="font-semibold text-accent-text hover:underline">
+                          See them
+                        </a>
+                      </>
+                    ) : (
+                      "Not used by any transaction in the last year"
+                    )}
+                  </span>
+                </span>
+                <span className="flex items-center gap-2">
+                  <select aria-label={`Budget for ${c.name}`} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm" value="" disabled={pending} onChange={(e) => e.target.value && act(() => setCategoryGroupAction(c.id, e.target.value))}>
+                    <option value="">Put it in…</option>
+                    {budgets.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button type="button" disabled={pending} className="text-xs font-semibold text-danger hover:underline" onClick={() => act(() => deleteCategoryAction(c.id))}>
+                    Remove category
+                  </button>
+                </span>
+              </li>
+            );
+          })}
         </ul>
       ) : (
         <p className="text-sm text-muted">Every category has a budget.</p>
@@ -370,9 +406,13 @@ function NewBudget({ pending, act, state }: { pending: boolean; act: Act; state:
 }
 
 function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pending: boolean; act: Act; state: EnvelopeState | null }) {
-  const start: Array<{ source: string; amount: string; on?: string }> = home?.estimates.length
-    ? home.estimates.map((e) => ({ source: e.source, amount: String(Math.round(e.cents / 100)), on: e.on }))
-    : [{ source: "Zillow", amount: "" }, { source: "Redfin", amount: "" }, { source: "Realtor.com", amount: "" }, { source: "County appraisal", amount: "" }];
+  // Saved estimates first, then any of the usual sources not entered yet (so County appraisal
+  // shows even after the others were saved).
+  const saved = (home?.estimates ?? []).map((e) => ({ source: e.source, amount: String(Math.round(e.cents / 100)), on: e.on as string | undefined }));
+  const start: Array<{ source: string; amount: string; on?: string }> = [
+    ...saved,
+    ...["Zillow", "Redfin", "Realtor.com", "County appraisal"].filter((s) => !saved.some((x) => x.source.toLowerCase() === s.toLowerCase())).map((source) => ({ source, amount: "" })),
+  ];
   const [rows, setRows] = useState(start);
   const [address, setAddress] = useState(home?.address ?? "");
   const [key, setKey] = useState("");
@@ -447,7 +487,11 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
       </div>
       <details className="rounded-xl border border-line p-3 text-sm">
         <summary className="cursor-pointer font-semibold">Or look it up automatically with RentCast</summary>
-        <p className="mt-2 text-xs text-muted">Needs a RentCast account and API key (they ask for a card even on the free plan). Typed-in estimates above take priority when there are any.</p>
+        <p className="mt-2 text-xs text-muted">
+          Needs a RentCast API key. Best kept on the server as <code>RENTCAST_API_KEY</code>; pasting it here also works (stored encrypted). At most one lookup a month on its own, one a day by hand, and never more than {home?.callsLimit ?? 5} a month.
+          {home ? ` ${home.callsThisMonth} used this month.` : ""} Typed-in estimates above take priority when there are any.
+        </p>
+        {home?.keyFromEnv ? <p className="mt-1 text-xs font-semibold text-ok">Key found in the server&rsquo;s environment.</p> : null}
         {home?.valueCents ? (
           <p className="tnum mt-2 text-xs">
             RentCast: <b>{money(home.valueCents)}</b>
@@ -458,7 +502,7 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
         {home?.error ? <p className="mt-1 text-xs text-danger">Last lookup: {home.error}</p> : null}
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <span className="self-center text-xs text-muted">Uses the address above.</span>
-          <input aria-label="RentCast API key" value={key} onChange={(e) => setKey(e.target.value)} type="password" autoComplete="off" placeholder={home?.hasKey ? "Key saved (blank keeps it)" : "API key"} className="rounded-lg border border-line bg-surface px-2 py-1.5" />
+          <input aria-label="RentCast API key" value={key} onChange={(e) => setKey(e.target.value)} type="password" autoComplete="off" placeholder={home?.keyFromEnv ? "Set on the server" : home?.hasKey ? "Key saved (blank keeps it)" : "API key"} className="rounded-lg border border-line bg-surface px-2 py-1.5" />
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
           <button type="button" disabled={pending || !address.trim() || (!key.trim() && !home?.hasKey)} className={QUIET} onClick={() => act(() => saveHomeValueAction(address, key || null))}>
