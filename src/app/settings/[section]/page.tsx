@@ -46,7 +46,7 @@ import { listBankAccounts } from "@/server/bank/accounts";
 import { amazonStatus } from "@/server/amazon-import";
 import { listCsvImports } from "@/server/bank/csv-import";
 import { SLOT_MINUTE, syncHours } from "@/lib/bank-schedule";
-import { AmazonImporter, BillsSource, CombinedImporter, ConnectBank, CsvImporter, LinkAccountToBank, DeleteBankData, RevertImport, SyncControls } from "../bank";
+import { AmazonImporter, BillsSource, CombinedImporter, ConnectBank, CsvImporter, LinkAccountToBank, DeleteBankData, RawFeed, RevertImport, SyncControls } from "../bank";
 
 export const dynamic = "force-dynamic";
 
@@ -660,6 +660,21 @@ async function Bank() {
               Open Accounts
             </Link>
           </div>
+        </Card>
+      ) : null}
+
+      {accounts.length && connection ? (
+        <Card className="p-6">
+          <h3 className="font-sans text-base font-bold">Check the raw feed</h3>
+          <p className="mb-3 mt-1 max-w-prose text-sm text-muted">
+            One account&rsquo;s last 30 days exactly as SimpleFIN sends them, every field, to see what the bank includes (a card member&rsquo;s name, the last four, a memo).
+            It&rsquo;s a live request, so it counts toward the feed&rsquo;s daily limit.
+          </p>
+          <RawFeed
+            accounts={accounts
+              .filter((a) => !a.hidden)
+              .map((a) => ({ id: a.id, label: a.institution ? `${a.institution} · ${a.displayName}` : a.displayName }))}
+          />
         </Card>
       ) : null}
 

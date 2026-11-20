@@ -2,34 +2,40 @@ import Link from "next/link";
 import { InsightsTabs } from "@/components/insights-tabs";
 import { cushionSetting, getEnvelopeSetup } from "@/server/envelopes";
 import { getMonthPlan } from "@/server/month-plan";
-import { Card } from "@/components/ui";
-import { Limits } from "../month-plan";
-import { EnvelopeSetupForm } from "../envelopes/setup";
+import { homeValue } from "@/server/home-value";
 import { TabHeading } from "../shared";
+import { SetupPanel, type SetupBudget } from "./setup-panel";
 
 export const dynamic = "force-dynamic";
 
 export default async function InsightsSettingsPage() {
-  const [setup, plan, cushion] = await Promise.all([getEnvelopeSetup(), getMonthPlan(), cushionSetting()]);
+  const [setup, plan, cushion, home] = await Promise.all([getEnvelopeSetup(), getMonthPlan(), cushionSetting(), homeValue().catch(() => null)]);
+  const byId = new Map(plan.groups.map((g) => [g.id, g]));
+  const budgets: SetupBudget[] = setup.groups.map((g) => ({
+    id: g.id,
+    name: g.name,
+    tier: g.tier as SetupBudget["tier"],
+    limitCents: g.limitCents,
+    usualCents: byId.get(g.id)?.usualCents ?? null,
+    spentCents: byId.get(g.id)?.spentCents ?? null,
+    categories: g.categories,
+  }));
   return (
-    <div className="space-y-6">
-      <InsightsTabs />
+    <div className="space-y-4">
+      <InsightsTabs
+        right={
+          <span className="flex gap-4 text-sm font-semibold">
+            <Link href="/line-items" className="text-accent-text hover:underline">
+              Bills &amp; income
+            </Link>
+            <Link href="/settings/categories" className="text-accent-text hover:underline">
+              Categories
+            </Link>
+          </span>
+        }
+      />
       <TabHeading title="Setup" />
-      <Limits plan={plan} />
-      <EnvelopeSetupForm setup={setup} debt={{ cents: plan.debt.cents, automatic: plan.debt.source !== "set", targetCents: plan.debt.targetCents }} cushionCents={cushion} />
-      <Card>
-        <h2 className="text-base font-bold">Elsewhere</h2>
-        <ul className="mt-2 space-y-1 text-sm">
-          <li>
-            <Link href="/line-items" className="font-semibold text-accent-text hover:underline">Bills &amp; income</Link>{" "}
-            <span className="text-muted">· every bill and paycheck, schedules, and loan balances</span>
-          </li>
-          <li>
-            <Link href="/settings/categories" className="font-semibold text-accent-text hover:underline">Categories</Link>{" "}
-            <span className="text-muted">· including money managed for others, like league fees</span>
-          </li>
-        </ul>
-      </Card>
+      <SetupPanel budgets={budgets} ungrouped={setup.ungrouped} debt={{ cents: plan.debt.cents, automatic: plan.debt.source !== "set", targetCents: plan.debt.targetCents }} cushionCents={cushion} home={home} />
     </div>
   );
 }

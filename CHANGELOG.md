@@ -3,6 +3,27 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.86.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Home value from RentCast** (Setup → Home value): an address and a RentCast API key (sealed
+  with BANK_SYNC_KEY) look up the estimate and its range, which becomes the Home value in net
+  worth. It refreshes once a month on its own; "Look up again" asks now (at most once an hour).
+  RentCast (api.rentcast.io) is the only outside host besides the bank feed, through the same
+  guarded client.
+- **Check the raw feed** (Settings → Bank sync): one account's last 30 days exactly as SimpleFIN
+  sends them, every field, to see what the bank includes. A live request; six a day at most.
+
+### Changed
+- **Setup tab, redone as a list and a detail:** budgets down the left by kind, the chosen one on
+  the right (name, kind, limit, usual and this month, categories to take out or add). The 0% debt
+  payment and the checking cushion sit in a bar on top (saved as you leave the box), with an alert
+  that opens the categories still without a budget. New budget, the kinds explained and "start
+  over with the suggested budgets" are under + New budget. Bills & income and Categories links sit
+  next to the tabs.
+
 ## [0.85.0]
 
 **Migration 0026** (runs on start): `LineItem.payoffEscrowCents`. The phone app is unchanged.

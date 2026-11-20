@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useState, useTransition } from "react";
-import { Button, ErrorBanner, Select } from "@/components/ui";
+import { Button, ErrorBanner, Select, buttonClass } from "@/components/ui";
 import { formatCents } from "@/lib/money";
 import { CARD_COLORS, cardColor, isCustomColor } from "@/lib/card-colors";
 import {
@@ -22,6 +22,7 @@ import {
   setCardTermsAction,
   connectAccountAction,
   syncBankAction,
+  rawFeedAction,
   type BankActionState,
 } from "./bank-actions";
 import { slimOrderHistory } from "@/lib/amazon-orders";
@@ -633,6 +634,81 @@ export function AmazonImporter({ status }: { status: { charges: number; lastImpo
         <Button type="button" variant="danger" disabled={pending} onClick={() => start(async () => setMessage(await removeAmazonAction()))}>
           Remove all Amazon splits
         </Button>
+      ) : null}
+    </div>
+  );
+}
+
+/** One account's last 30 days exactly as the feed sends them: every field, to see what's included. */
+export function RawFeed({ accounts }: { accounts: Array<{ id: string; label: string }> }) {
+  const [id, setId] = useState(accounts[0]?.id ?? "");
+  const [data, setData] = useState<import("@/server/bank/raw-feed").RawFeedSample | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, start] = useTransition();
+  const keys = data ? [...new Set(data.transactions.flatMap((t) => Object.keys(t)))] : [];
+  const show = (v: unknown) => (v === null || v === undefined ? "" : typeof v === "object" ? JSON.stringify(v) : String(v));
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <select aria-label="Account" className="rounded-lg border border-line bg-surface px-2 py-1.5 text-sm" value={id} onChange={(e) => setId(e.target.value)}>
+          {accounts.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          disabled={pending || !id}
+          className={buttonClass("quiet")}
+          onClick={() =>
+            start(async () => {
+              const r = await rawFeedAction(id);
+              if (r.ok) {
+                setData(r.data);
+                setError(null);
+              } else setError(r.message);
+            })
+          }
+        >
+          {pending ? "Asking the feed…" : "Show the raw feed"}
+        </button>
+        {error ? <span className="text-sm text-danger">{error}</span> : null}
+      </div>
+      {data ? (
+        <div className="space-y-2">
+          <p className="text-xs text-muted">
+            Account fields:{" "}
+            {Object.entries(data.account)
+              .filter(([k]) => k !== "org")
+              .map(([k, v]) => `${k}: ${show(v)}`)
+              .join(" · ")}
+          </p>
+          <div className="max-h-96 overflow-auto rounded-xl border border-line">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-neutral-soft text-left">
+                <tr>
+                  {keys.map((k) => (
+                    <th key={k} className="px-2 py-1.5 font-semibold">
+                      {k}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-line">
+                {data.transactions.map((t, i) => (
+                  <tr key={i}>
+                    {keys.map((k) => (
+                      <td key={k} className="max-w-xs truncate px-2 py-1" title={show(t[k])}>
+                        {show(t[k])}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
       ) : null}
     </div>
   );

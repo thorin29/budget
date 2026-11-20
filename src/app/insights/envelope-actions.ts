@@ -12,6 +12,8 @@ export type EnvelopeState = { ok: true; message?: string } | { ok: false; messag
 function failure(error: unknown): EnvelopeState {
   if (error instanceof ValidationError) return { ok: false, message: Object.values(error.issues).flat()[0] ?? error.message };
   if (error instanceof NotFoundError || error instanceof UnauthorizedError) return { ok: false, message: error.message };
+  // RentCast and key problems carry a message meant for the person.
+  if (error instanceof Error && (error.name === "BankFeedError" || error.name === "MissingKeyError")) return { ok: false, message: error.message };
   console.error("Envelope action failed:", error);
   return { ok: false, message: "Something went wrong" };
 }
@@ -109,4 +111,24 @@ export async function matchChargeToBillAction(transactionId: string, lineItemId:
 export async function saveOwnedAssetsAction(list: Array<{ id: string; name: string; cents: number }>): Promise<EnvelopeState> {
   const { saveOwnedAssets } = await import("@/server/net-worth");
   return run(() => saveOwnedAssets(list), "Saved.");
+}
+
+export async function saveHomeValueAction(address: string, apiKey: string | null): Promise<EnvelopeState> {
+  const { saveHomeValueSetup } = await import("@/server/home-value");
+  let msg = "Saved.";
+  const state = await run(async () => {
+    const v = await saveHomeValueSetup(String(address), apiKey ? String(apiKey) : null);
+    msg = v.error ? `Saved, but RentCast said: ${v.error}` : v.valueCents ? `RentCast estimate: $${Math.round(v.valueCents / 100).toLocaleString("en-US")}` : "Saved.";
+  });
+  return state.ok ? { ok: true, message: msg } : state;
+}
+
+export async function refreshHomeValueAction(): Promise<EnvelopeState> {
+  const { refreshHomeValue } = await import("@/server/home-value");
+  let msg = "Up to date.";
+  const state = await run(async () => {
+    const v = await refreshHomeValue(true);
+    msg = v?.error ? `RentCast said: ${v.error}` : "Updated.";
+  });
+  return state.ok ? { ok: true, message: msg } : state;
 }

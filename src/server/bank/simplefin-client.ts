@@ -1,6 +1,8 @@
 /**
- * The only code in the app that makes outside requests. Every request:
- *  - goes to https on port 443, to a host on the allow-list (src/lib/simplefin.ts);
+ * The only code in the app that makes outside requests: the bank feed, and RentCast for a home
+ * value when that's set up. Every request:
+ *  - goes to https on port 443, to a host on the allow-list (src/lib/simplefin.ts, or
+ *    api.rentcast.io);
  *  - is refused if that host resolves to a private, loopback or link-local address;
  *  - follows no redirects;
  *  - gives up after 60 seconds and reads at most 25 MB.
@@ -61,7 +63,7 @@ async function readCapped(response: Response): Promise<string> {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-async function guardedFetch(url: URL, init: { method: "GET" | "POST"; authorization?: string }): Promise<string> {
+async function guardedFetch(url: URL, init: { method: "GET" | "POST"; authorization?: string; headers?: Record<string, string> }): Promise<string> {
   await assertPublicHost(url.hostname);
   const target = new URL(url.toString());
   target.username = "";
@@ -78,6 +80,7 @@ async function guardedFetch(url: URL, init: { method: "GET" | "POST"; authorizat
         "User-Agent": "budget-self-hosted",
         ...(init.method === "POST" ? { "Content-Length": "0" } : {}),
         ...(init.authorization ? { Authorization: init.authorization } : {}),
+        ...(init.headers ?? {}),
       },
     });
   } catch (error) {
@@ -107,7 +110,33 @@ export interface FetchOptions {
   balancesOnly?: boolean;
 }
 
-export async function fetchAccounts(accessUrl: string, options: FetchOptions = {}): Promise<FeedDocument> {
+/** The bank feed's answer exactly as sent, for checking what it includes (Settings → Bank sync). */
+export async function fetchRawAccounts(accessUrl: string, options: FetchOptions = {}): Promise<unknown> {
+  return JSON.parse(await feedText(accessUrl, options));
+}
+
+const RENTCAST_HOST = "api.rentcast.io";
+
+/** A GET to RentCast with its key, answer parsed as JSON. */
+export async function rentcastGet(path: string, params: Record<string, string>, apiKey: string): Promise<unknown> {
+  const url = new URL(`https://${RENTCAST_HOST}${path}`);
+  for (const [k, v] of Object.entries(params)) url.searchParams.set(k, v);
+  if (url.hostname !== RENTCAST_HOST || url.protocol !== "https:") throw new BankFeedError("Refusing a request outside RentCast");
+  let text: string;
+  try {
+    text = await guardedFetch(url, { method: "GET", headers: { "X-Api-Key": apiKey } });
+  } catch (error) {
+    const msg = error instanceof Error ? error.message.replace(/bank feed/gi, "RentCast") : "RentCast didn't answer";
+    throw new BankFeedError(msg.replace("The token may be used or revoked.", "Check the API key."));
+  }
+  try {
+    return JSON.parse(text);
+  } catch {
+    throw new BankFeedError("RentCast sent something that isn't JSON");
+  }
+}
+
+async function feedText(accessUrl: string, options: FetchOptions): Promise<string> {
   const access = checkUrl(accessUrl, allowedHosts(), { credentials: true });
   const authorization =
     "Basic " +
@@ -121,7 +150,11 @@ export async function fetchAccounts(accessUrl: string, options: FetchOptions = {
   if (options.pending) url.searchParams.set("pending", "1");
   if (options.balancesOnly) url.searchParams.set("balances-only", "1");
 
-  const text = await guardedFetch(url, { method: "GET", authorization });
+  return guardedFetch(url, { method: "GET", authorization });
+}
+
+export async function fetchAccounts(accessUrl: string, options: FetchOptions = {}): Promise<FeedDocument> {
+  const text = await feedText(accessUrl, options);
   let json: unknown;
   try {
     json = JSON.parse(text);

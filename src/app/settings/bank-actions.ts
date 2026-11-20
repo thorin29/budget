@@ -243,3 +243,17 @@ export async function removeAmazonAction(): Promise<BankActionState> {
     return failure(error);
   }
 }
+
+const rawChecks = createLimiter({ limit: 6, windowMs: 24 * 60 * 60_000 });
+
+/** One account's last 30 days as the bank feed sends them (a live request). */
+export async function rawFeedAction(bankAccountId: string): Promise<BankResult<import("@/server/bank/raw-feed").RawFeedSample>> {
+  try {
+    const user = await requireUser();
+    if (!rawChecks.hit(`raw:${user.id}`)) return { ok: false, message: "That's enough feed checks for today; the bank feed limits requests." };
+    const { rawFeedSample } = await import("@/server/bank/raw-feed");
+    return { ok: true, data: await rawFeedSample(String(bankAccountId)) };
+  } catch (error) {
+    return failure(error);
+  }
+}

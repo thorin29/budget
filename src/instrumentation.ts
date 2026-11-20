@@ -41,6 +41,9 @@ export async function register(): Promise<void> {
       const { getMonthPlan } = await import("./server/month-plan");
       const { getNetWorth } = await import("./server/net-worth");
       const plan = await getMonthPlan().catch(() => null);
+      // The home value from RentCast, once a month when it's set up (before net worth reads it).
+      const { refreshHomeValue } = await import("./server/home-value");
+      await refreshHomeValue(false);
       await getNetWorth(plan?.debt.cents ?? 0);
     })().catch((error) => console.error("Snapshots:", error instanceof Error ? error.message : error));
   setTimeout(snapshot, 90_000).unref?.();
