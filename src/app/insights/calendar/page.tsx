@@ -88,7 +88,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                 return (
                   <div
                     key={d}
-                    className={`flex min-w-0 flex-col rounded-lg border px-2 py-1.5 ${inWindow ? "border-line" : "border-transparent opacity-35"} ${tone} ${low ? "ring-2 ring-foreground/70" : ""}`}
+                    className={`flex min-w-0 flex-col rounded-lg border px-2 py-1.5 ${inWindow ? `border-line-strong ${tone || "bg-neutral-soft"}` : "border-transparent opacity-35"} ${low ? "ring-2 ring-foreground/70" : ""}`}
                   >
                     <div className="flex items-baseline justify-between gap-1 text-[11px]">
                       <b className={d === cash.today ? "text-accent-text" : ""}>{label}</b>
