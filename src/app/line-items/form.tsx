@@ -208,19 +208,13 @@ export function LineItemForm({
               { value: "INCOME", label: "Income" },
             ]}
           />
-          <span className="mt-1.5 block text-xs text-muted">
-            {kind === "SETTLEMENT"
-              ? "Paying off a credit card. What was bought on it already counts as spending, so the payment isn't counted as a bill."
-              : kind === "BILL"
-                ? "Something you pay on a schedule: rent, insurance, a membership, a yearly fee."
-                : "Money in."}
-          </span>
+          {kind === "SETTLEMENT" ? <span className="mt-1.5 block text-xs text-muted">Not counted as a bill: the purchases already count.</span> : null}
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label={isIncome ? "Expected amount" : "Usual amount"}
-            hint={amountChanged ? "Earlier months keep the old amount." : isIncome ? "Per arrival. An estimate is fine." : "A single month that differs is changed on the month view."}
+            hint={amountChanged ? "Earlier months keep the old amount." : undefined}
             error={state.issues?.plannedAmountCents}
           >
             <div className="relative">
@@ -251,7 +245,7 @@ export function LineItemForm({
 
           <Field
             label={isIncome ? "Arrives around day" : "Due around day"}
-            hint="Approximate is fine."
+            
             error={state.issues?.dueDay}
           >
             <div className="flex">
@@ -377,7 +371,7 @@ export function LineItemForm({
           ) : null}
 
           {kind === "BILL" && paidOn === "card" ? (
-            <Field label="Which card" hint="Paying the card itself is its own card payoff." error={state.issues?.chargedToId}>
+            <Field label="Which card" error={state.issues?.chargedToId}>
               <Select name="chargedToId" defaultValue={defaults.chargedToId ?? cards[0]?.id ?? ""}>
                 {cards.map((c) => (
                   <option key={c.id} value={c.id}>
@@ -389,7 +383,7 @@ export function LineItemForm({
           ) : null}
 
           {kind === "SETTLEMENT" && cards.length > 0 ? (
-            <Field label="Which card" hint="Payments reaching it are recorded here on their own, whatever the amount." error={state.issues?.paysCard}>
+            <Field label="Which card" error={state.issues?.paysCard}>
               <Select name="paysCard" defaultValue={defaults.paysCard === "none" ? "auto" : defaults.paysCard}>
                 <option value="auto">Work it out from the bank</option>
                 {cards.map((c) => (
@@ -429,7 +423,7 @@ export function LineItemForm({
           {isIncome && paySchedules.length > 0 ? (
             <Field
               label="Arrives on"
-              hint="Lands on every payday the calendar generates — a three-payday month counts three."
+
               error={state.issues?.payScheduleId}
             >
               <Select name="payScheduleId" defaultValue={defaults.payScheduleId ?? ""}>
@@ -447,7 +441,7 @@ export function LineItemForm({
 
         <details className="rounded-xl border border-line p-4">
           <summary className="cursor-pointer text-[13px] font-semibold">Half of the month</summary>
-          <span className="mt-1 block text-xs text-muted">Which half of the month view it shows in. Following the due day is right almost always.</span>
+
           <div className="mt-2">
           <Segmented
             name="periodAssignment"
@@ -466,12 +460,12 @@ export function LineItemForm({
             name="paidFromSurplus"
             defaultChecked={defaults.paidFromSurplus}
             label="Paid from what’s left over"
-            detail="For a card you pay with whatever remains once the bills are covered. It stops counting against the free money, and What can I pay? shows what you can send it."
+            detail="Paid with what remains after the bills"
           />
         ) : null}
 
         {isIncome ? (
-          <Field label="Arrives on" hint="With a pay calendar, a 3rd paycheck only shows in months that have three paydays">
+          <Field label="Arrives on" >
             <Select name="paydayNumber" defaultValue={String(defaults.paydayNumber ?? 0)}>
               <option value="0">Its due day</option>
               <option value="1">The 1st payday of the month</option>
@@ -501,15 +495,13 @@ export function LineItemForm({
           name="autoRecord"
           defaultChecked={defaults.autoRecord}
           label={isIncome ? "Record it when it arrives" : "Record it when the bank shows it paid"}
-          detail="Once a merchant has been tied to this item, its charge around the due day is recorded on its own, even when the amount changes, with an Undo on the Review page. A charge from a merchant it doesn't know yet still waits for you."
+          detail="When a known merchant charges it near the due day (Undo on Review)"
         />
 
         {!isIncome ? (
           <div className="rounded-xl border border-line p-4">
             <span className="block text-[13px] font-semibold">Pays off a balance</span>
-            <span className="mt-0.5 block text-xs text-muted">
-              For a loan, a mortgage or a payment plan: track what&rsquo;s left, and the bill ends on its own when it reaches zero.
-            </span>
+
             {defaults.payoffSummary ? <p className="mt-2 rounded-lg bg-neutral-soft px-3 py-2 text-sm font-semibold">{defaults.payoffSummary}</p> : null}
             <div className="mt-3 grid gap-3 sm:grid-cols-3">
               <Field label="Balance from">
@@ -521,26 +513,26 @@ export function LineItemForm({
               </Field>
               {payoffMode === "balance" ? (
                 <>
-                  <Field label="Left to pay" hint="Payments recorded after the date count it down">
+                  <Field label="Left to pay" >
                     <TextInput name="payoffBalance" inputMode="decimal" defaultValue={defaults.payoffBalance} placeholder="0.00" />
                   </Field>
-                  <Field label="As of" hint="Update both now and then for a loan with interest">
+                  <Field label="As of" >
                     <TextInput name="payoffAsOf" type="date" defaultValue={defaults.payoffAsOf} />
                   </Field>
                 </>
               ) : null}
               {payoffMode !== "none" ? (
                 <>
-                  <Field label="Interest rate (APR)" hint="For the payoff date" error={state.issues?.payoffAprBps}>
+                  <Field label="Interest rate (APR)" error={state.issues?.payoffAprBps}>
                     <TextInput name="payoffApr" inputMode="decimal" defaultValue={defaults.payoffApr ?? ""} placeholder="6.25 %" />
                   </Field>
-                  <Field label="Escrow each month" hint="Taxes and insurance in the payment: left out of the payoff" error={state.issues?.payoffEscrowCents}>
+                  <Field label="Escrow each month" hint="Left out of the payoff" error={state.issues?.payoffEscrowCents}>
                     <TextInput name="payoffEscrow" inputMode="decimal" defaultValue={defaults.payoffEscrow ?? ""} placeholder="0.00" />
                   </Field>
                 </>
               ) : null}
               {payoffMode === "account" ? (
-                <Field label="Loan account" hint="Its balance comes from the bank, interest included">
+                <Field label="Loan account" >
                   <Select name="payoffAccountId" defaultValue={defaults.payoffAccountId ?? ""}>
                     <option value="">—</option>
                     {loans.map((l) => (
@@ -563,7 +555,7 @@ export function LineItemForm({
           <div className="grid gap-4 border-t border-line p-4 sm:grid-cols-2">
             <Field
               label="Payment link"
-              hint="Stored only in your database."
+              
               error={state.issues?.paymentUrl}
             >
               <TextInput name="paymentUrl" type="url" defaultValue={defaults.paymentUrl} placeholder="https://" />
@@ -573,7 +565,7 @@ export function LineItemForm({
               <TextInput name="notes" defaultValue={defaults.notes} maxLength={2000} />
             </Field>
 
-            <Field label="Starts" hint="Leave empty unless it began partway through" error={state.issues?.startYear}>
+            <Field label="Starts" error={state.issues?.startYear}>
               <div className="flex gap-2">
                 <Select name="startMonth" defaultValue={defaults.startMonth ?? ""}>
                   <option value="">—</option>
@@ -587,7 +579,7 @@ export function LineItemForm({
               </div>
             </Field>
 
-            <Field label="Ends" hint="Leave empty for anything ongoing" error={state.issues?.endYear}>
+            <Field label="Ends" error={state.issues?.endYear}>
               <div className="flex gap-2">
                 <Select name="endMonth" defaultValue={defaults.endMonth ?? ""}>
                   <option value="">—</option>
@@ -601,7 +593,7 @@ export function LineItemForm({
               </div>
             </Field>
 
-            <Field label="Status" hint="Inactive hides it everywhere without ending it">
+            <Field label="Status" >
               <Select name="active" defaultValue={String(defaults.active)}>
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>

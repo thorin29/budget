@@ -3,6 +3,26 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.93.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Settings menu stays put** while the page beside it scrolls. Renamed: Bills & Income, Budgets,
+  Pay Settings, Property Management, Bridge Connectivity (optional), Import & Export, User Accounts
+  (Signed-In Devices), with shorter or no subtitles.
+- **Pay Settings** joins the pay calendar and planning: paychecks (with which income items use each
+  schedule), the month split, look-ahead, carry, cushion and 0% payment on one page. "Divide the month
+  at" can pick which pay schedule's payday splits the month (for two employers on different
+  schedules); otherwise the one most paychecks use.
+- **Property Management** holds any number of homes ("+ Add home"), each with its own address,
+  estimates, history and RentCast lookup (the key and the 5-a-month limit are shared). Each home is
+  its own line in net worth; the first one counts toward home equity. Extra homes can be renamed or
+  removed.
+- **Danger Zone** (Bridge Connectivity): deleting all bank data opens a red dialog listing what goes,
+  with a red button to confirm.
+- Headings and tabs use Title Case; explanatory text across Settings and the bill form is cut back.
+
 ## [0.92.0]
 
 No migration. The phone app is unchanged. Every setting now has one home in Settings; Insights only

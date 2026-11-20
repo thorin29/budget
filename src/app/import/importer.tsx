@@ -161,7 +161,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
           </Card>
 
           <Card>
-            <h2 className="text-sm font-medium">How to treat this year</h2>
+            <h2 className="text-sm font-medium">How to Treat This Year</h2>
 
             <label className="mt-3 flex gap-3 text-sm">
               <input
@@ -201,7 +201,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
 
           {plan.notes.length > 0 ? (
             <Card>
-              <h2 className="text-sm font-medium">Worth a look</h2>
+              <h2 className="text-sm font-medium">Worth a Look</h2>
               <ul className="mt-2 space-y-1 text-sm text-muted">
                 {plan.notes.map((note, i) => (
                   <li key={i}>{note}</li>
@@ -247,7 +247,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
           </section>
 
           <section>
-            <h2 className="mb-2 text-sm font-medium text-muted">Line items</h2>
+            <h2 className="mb-2 text-sm font-medium text-muted">Line Items</h2>
             <div className="overflow-hidden rounded-2xl border border-line bg-surface">
               {plan.lineItems.map((item) => {
                 const isExcluded = excluded.has(item.key);
@@ -335,7 +335,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
 
           {plan.skipped.length > 0 ? (
             <Card>
-              <h2 className="text-sm font-medium">Left behind</h2>
+              <h2 className="text-sm font-medium">Left Behind</h2>
               <ul className="mt-2 space-y-1 text-xs text-muted">
                 {plan.skipped.map((s, i) => (
                   <li key={i}>
@@ -373,7 +373,7 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
 
       {batches.length > 0 ? (
         <section className="mt-10">
-          <h2 className="mb-2 text-sm font-medium text-muted">Previous imports</h2>
+          <h2 className="mb-2 text-sm font-medium text-muted">Previous Imports</h2>
           <div className="overflow-hidden rounded-2xl border border-line bg-surface">
             {batches.map((batch) => (
               <div

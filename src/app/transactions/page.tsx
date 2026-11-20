@@ -211,7 +211,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
               </dl>
               {topCats.length ? (
                 <div>
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted">Top categories</h3>
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted">Top Categories</h3>
                   <ul className="mt-1 space-y-1">
                     {topCats.map((c) => (
                       <li key={c.id ?? "none"}>

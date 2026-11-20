@@ -233,7 +233,7 @@ export function Explorer({
       {/* ---------------------------------------------- ledger */}
       <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
         <div className="flex items-baseline justify-between border-b border-line px-5 py-3.5">
-          <h2 className="text-base font-bold">Day by day</h2>
+          <h2 className="text-base font-bold">Day by Day</h2>
           <p className="tnum text-xs text-muted">Starting from {formatCents(openingBalanceCents)}</p>
         </div>
         {shifted.length === 0 ? (

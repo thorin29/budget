@@ -23,7 +23,7 @@ export default async function UncategorizedPage() {
       <Link href="/insights" className="text-sm text-muted hover:text-foreground">
         ← Insights
       </Link>
-      <PageHeading title="Sort uncategorized" />
+      <PageHeading title="Sort Uncategorized" />
       <Card>
         <ul className="space-y-1 text-sm text-muted">
           <li>
@@ -50,7 +50,7 @@ export default async function UncategorizedPage() {
       )}
       {maybe.length ? (
         <Card>
-          <h2 className="text-base font-bold">Spending that may be a bill</h2>
+          <h2 className="text-base font-bold">Spending That May Be a Bill</h2>
           <p className="mt-1 text-sm text-muted">
             Counted as spending in a category your bills use, but not tied to a bill. If one is a bill paid under another name (church
             giving, a doctor you pay monthly), mark it so it isn&rsquo;t counted twice.
@@ -70,7 +70,7 @@ export default async function UncategorizedPage() {
       ) : null}
       {peer.length ? (
         <Card>
-          <h2 className="text-base font-bold">Payment apps</h2>
+          <h2 className="text-base font-bold">Payment Apps</h2>
           <p className="mt-1 text-sm text-muted">
             Venmo, Zelle and the like carry unrelated payments, so each is set on its own in Transactions.
           </p>

@@ -47,7 +47,7 @@ export default async function ProjectionPage({
         ← Tracker
       </Link>
       <PageHeading
-        title="What can I pay?"
+        title="What Can I Pay?"
         description={`Your ${view.billsAccountName ?? "bills"} balance walked forward day by day. The lowest point it reaches is the limit — anything above it can leave today.`}
         action={
           <nav className="flex rounded-xl border border-line bg-surface p-1 text-sm shadow-card" aria-label="Days ahead">

@@ -15,9 +15,9 @@ const TABS: Array<{ href: string; label: string; month: boolean }> = [
   { href: "/insights/budget", label: "Budget", month: true },
   { href: "/insights/cash", label: "Cash", month: false },
   { href: "/insights/calendar", label: "Calendar", month: false },
-  { href: "/insights/debt", label: "Debt & net worth", month: false },
+  { href: "/insights/debt", label: "Debt & Net Worth", month: false },
   { href: "/insights/trends", label: "Trends", month: true },
-  { href: "/year", label: "Year plan", month: false },
+  { href: "/year", label: "Year Plan", month: false },
 ];
 
 /** Where each tab's figures are set: Insights only shows them. */

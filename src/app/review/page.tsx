@@ -37,13 +37,13 @@ export default async function ReviewPage() {
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <Card className="space-y-3 p-4">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-base font-bold">Action items</h2>
+            <h2 className="text-base font-bold">Action Items</h2>
             {waiting ? <span className="rounded-full bg-warn-soft px-2.5 py-0.5 text-xs font-bold text-warn">{waiting}</span> : null}
           </div>
           {waiting === 0 ? <p className="text-sm text-muted">All caught up.</p> : null}
           {review.looksPaid.length ? (
             <section>
-              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Bills that look paid</h3>
+              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Bills That Look Paid</h3>
               <ul className="space-y-2">
                 {review.looksPaid.map((item) => (
                   <LooksPaidCard key={`${item.lineItemId}:${item.year}:${item.month}:${item.txnId}`} item={item} />
@@ -53,7 +53,7 @@ export default async function ReviewPage() {
           ) : null}
           {auto.moved.length ? (
             <section>
-              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Due days the bank moved</h3>
+              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Due Days the Bank Moved</h3>
               <ul className="divide-y divide-line rounded-xl border border-line">
                 {auto.moved.map((m) => (
                   <DueDayRow key={m.lineItemId} item={m} />
@@ -63,7 +63,7 @@ export default async function ReviewPage() {
           ) : null}
           {amounts.length ? (
             <section>
-              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Amounts that changed</h3>
+              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Amounts That Changed</h3>
               <ul className="space-y-2">
                 {amounts.map((item) => (
                   <AmountCard key={item.lineItemId} item={item} />
@@ -73,7 +73,7 @@ export default async function ReviewPage() {
           ) : null}
           {review.repeats.length ? (
             <section>
-              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Charges that repeat every month</h3>
+              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Charges That Repeat Every Month</h3>
               <ul className="space-y-2">
                 {review.repeats.map((item) => (
                   <RepeatCard key={item.merchantKey} item={item} />
@@ -85,7 +85,7 @@ export default async function ReviewPage() {
 
         <Card className="p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-bold">Recorded automatically</h2>
+            <h2 className="text-base font-bold">Recorded Automatically</h2>
             <span className="text-xs text-muted">Bill payments matched from the bank feed in the last 10 days · open one to change or unrecord it</span>
           </div>
           {groups.length ? (

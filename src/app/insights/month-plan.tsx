@@ -137,7 +137,7 @@ export function HowItAddsUp({ plan }: { plan: MonthPlanView }) {
   const d = plan.debt;
   return (
     <Card>
-      <h2 className="text-base font-bold">How it adds up</h2>
+      <h2 className="text-base font-bold">How It Adds Up</h2>
       <p className="mt-0.5 text-xs text-muted">Tap a line to see what&rsquo;s in it.</p>
       <ol className="mt-2 divide-y divide-line">
         <Step label="Money in" cents={plan.income.totalCents} note={`${money(plan.income.receivedCents)} received so far; the rest is expected`}>
@@ -254,7 +254,7 @@ export function WhatIf({ plan }: { plan: MonthPlanView }) {
   const name = new Map(plan.groups.map((g) => [g.id, g.name]));
   return (
     <Card>
-      <h2 className="text-base font-bold">Can we afford it?</h2>
+      <h2 className="text-base font-bold">Can We Afford It?</h2>
       <p className="mt-0.5 text-xs text-muted">Add one or more purchases to see what they&rsquo;d do before saying yes.</p>
       <ul className="mt-3 space-y-2">
         {rows.map((r, i) => (

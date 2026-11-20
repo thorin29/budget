@@ -9,8 +9,13 @@ const INITIAL: FormState = { ok: true };
 export function PreferencesForm({
   bankAccounts,
   settings,
+  schedules = [],
+  splitSchedule = null,
 }: {
   bankAccounts: Array<{ id: string; name: string }>;
+  /** Pay schedules, any of which can divide the month. */
+  schedules?: Array<{ id: string; name: string }>;
+  splitSchedule?: string | null;
   settings: {
     splitDay: number;
     splitMode?: "payday" | "day";
@@ -28,11 +33,7 @@ export function PreferencesForm({
       {state.ok && state.message === undefined ? null : null}
 
       <form action={action} className="grid gap-5 sm:grid-cols-2">
-        <Field
-          label="Bills account"
-          hint="The balance the projection starts from"
-          error={state.issues?.billsAccountId}
-        >
+        <Field label="Bills account" error={state.issues?.billsAccountId}>
           <Select name="billsAccountId" defaultValue={settings.billsAccountId ?? ""}>
             <option value="">—</option>
             {bankAccounts.map((a) => (
@@ -43,18 +44,21 @@ export function PreferencesForm({
           </Select>
         </Field>
 
-        <Field label="Divide the month at" hint="Which paycheck covers which bills">
-          <Select name="splitMode" defaultValue={settings.splitMode ?? "payday"}>
-            <option value="payday">My payday nearest the 15th</option>
-            <option value="day">A fixed day (below)</option>
+        <Field label="Divide the month at">
+          <Select name="splitMode" defaultValue={settings.splitMode === "day" ? "day" : splitSchedule && schedules.some((s) => s.id === splitSchedule) ? `payday:${splitSchedule}` : "payday"}>
+            <option value="payday">Payday nearest the 15th{schedules.length > 1 ? " (main paycheck)" : ""}</option>
+            {schedules.length > 1
+              ? schedules.map((s) => (
+                  <option key={s.id} value={`payday:${s.id}`}>
+                    {s.name}: payday nearest the 15th
+                  </option>
+                ))
+              : null}
+            <option value="day">A fixed day</option>
           </Select>
         </Field>
 
-        <Field
-          label="Fixed split day"
-          hint="Used when there's no pay calendar, or when chosen above"
-          error={state.issues?.splitDay}
-        >
+        <Field label="Fixed split day" error={state.issues?.splitDay}>
           <TextInput
             type="number"
             name="splitDay"
@@ -65,11 +69,7 @@ export function PreferencesForm({
           />
         </Field>
 
-        <Field
-          label="Projection horizon (days)"
-          hint="Long enough to include next month's fixed bills"
-          error={state.issues?.horizonDays}
-        >
+        <Field label="Look ahead (days)" error={state.issues?.horizonDays}>
           <TextInput
             type="number"
             name="horizonDays"
@@ -83,11 +83,7 @@ export function PreferencesForm({
         {/* The floor is the checking cushion, set beside this form (one amount for the whole app). */}
         <input type="hidden" name="buffer" value={settings.buffer} />
 
-        <Field
-          label="Carry unpaid bills forward for"
-          hint="A bill older than this is treated as paid. Long gaps are usually a missed entry rather than money still owed."
-          error={state.issues?.carryMonths}
-        >
+        <Field label="Carry unpaid bills for" error={state.issues?.carryMonths}>
           <Select name="carryMonths" defaultValue={String(settings.carryMonths)}>
             <option value="0">Not at all</option>
             <option value="1">1 month</option>

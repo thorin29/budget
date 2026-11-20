@@ -25,6 +25,8 @@ export interface OwnGroup {
   items: Array<{ name: string; cents: number }>;
   /** A value you entered (a home, a car), not a bank account. */
   entered: boolean;
+  /** For an entered value: its id ("home" or "home-…" for a home in Property Management). */
+  id?: string;
 }
 
 export interface NetWorthView {
@@ -114,9 +116,10 @@ export async function getNetWorth(debtPaymentCents: number): Promise<NetWorthVie
       const items = banks.get(g)!.sort((x, y) => y.cents - x.cents);
       return { name: g, cents: items.reduce((s, i) => s + i.cents, 0), items, entered: false };
     }),
-    ...assets.map((a) => ({ name: a.name, cents: a.cents, items: [], entered: true })),
+    ...assets.map((a) => ({ name: a.name, cents: a.cents, items: [], entered: true, id: a.id })),
   ];
-  const home = assets.find((a) => /home|house|condo|property/i.test(a.name));
+  // Equity: the first home in Property Management (the one the mortgage is for).
+  const home = assets.find((a) => a.id === "home") ?? assets.find((a) => /home|house|condo|property/i.test(a.name));
   const mortgage = debt.installment.filter((d) => /mortgage|home loan|heloc/i.test(d.name)).reduce((s, d) => s + d.balanceCents, 0);
   const homeEquity = home && mortgage ? { valueCents: home.cents, mortgageCents: mortgage, equityCents: home.cents - mortgage } : null;
   const oweCents = debt.totalCents;

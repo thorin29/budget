@@ -24,7 +24,7 @@ export function PayScheduleForm({
     <Card>
       <ErrorBanner message={state.ok ? undefined : state.message} />
       <form action={action} className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name" hint="What this income is" error={state.issues?.name}>
+        <Field label="Name" error={state.issues?.name}>
           <TextInput name="name" required maxLength={60} autoComplete="off" />
         </Field>
 
@@ -45,7 +45,6 @@ export function PayScheduleForm({
         {needsAnchor ? (
           <Field
             label="A recent payday"
-            hint="Every other payday is counted from this one"
             error={state.issues?.anchorDate}
           >
             <TextInput type="date" name="anchorDate" required />
@@ -53,7 +52,6 @@ export function PayScheduleForm({
         ) : (
           <Field
             label="Days of the month"
-            hint="Comma separated, e.g. 15, 30"
             error={state.issues?.daysOfMonth}
           >
             <TextInput name="daysOfMonth" placeholder="15, 30" autoComplete="off" />
@@ -62,7 +60,6 @@ export function PayScheduleForm({
 
         <Field
           label="In effect from"
-          hint="Usually the start of the year this applies to"
           error={state.issues?.activeFrom}
         >
           <TextInput type="date" name="activeFrom" required />
@@ -82,6 +79,7 @@ export function PayScheduleRow({
   schedule,
   frequencyLabel,
   upcoming,
+  usedBy = [],
 }: {
   schedule: {
     id: string;
@@ -93,6 +91,8 @@ export function PayScheduleRow({
   };
   frequencyLabel: string;
   upcoming: string[];
+  /** Paychecks (income items) on this schedule. */
+  usedBy?: string[];
 }) {
   const [, action, pending] = useActionState(removePayScheduleAction, INITIAL);
 
@@ -118,9 +118,12 @@ export function PayScheduleRow({
         <p className="tnum mt-2 text-xs text-muted">
           Next: {upcoming.join(" · ")}
         </p>
+      ) : null}
+      {upcoming.length > 0 ? (
+        <p className="mt-0.5 text-xs text-muted">{usedBy.length ? `Paychecks: ${usedBy.join(", ")}` : "No paycheck uses it yet (pick it in a paycheck's form)"}</p>
       ) : (
         <p className="mt-2 text-xs text-danger">
-          This schedule produces no paydays — check the anchor date or days.
+          No paydays: check the payday or days.
         </p>
       )}
     </div>

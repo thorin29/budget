@@ -139,9 +139,15 @@ export async function savePreferencesAction(
 ): Promise<FormState> {
   return run("/setup/preferences", async () => {
     const bufferRaw = str(form, "buffer");
+    // "payday:<schedule id>" divides the month at that schedule's payday; "payday" at the main one's.
+    const mode = str(form, "splitMode");
+    const scheduleId = mode.startsWith("payday:") ? mode.slice(7) : null;
+    const { prisma } = await import("@/lib/prisma");
+    const { SETTING_KEYS } = await import("@/lib/settings");
+    await prisma.setting.upsert({ where: { key: SETTING_KEYS.splitSchedule }, create: { key: SETTING_KEYS.splitSchedule, value: scheduleId as never }, update: { value: scheduleId as never } });
     await updateSettings({
       splitDay: Number(str(form, "splitDay")),
-      splitMode: str(form, "splitMode") === "day" ? "day" : "payday",
+      splitMode: mode === "day" ? "day" : "payday",
       horizonDays: Number(str(form, "horizonDays")),
       bufferCents: bufferRaw ? parseCents(bufferRaw) : 0,
       carryMonths: Number(str(form, "carryMonths")),

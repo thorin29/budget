@@ -143,7 +143,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
       <TabHeading title="Calendar" />
       <Card className="flex flex-col">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-base font-bold">Checking calendar</h2>
+          <h2 className="text-base font-bold">Checking Calendar</h2>
           <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
             {LEGEND.map(([cls, text]) => (
               <li key={text} className="flex items-center gap-1.5">

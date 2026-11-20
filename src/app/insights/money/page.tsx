@@ -121,7 +121,7 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
 
       <Card>
         <div className="flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="text-base font-bold">Everyday spending by budget</h2>
+          <h2 className="text-base font-bold">Everyday Spending by Budget</h2>
           <span className="tnum text-sm">
             <b>{money(plan.spentCents)}</b>
           </span>
@@ -134,7 +134,7 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
       {upcoming.length ? (
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-bold">Coming up</h2>
+            <h2 className="text-base font-bold">Coming Up</h2>
             <span className="text-xs text-muted">Yearly charges due in the next 45 days, from bank history</span>
           </div>
           <ul className="mt-1 divide-y divide-line text-sm">
@@ -148,7 +148,7 @@ export default async function MoneyPage({ searchParams }: { searchParams: Promis
       {managed.length ? (
         <Card>
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-bold">Managed for others</h2>
+            <h2 className="text-base font-bold">Managed for Others</h2>
             <span className="text-xs text-muted">Kept out of your spending and income</span>
           </div>
           <ul className="mt-3 divide-y divide-line text-sm">

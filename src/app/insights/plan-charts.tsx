@@ -222,7 +222,7 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold">Income vs expenses</h2>
+        <h2 className="text-base font-bold">Income vs Expenses</h2>
         <span className="text-xs text-muted">The full circle is the month&rsquo;s {money(income)} expected income</span>
       </div>
       <div className="@container mt-3"><div className="grid items-center gap-5 @xl:grid-cols-[240px_1fr]">
@@ -304,7 +304,7 @@ export function PaceChart({ plan }: { plan: MonthPlanView }) {
   const path = series.map((s, i) => `${i ? "L" : "M"}${x(i)} ${y(s.left)}`).join("");
   return (
     <Card>
-      <h2 className="text-base font-bold">Are we on pace?</h2>
+      <h2 className="text-base font-bold">Are We on Pace?</h2>
       <p className="mt-0.5 text-xs text-muted">
         What&rsquo;s left in the pool each day, against spending it evenly through the month.{" "}
         {now ? (
@@ -469,7 +469,7 @@ export function HistoryChart({ rows }: { rows: MonthHistory[] }) {
   const gap = complete.length ? Math.round(complete.reduce((s, r) => s + r.netCents, 0) / complete.length) : 0;
   return (
     <Card>
-      <h2 className="text-base font-bold">Did each month live within its money?</h2>
+      <h2 className="text-base font-bold">Did Each Month Live Within Its Money?</h2>
       <p className="mt-0.5 text-xs text-muted">
         Money in against everything out: bills, the debt payment and spending.{" "}
         {complete.length ? (

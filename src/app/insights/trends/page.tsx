@@ -149,7 +149,7 @@ function CategoriesView({ plan, before, sort }: { plan: MonthPlanView; before: M
         )}
       </Card>
       <Card>
-        <h2 className="text-base font-bold">Top merchants</h2>
+        <h2 className="text-base font-bold">Top Merchants</h2>
         {top.length ? (
           <ol className="mt-2 divide-y divide-line text-sm">
             {top.map(([name, m]) => (

@@ -27,6 +27,7 @@ import { PreferencesForm } from "../../setup/preferences/form";
 import { PlanningExtras } from "../../insights/settings/setup-panel";
 import { cushionSetting } from "@/server/envelopes";
 import { getMonthPlan } from "@/server/month-plan";
+import { SETTING_KEYS } from "@/lib/settings";
 import { Importer } from "../../import/importer";
 import { setAppearanceAction } from "../actions";
 import { SECTIONS, type SectionSlug } from "../sections";
@@ -61,6 +62,7 @@ export default async function SettingsSection({
   const { section } = await params;
   // Pages that moved: categories live with budgets now.
   if (section === "categories") redirect("/settings/budgets?item=categories");
+  if (section === "planning") redirect("/settings/pay");
   if (!SECTIONS.some((s) => s.slug === section)) notFound();
 
   switch (section as SectionSlug) {
@@ -68,8 +70,6 @@ export default async function SettingsSection({
       return <Security />;
     case "appearance":
       return <Appearance />;
-    case "planning":
-      return <Planning />;
     case "pay":
       return <Pay />;
     case "bank":
@@ -92,16 +92,12 @@ async function Security() {
 
   return (
     <div className="space-y-6">
-      <SectionHeading
-        title="Sign-in & people"
-        description={`Budget allows up to ${MAX_USERS} people. Both see and change everything; neither is in charge of the other.`}
-      />
+      <SectionHeading title="User Accounts" description={`Up to ${MAX_USERS} people. Both see and change everything.`} />
 
       <Card className="p-6">
-        <h3 className="font-sans text-base font-bold">Your password</h3>
+        <h3 className="font-sans text-base font-bold">Your Password</h3>
         <p className="mt-1 text-sm text-muted">
-          Signed in as <strong className="text-foreground">{me?.username}</strong>. Changing the password signs out
-          every other browser and device.
+          Signed in as <strong className="text-foreground">{me?.username}</strong>.
         </p>
         <div className="mt-4">
           <ChangePasswordForm />
@@ -109,11 +105,7 @@ async function Security() {
       </Card>
 
       <Card className="p-6">
-        <h3 className="font-sans text-base font-bold">Your phones</h3>
-        <p className="mt-1 text-sm text-muted">
-          Each phone has its own sign-in. Signing one out stops it at once; changing your password signs out all of
-          them.
-        </p>
+        <h3 className="font-sans text-base font-bold">Signed-In Devices</h3>
         {devices.length ? (
           <ul className="mt-3 divide-y divide-line rounded-xl border border-line">
             {devices.map((d) => (
@@ -131,7 +123,7 @@ async function Security() {
             ))}
           </ul>
         ) : (
-          <p className="mt-3 text-sm text-subtle">No phones yet.</p>
+          <p className="mt-3 text-sm text-subtle">No devices yet.</p>
         )}
         <div className="mt-4">
           <AddPhone />
@@ -140,10 +132,7 @@ async function Security() {
 
       <Card className="p-6">
         <h3 className="font-sans text-base font-bold">Sessions</h3>
-        <p className="mt-1 text-sm text-muted">
-          Lost a phone or signed in somewhere you shouldn&rsquo;t have? This ends every session of yours — this
-          browser, other browsers and your phones.
-        </p>
+        <p className="mt-1 text-sm text-muted">Ends every session of yours, here and on your devices.</p>
         <div className="mt-4">
           <SignOutEverywhere />
         </div>
@@ -168,19 +157,14 @@ async function Security() {
         </ul>
         {users.length < MAX_USERS ? (
           <div className="mt-4">
-            <p className="mb-3 text-sm text-muted">
-              Add the second person with a one-time code. It lasts 15 minutes; they choose their own username and
-              password.
-            </p>
+            <p className="mb-3 text-sm text-muted">One-time code, good for 15 minutes.</p>
             <InviteSecondPerson />
           </div>
         ) : others.length ? (
           <p className="mt-3 text-xs text-muted">Both places are taken. Remove an account to invite someone else.</p>
         ) : null}
         <p className="mt-5 text-xs text-muted">
-          Forgotten password: whoever runs the server can set a temporary one with{" "}
-          <code className="rounded bg-neutral-soft px-1">node scripts/reset-password.mjs &lt;username&gt;</code>{" "}
-          inside the container.
+          Forgotten password: <code className="rounded bg-neutral-soft px-1">node scripts/reset-password.mjs &lt;username&gt;</code> in the container.
         </p>
       </Card>
     </div>
@@ -211,10 +195,9 @@ async function Appearance() {
 
   return (
     <Card className="p-6">
-      <SectionHeading title="Appearance" description="Saved in this browser, so a phone and a desktop can differ." />
+      <SectionHeading title="Appearance" />
 
       <h3 className="font-sans text-[13px] font-semibold">Accent</h3>
-      <p className="mt-0.5 text-xs text-muted">The same six as the phone app. Each phone picks its own under More → Appearance.</p>
       <form action={setAppearanceAction} className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">
         {THEME_OPTIONS.map((option) => {
           const active = option.value === theme;
@@ -252,7 +235,7 @@ async function Appearance() {
         })}
       </form>
 
-      <h3 className="mt-7 font-sans text-[13px] font-semibold">Light or dark</h3>
+      <h3 className="mt-7 font-sans text-[13px] font-semibold">Light or Dark</h3>
       <form action={setAppearanceAction} className="mt-2 inline-flex rounded-[10px] bg-neutral-soft p-1">
         {MODE_OPTIONS.map((option) => (
           <button
@@ -275,56 +258,6 @@ async function Appearance() {
   );
 }
 
-// ---------------------------------------------------------------- planning
-
-async function Planning() {
-  const [accounts, settings, feed, cushion, plan] = await Promise.all([listAccounts(), getSettings(), listBankAccounts(), cushionSetting(), getMonthPlan().catch(() => null)]);
-  const bankAccounts = accounts.filter((a) => a.kind === "BANK");
-  const sources = feed.filter((a) => !a.hidden && (a.type === "CHECKING" || a.type === "SAVINGS"));
-  const current = feed.find((a) => a.isBillsSource)?.id ?? "";
-
-  return (
-    <div>
-      <SectionHeading
-        title="Planning"
-        description="Where the month divides, how far ahead the projection looks, the cushion kept in checking and the 0% debt payment."
-      />
-      <Card className="mb-6 p-5">
-        <PlanningExtras debt={{ cents: plan?.debt.cents ?? 0, automatic: (plan?.debt.source ?? "auto") !== "set", targetCents: plan?.debt.targetCents ?? null }} cushionCents={cushion} />
-      </Card>
-      {bankAccounts.length === 0 ? (
-        <Card>
-          <p className="text-sm">
-            Add a bank account first — the bills account has to be one.{" "}
-            <Link href="/settings/accounts" className="font-semibold text-accent-text hover:underline">
-              Go to accounts
-            </Link>
-          </p>
-        </Card>
-      ) : (
-        <PreferencesForm
-          bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: a.name }))}
-          settings={{
-            splitDay: settings.splitDay,
-            splitMode: settings.splitMode,
-            horizonDays: settings.horizonDays,
-            buffer: toDecimalString(cushion),
-            carryMonths: settings.carryMonths,
-            billsAccountId: settings.billsAccountId,
-          }}
-        />
-      )}
-      <p className="mt-4 text-xs text-muted">
-        Which account holds the bills money is set on that account in{" "}
-        <Link href="/settings/accounts" className="font-semibold text-accent-text hover:underline">
-          Accounts
-        </Link>
-        .
-      </p>
-    </div>
-  );
-}
-
 // ---------------------------------------------------------------- pay
 
 const FREQUENCY_LABELS: Record<string, string> = {
@@ -338,58 +271,85 @@ const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 =
 const FREQUENCY_WORDS: Record<string, string> = { WEEKLY: "every week", BIWEEKLY: "every two weeks", SEMI_MONTHLY: "twice a month", MONTHLY: "once a month" };
 
 async function Pay() {
-  const [schedules, fromBank] = await Promise.all([listPaySchedules(), payFromDeposits()]);
+  const [schedules, fromBank, accounts, settings, cushion, plan, incomes, splitRow] = await Promise.all([
+    listPaySchedules(),
+    payFromDeposits(),
+    listAccounts(),
+    getSettings(),
+    cushionSetting(),
+    getMonthPlan().catch(() => null),
+    prisma.lineItem.findMany({ where: { kind: "INCOME", active: true }, select: { name: true, payScheduleId: true } }) as Promise<Array<{ name: string; payScheduleId: string | null }>>,
+    prisma.setting.findUnique({ where: { key: SETTING_KEYS.splitSchedule } }) as Promise<{ value: unknown } | null>,
+  ]);
   const today = new Date();
   const horizonEnd = new Date(today.getTime() + 120 * 86_400_000);
+  const bankAccounts = accounts.filter((a) => a.kind === "BANK");
+  const splitSchedule = typeof splitRow?.value === "string" ? splitRow.value : null;
 
   return (
-    <div>
-      <SectionHeading
-        title="Pay calendar"
-        description="When paychecks arrive. The projection places pay on these days, and the month divides at the payday nearest the 15th (Settings → Planning can use a fixed day instead)."
-      />
-      {fromBank ? (
-        <Card className="mb-6">
-          <p className="text-sm">
-            <span className="font-semibold">From your bank:</span> paid {FREQUENCY_WORDS[fromBank.detected.frequency]}, most recently{" "}
-            {new Date(`${fromBank.detected.latest}T00:00:00Z`).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", timeZone: "UTC" })}
-            {fromBank.detected.daysOfMonth.length ? ` (on the ${fromBank.detected.daysOfMonth.map((d) => (d >= 28 ? "last day" : ordinal(d))).join(" and ")})` : ""}.
-          </p>
-          {fromBank.matches ? (
-            <p className="mt-1 text-xs text-muted">Your pay calendar matches.</p>
-          ) : (
-            <form action={usePayFromDepositsAction} className="mt-3 flex flex-wrap items-center gap-3">
-              <span className="text-xs text-muted">
-                {fromBank.schedule ? "Your pay calendar doesn't line up with the deposits." : "No pay calendar yet."}
+    <div className="space-y-5">
+      <SectionHeading title="Pay Settings" />
+      <div className="grid items-start gap-5 xl:grid-cols-2">
+        <Card className="space-y-3">
+          <h3 className="font-sans text-base font-bold">Paychecks</h3>
+          {fromBank && !fromBank.matches ? (
+            <form action={usePayFromDepositsAction} className="flex flex-wrap items-center gap-3 rounded-xl bg-warn-soft px-3 py-2 text-sm">
+              <span>
+                Deposits show pay {FREQUENCY_WORDS[fromBank.detected.frequency]}
+                {fromBank.detected.daysOfMonth.length ? ` (the ${fromBank.detected.daysOfMonth.map((d) => (d >= 28 ? "last day" : ordinal(d))).join(" and ")})` : ""}.
               </span>
               <button type="submit" className={buttonClass("primary")}>
                 Use this
               </button>
             </form>
-          )}
-        </Card>
-      ) : null}
-      <PayScheduleForm
-        frequencies={PAY_FREQUENCIES.map((f) => ({ value: f, label: FREQUENCY_LABELS[f] }))}
-      />
-      <div className="mt-6 space-y-3">
-        {schedules.length === 0 ? (
-          <p className="text-sm text-muted">Nothing added yet.</p>
-        ) : (
-          schedules.map((schedule) => (
+          ) : null}
+          {schedules.length === 0 ? <p className="text-sm text-muted">No pay schedules yet.</p> : null}
+          {schedules.map((schedule) => (
             <PayScheduleRow
               key={schedule.id}
               schedule={schedule}
               frequencyLabel={FREQUENCY_LABELS[schedule.frequency]}
               upcoming={previewPayDates(schedule, today, horizonEnd).slice(0, 6)}
+              usedBy={incomes.filter((i) => i.payScheduleId === schedule.id).map((i) => i.name)}
             />
-          ))
-        )}
+          ))}
+          <details>
+            <summary className="cursor-pointer text-sm font-semibold text-accent-text">+ Add a pay schedule</summary>
+            <div className="mt-3">
+              <PayScheduleForm frequencies={PAY_FREQUENCIES.map((f) => ({ value: f, label: FREQUENCY_LABELS[f] }))} />
+            </div>
+          </details>
+        </Card>
+        <div className="space-y-5">
+          <Card>
+            <PlanningExtras debt={{ cents: plan?.debt.cents ?? 0, automatic: (plan?.debt.source ?? "auto") !== "set", targetCents: plan?.debt.targetCents ?? null }} cushionCents={cushion} />
+          </Card>
+          {bankAccounts.length === 0 ? (
+            <Card>
+              <p className="text-sm">
+                Add a bank account first.{" "}
+                <Link href="/settings/accounts" className="font-semibold text-accent-text hover:underline">
+                  Accounts
+                </Link>
+              </p>
+            </Card>
+          ) : (
+            <PreferencesForm
+              bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: a.name }))}
+              schedules={schedules.map((s) => ({ id: s.id, name: s.name }))}
+              splitSchedule={splitSchedule}
+              settings={{
+                splitDay: settings.splitDay,
+                splitMode: settings.splitMode,
+                horizonDays: settings.horizonDays,
+                buffer: toDecimalString(cushion),
+                carryMonths: settings.carryMonths,
+                billsAccountId: settings.billsAccountId,
+              }}
+            />
+          )}
+        </div>
       </div>
-      <p className="mt-6 max-w-prose text-xs text-muted">
-        Add a second schedule rather than editing the first when your pay changes. Each records the
-        date it took effect, so past months keep resolving against what was true at the time.
-      </p>
     </div>
   );
 }
@@ -405,18 +365,13 @@ async function Data() {
   return (
     <div className="space-y-6">
       <div>
-        <SectionHeading
-          title="Import"
-          description="Load a year from a converted workbook. Nothing is written until you have reviewed what it will do."
-        />
+        <SectionHeading title="Import & Export" />
         <Importer batches={batches} />
       </div>
 
       <Card>
         <h3 className="font-sans text-base font-bold">Export</h3>
-        <p className="mt-1 text-sm text-muted">
-          As CSV, downloaded from your server to this browser: everything the bank feed and your files delivered, and each year&rsquo;s plan (every item by every month, budgeted and paid side by side).
-        </p>
+
         <div className="mt-3 flex flex-wrap gap-2">
           <a href="/transactions/export?what=transactions" className="rounded-[10px] border border-line-strong px-3 py-1.5 text-sm font-semibold transition hover:bg-neutral-soft">
             Transactions.csv
@@ -456,27 +411,21 @@ async function Bank() {
 
   return (
     <div className="space-y-6">
-      <SectionHeading
-        title="Bank connection"
-        description="Optional. Reads balances and transactions every few hours through a SimpleFIN bridge. Read-only: nothing here can move money."
-      />
+      <SectionHeading title="Bridge Connectivity (optional)" />
 
       {!key ? (
         <Card className="p-6">
-          <h3 className="font-sans text-base font-bold">Turn it on</h3>
+          <h3 className="font-sans text-base font-bold">Turn It On</h3>
           <p className="mt-1 max-w-prose text-sm text-muted">
-            Bank sync needs an encryption key in the container settings, so the access link is never stored in the
-            clear. Set <code className="rounded bg-neutral-soft px-1">BANK_SYNC_KEY</code> to a random string of at least 32
-            characters (for example the output of <code className="rounded bg-neutral-soft px-1">openssl rand -base64 48</code>),
-            restart, and come back here. Keep a copy: changing it later means connecting again.
+            Set <code className="rounded bg-neutral-soft px-1">BANK_SYNC_KEY</code> (32+ characters, e.g.{" "}
+            <code className="rounded bg-neutral-soft px-1">openssl rand -base64 48</code>) in the container and restart. Keep a copy.
           </p>
         </Card>
       ) : !connection ? (
         <Card className="p-6">
           <h3 className="font-sans text-base font-bold">Connect</h3>
           <p className="mb-4 mt-1 max-w-prose text-sm text-muted">
-            In your bridge account, create a setup token for a new app and paste it here. Allowed bridges:{" "}
-            {allowedHosts().join(", ")}.
+            Paste a setup token from your bridge ({allowedHosts().join(", ")}).
           </p>
           <ConnectBank />
         </Card>
@@ -510,11 +459,7 @@ async function Bank() {
           ) : null}
           {accounts.some((a) => !a.hidden && !a.dormant) ? (
             <div className="mt-4">
-              <h4 className="text-sm font-semibold">Bank data as of</h4>
-              <p className="mt-0.5 max-w-prose text-xs text-muted">
-                When the bridge last got each account from the bank. A sync here only picks up what the bridge already
-                has; the bridge itself checks each bank about once a day.
-              </p>
+              <h4 className="text-sm font-semibold">Bank Data As Of</h4>
               <ul className="mt-2 divide-y divide-line rounded-xl border border-line text-sm">
                 {accounts
                   .filter((a) => !a.hidden && !a.dormant)
@@ -544,8 +489,8 @@ async function Bank() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <h3 className="font-sans text-base font-bold">Accounts</h3>
-              <p className="mt-1 max-w-prose text-sm text-muted">
-                {accounts.length} received, {shown} in use. They sort themselves by type; nothing to set up here.
+              <p className="mt-1 text-sm text-muted">
+                {accounts.length} received, {shown} in use
               </p>
             </div>
             <Link href="/settings/accounts" className="text-sm font-semibold text-accent-text hover:underline">
@@ -557,11 +502,8 @@ async function Bank() {
 
       {accounts.length && connection ? (
         <Card className="p-6">
-          <h3 className="font-sans text-base font-bold">Check the raw feed</h3>
-          <p className="mb-3 mt-1 max-w-prose text-sm text-muted">
-            One account&rsquo;s last 30 days exactly as SimpleFIN sends them, every field, to see what the bank includes (a card member&rsquo;s name, the last four, a memo).
-            It&rsquo;s a live request, so it counts toward the feed&rsquo;s daily limit.
-          </p>
+          <h3 className="font-sans text-base font-bold">Check the Raw Feed</h3>
+          <p className="mb-3 mt-1 text-sm text-muted">One account&rsquo;s last 30 days, every field. Counts toward the daily limit.</p>
           <RawFeed
             accounts={accounts
               .filter((a) => !a.hidden)
@@ -573,24 +515,16 @@ async function Bank() {
 
       {accounts.length ? (
         <Card className="p-6">
-          <h3 className="font-sans text-base font-bold">Load past history from CSV</h3>
-          <p className="mb-4 mt-1 max-w-prose text-sm text-muted">
-            The feed only reaches back about 90 days. A transaction export from your bank&rsquo;s website fills in
-            earlier months. Rows already here are skipped, and a file can be undone.
-          </p>
+          <h3 className="font-sans text-base font-bold">Load Past History from CSV</h3>
+          <p className="mb-4 mt-1 text-sm text-muted">For months before the feed&rsquo;s 90 days. Duplicates are skipped.</p>
           <CsvImporter
             accounts={accounts
               .filter((a) => !a.hidden)
               .map((a) => ({ id: a.id, label: a.institution ? `${a.institution} · ${a.displayName}` : a.displayName }))}
           />
           <details className="mt-5 rounded-xl border border-line p-4">
-            <summary className="cursor-pointer text-sm font-semibold">One file for several accounts</summary>
-            <p className="mb-3 mt-2 max-w-prose text-xs text-muted">
-              A combined file with an Account ID (or Institution and Account) column on every row, like the
-              Transactions export above. An optional Category column sets categories (and Managed for others
-              = yes marks that category as money handled for others). Each account&rsquo;s rows are imported and
-              can be undone on their own.
-            </p>
+            <summary className="cursor-pointer text-sm font-semibold">One File for Several Accounts</summary>
+            <p className="mb-3 mt-2 text-xs text-muted">Needs an Account ID (or Institution and Account) column; Category is optional.</p>
             <CombinedImporter />
           </details>
           {imports.length ? (
@@ -614,24 +548,18 @@ async function Bank() {
 
       {accounts.length ? (
         <Card className="p-6">
-          <h3 className="font-sans text-base font-bold">Amazon orders</h3>
-          <p className="mb-4 mt-1 max-w-prose text-sm text-muted">
-            The bank shows one total per Amazon charge. Amazon&rsquo;s order history says what was in each, so each charge can be split
-            into groceries, household, clothing and the rest. Download it from Amazon (Account → Request your data → Your Orders), unzip
-            it, and choose <b>Order History.csv</b> from the &ldquo;Your Amazon Orders&rdquo; folder. Only the amounts, categories and item
-            names (encrypted) are kept. Load a newer file any time; charges already split are left alone.
+          <h3 className="font-sans text-base font-bold">Amazon Orders</h3>
+          <p className="mb-4 mt-1 text-sm text-muted">
+            Splits each Amazon charge by what was in it. Amazon → Request your data → Your Orders, then <b>Order History.csv</b>.
           </p>
           <AmazonImporter status={{ charges: amazon.charges, lastImportAt: amazon.lastImportAt ? amazon.lastImportAt.toISOString() : null }} />
         </Card>
       ) : null}
 
       {accounts.length || connection ? (
-        <Card className="p-6">
-          <h3 className="font-sans text-base font-bold">Remove</h3>
-          <p className="mb-4 mt-1 max-w-prose text-sm text-muted">
-            Deletes every feed account, transaction and import, and the connection. Budget&rsquo;s own accounts and
-            payments are not touched.
-          </p>
+        <Card className="border-danger p-6">
+          <h3 className="font-sans text-base font-bold text-danger">Danger Zone</h3>
+          <p className="mb-4 mt-1 text-sm text-muted">Budget&rsquo;s own accounts and payments stay.</p>
           <DeleteBankData />
         </Card>
       ) : null}
@@ -668,12 +596,7 @@ function About() {
           </a>
         </dd>
       </dl>
-      <p className="mt-5 max-w-prose text-sm text-muted">
-        Self-hosted. Everything you enter stays in your own database, and fonts are bundled. The only
-        outside requests are bank sync&rsquo;s, and only once you connect it. With BANK_SYNC_KEY set,
-        identifying text is encrypted before it is stored, so a database backup alone can&rsquo;t read it.
-        Keep a copy of the key: without it those fields can&rsquo;t be recovered.
-      </p>
+
     </Card>
   );
 }

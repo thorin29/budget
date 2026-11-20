@@ -14,6 +14,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { SETTING_KEYS } from "@/lib/settings";
 import { payDatesBetween, utcDate, daysInMonth } from "@/lib/month-model";
 import type { Settings } from "./settings";
 
@@ -45,11 +46,14 @@ export async function loadPaydays(): Promise<PaydaysIn & { frequency: (year: num
       overrides: { select: { originalDate: true, actualDate: true, suppressed: true } },
     },
   })) as ScheduleRow[];
+  const chosen = ((await prisma.setting.findUnique({ where: { key: SETTING_KEYS.splitSchedule } })) as { value: unknown } | null)?.value;
   const pick = (year: number, month: number) => {
     const start = utcDate(year, month, 1);
     const end = utcDate(year, month, daysInMonth(year, month));
     const live = schedules.filter((s) => s.activeFrom <= end && (!s.activeTo || s.activeTo >= start));
-    return { start, end, main: [...live].sort((a, b) => b._count.lineItems - a._count.lineItems || b.activeFrom.getTime() - a.activeFrom.getTime())[0] };
+    // The schedule picked in Pay Settings divides the month while it's in effect; otherwise the one most paychecks use.
+    const picked = typeof chosen === "string" ? live.find((s) => s.id === chosen) : undefined;
+    return { start, end, main: picked ?? [...live].sort((a, b) => b._count.lineItems - a._count.lineItems || b.activeFrom.getTime() - a.activeFrom.getTime())[0] };
   };
   const cache = new Map<number, Date[]>();
   const fn = ((year: number, month: number) => {

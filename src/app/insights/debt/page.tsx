@@ -49,7 +49,7 @@ export default async function DebtPage() {
   return (
     <div className="space-y-4">
       <InsightsTabs />
-      <TabHeading title="Debt & net worth" />
+      <TabHeading title="Debt & Net Worth" />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
@@ -113,10 +113,10 @@ export default async function DebtPage() {
                     <span className="min-w-0 truncate pl-4">
                       {g.entered ? g.name : g.items.length === 1 ? `${g.name} · ${g.items[0].name}` : g.name}
                       {g.entered ? (
-                        // The home's value comes from the estimates in Setup, not typed in here.
-                        <Link href="/settings/home" className="text-xs text-muted hover:underline">
+                        // A home's value comes from its estimates in Property Management.
+                        <Link href={g.id?.startsWith("home") ? `/settings/home?home=${encodeURIComponent(g.id)}` : "/settings/home"} className="text-xs text-muted hover:underline">
                           {" "}
-                          · {/^(home|house)\b/i.test(g.name) ? "estimate" : "you set"}
+                          · {g.id?.startsWith("home") || /^(home|house)\b/i.test(g.name) ? "estimate" : "you set"}
                         </Link>
                       ) : null}
                     </span>
@@ -202,7 +202,7 @@ export default async function DebtPage() {
 
       {debt.needsDetails.length ? (
         <Card>
-          <h2 className="text-base font-bold">Loans missing a balance</h2>
+          <h2 className="text-base font-bold">Loans Missing a Balance</h2>
           <p className="mt-0.5 text-xs text-muted">
             These bills look like loans. In each one&rsquo;s form, under &ldquo;Pays off a balance&rdquo;, enter what&rsquo;s left (or pick its loan account from the bank) and the
             interest rate from the lender&rsquo;s statement, and the payoff date is worked out.
@@ -222,7 +222,7 @@ export default async function DebtPage() {
       ) : null}
 
       <Card>
-        <h2 className="text-base font-bold">Credit cards</h2>
+        <h2 className="text-base font-bold">Credit Cards</h2>
         <ul className="mt-2 divide-y divide-line">
           {debt.revolving.map((c) => (
             <li key={c.id} className="py-2">

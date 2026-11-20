@@ -210,7 +210,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
         <div className="grid grid-cols-1 items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_15rem]">
           <Card className="!px-4 !py-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-base font-bold">Every item, every month</h2>
+              <h2 className="text-base font-bold">Every Item, Every Month</h2>
               <ul className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted">
                 {(
                   [
@@ -297,7 +297,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
             </div>
             {cats.length ? (
               <div>
-                <h3 className="text-sm font-bold">Bills by category</h3>
+                <h3 className="text-sm font-bold">Bills by Category</h3>
                 <ul className="mt-1.5 space-y-2">
                   {cats.map(([name, cents]) => (
                     <li key={name} className="text-sm">

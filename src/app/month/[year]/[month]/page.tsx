@@ -358,7 +358,7 @@ export default async function MonthPage({
             </div>
 
             <div className="rounded-2xl border border-line bg-surface p-5 shadow-card">
-              <h2 className="text-base font-bold">Coming up</h2>
+              <h2 className="text-base font-bold">Coming Up</h2>
               {comingUp.length === 0 ? (
                 <p className="mt-2 text-sm text-muted">Nothing left to pay this month.</p>
               ) : (

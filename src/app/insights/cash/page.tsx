@@ -153,7 +153,7 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
           </div>
           <Card>
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-base font-bold">Checking, day by day</h2>
+              <h2 className="text-base font-bold">Checking, Day by Day</h2>
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                 <span className="flex items-center gap-1.5">
                   <span aria-hidden className="inline-block h-0.5 w-4 bg-[var(--series-1)]" />

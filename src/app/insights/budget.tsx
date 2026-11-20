@@ -26,7 +26,7 @@ export function IncomeBar({ plan }: { plan: BudgetPlan }) {
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold">Where the income goes</h2>
+        <h2 className="text-base font-bold">Where the Income Goes</h2>
         <span className="text-xs text-muted">A typical month · bills from the plan, spending from the last three months</span>
       </div>
       <p className="mt-2 text-sm">
@@ -85,7 +85,7 @@ export function CardBudget({ plan }: { plan: BudgetPlan }) {
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold">Card budget</h2>
+        <h2 className="text-base font-bold">Card Budget</h2>
         <span className="text-xs text-muted">0% cards are left out: they&rsquo;re only being paid down</span>
       </div>
       {c.totalCents > 0 ? (
@@ -158,7 +158,7 @@ export function CategoryTargets({ plan, period }: { plan: BudgetPlan; period: st
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold">Category targets</h2>
+        <h2 className="text-base font-bold">Category Targets</h2>
         <span className="text-xs text-muted">Everyday spending, cards and debit together</span>
       </div>
       <p className="mt-2 text-sm">

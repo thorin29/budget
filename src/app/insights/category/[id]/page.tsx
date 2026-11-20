@@ -55,7 +55,7 @@ export default async function CategoryPage({ params, searchParams }: { params: P
       ) : null}
 
       <Card>
-        <h2 className="mb-3 text-base font-bold">Each month</h2>
+        <h2 className="mb-3 text-base font-bold">Each Month</h2>
         <div role="img" aria-label={`${detail.name} by month`}>
           <div className="flex h-40 items-end gap-2">
             {detail.months.map((x, i) => (
@@ -80,7 +80,7 @@ export default async function CategoryPage({ params, searchParams }: { params: P
 
       <div className="grid gap-6 lg:grid-cols-2">
         <Card>
-          <h2 className="text-base font-bold">Merchants this month</h2>
+          <h2 className="text-base font-bold">Merchants This Month</h2>
           {detail.merchants.length ? (
             <ol className="mt-3 divide-y divide-line text-sm">
               {detail.merchants.map((x) => (
@@ -102,7 +102,7 @@ export default async function CategoryPage({ params, searchParams }: { params: P
         </Card>
 
         <Card>
-          <h2 className="text-base font-bold">Charges this month</h2>
+          <h2 className="text-base font-bold">Charges This Month</h2>
           {detail.charges.length ? (
             <ul className="mt-3 divide-y divide-line text-sm">
               {detail.charges.map((x) => (

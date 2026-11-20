@@ -53,7 +53,7 @@ export default async function AccountsSettings({ searchParams }: { searchParams:
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <SectionHeading title="Accounts" description="Click an account to edit it. Names given here show everywhere in the app." />
+        <SectionHeading title="Accounts" />
         <p className="text-xs text-muted">
           {connection ? "Bank feed connected" : "Bank feed not connected"} · {connection?.lastSuccessAt ? `synced ${stamp.format(connection.lastSuccessAt)}` : "no sync yet"} ·{" "}
           <Link href="/settings/bank" className="font-semibold text-accent-text hover:underline">
@@ -95,7 +95,7 @@ export default async function AccountsSettings({ searchParams }: { searchParams:
         <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
           <Card className="p-2">
             <p className="px-3 pb-1 pt-2 text-xs text-muted">
-              {current.key === "Empty" ? "No money and no activity in 60 days; they come back on their own." : current.key === "Hidden" ? "Ignored everywhere." : `${current.key} · click one to edit it`}
+              {current.key === "Empty" ? "No money or activity in 60 days" : current.key === "Hidden" ? "Ignored everywhere" : "Click to edit"}
             </p>
             <ul>
               {current.rows.map((a) => {
@@ -146,7 +146,7 @@ export default async function AccountsSettings({ searchParams }: { searchParams:
 
       {handTab ? (
         <Card className="space-y-3 p-5">
-          <p className="text-sm text-muted">For money the bank feed doesn&rsquo;t see, like cash. A bank account or card typed in before the feed was connected can be linked to its feed account here.</p>
+          
           {typed.length ? (
             <ul className="divide-y divide-line rounded-xl border border-line">
               {typed.map((account) => (
@@ -173,7 +173,7 @@ export default async function AccountsSettings({ searchParams }: { searchParams:
             </ul>
           ) : null}
           <details open={!typed.length}>
-            <summary className="cursor-pointer text-sm font-semibold text-accent-text">Add an account by hand</summary>
+            <summary className="cursor-pointer text-sm font-semibold text-accent-text">+ Add an account</summary>
             <div className="mt-2">
               <AccountsForm kinds={ACCOUNT_KINDS.map((k) => ({ value: k, label: KIND_LABELS[k] }))} bankAccounts={bankLedger.map((a) => ({ id: a.id, name: a.name }))} />
             </div>

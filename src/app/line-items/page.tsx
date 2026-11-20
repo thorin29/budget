@@ -155,8 +155,7 @@ export default async function LineItemsPage({
   return (
     <div>
       <PageHeading
-        title="Bills & income"
-        description="The recurring things that make up a month. The usual amount lives here; a single month that differs is changed on the month view."
+        title="Bills & Income"
         action={
           <div className="flex items-center gap-2">
             {inactiveCount > 0 ? (

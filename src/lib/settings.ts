@@ -20,5 +20,7 @@ export const SETTING_KEYS = {
   buffer: "planning.buffer",
   carryMonths: "planning.carryMonths",
   billsAccountId: "planning.billsAccountId",
+  /** The pay schedule whose payday near the 15th divides the month (null: the one most paychecks use). */
+  splitSchedule: "planning.splitSchedule",
   setupComplete: "app.setupComplete",
 } as const;

@@ -113,11 +113,11 @@ export async function saveOwnedAssetsAction(list: Array<{ id: string; name: stri
   return run(() => saveOwnedAssets(list), "Saved.");
 }
 
-export async function saveHomeValueAction(address: string, apiKey: string | null): Promise<EnvelopeState> {
+export async function saveHomeValueAction(address: string, apiKey: string | null, homeId = "home"): Promise<EnvelopeState> {
   const { saveHomeValueSetup } = await import("@/server/home-value");
   let msg = "Saved.";
   const state = await run(async () => {
-    const { outcome } = await saveHomeValueSetup(String(address), apiKey ? String(apiKey) : null);
+    const { outcome } = await saveHomeValueSetup(String(address), apiKey ? String(apiKey) : null, String(homeId));
     msg = `Saved. ${lookupWords(outcome)}`;
   });
   return state.ok ? { ok: true, message: msg } : state;
@@ -130,31 +130,31 @@ function lookupWords(o: import("@/server/home-value").LookupOutcome): string {
   return `No lookup: ${o.why}.`;
 }
 
-export async function refreshHomeValueAction(): Promise<EnvelopeState> {
+export async function refreshHomeValueAction(homeId = "home"): Promise<EnvelopeState> {
   const { lookUpHomeValue } = await import("@/server/home-value");
   let msg = "";
   const state = await run(async () => {
-    msg = lookupWords((await lookUpHomeValue(true)).outcome);
+    msg = lookupWords((await lookUpHomeValue(true, String(homeId))).outcome);
   });
   return state.ok ? { ok: true, message: msg } : state;
 }
 
-export async function addPastHomeValueAction(source: string, cents: number, year: number, month: number | null): Promise<EnvelopeState> {
+export async function addPastHomeValueAction(source: string, cents: number, year: number, month: number | null, homeId = "home"): Promise<EnvelopeState> {
   const { addPastHomeValue } = await import("@/server/home-value");
-  return run(() => addPastHomeValue(String(source), Number(cents), Number(year), month === null ? null : Number(month)), "Past value added.");
+  return run(() => addPastHomeValue(String(source), Number(cents), Number(year), month === null ? null : Number(month), String(homeId)), "Past value added.");
 }
 
-export async function removeHomeHistoryAction(item: { source: string; cents: number; on: string }): Promise<EnvelopeState> {
+export async function removeHomeHistoryAction(item: { source: string; cents: number; on: string }, homeId = "home"): Promise<EnvelopeState> {
   const { removeHomeHistory } = await import("@/server/home-value");
-  return run(() => removeHomeHistory({ source: String(item.source), cents: Number(item.cents), on: String(item.on) }), "Removed from the history.");
+  return run(() => removeHomeHistory({ source: String(item.source), cents: Number(item.cents), on: String(item.on) }, String(homeId)), "Removed from the history.");
 }
 
-export async function saveHomeEstimatesAction(list: Array<{ source: string; cents: number }>, address?: string): Promise<EnvelopeState> {
+export async function saveHomeEstimatesAction(list: Array<{ source: string; cents: number }>, address?: string, homeId = "home"): Promise<EnvelopeState> {
   const { saveHomeEstimates } = await import("@/server/home-value");
   let msg = "Saved.";
   const state = await run(async () => {
-    const v = await saveHomeEstimates(Array.isArray(list) ? list.map((e) => ({ source: String(e.source), cents: Number(e.cents) })) : [], address ? String(address) : undefined);
-    if (v.averageCents) msg = `Home value set to the average: $${Math.round(v.averageCents / 100).toLocaleString("en-US")}`;
+    const v = await saveHomeEstimates(Array.isArray(list) ? list.map((e) => ({ source: String(e.source), cents: Number(e.cents) })) : [], address ? String(address) : undefined, String(homeId));
+    if (v.averageCents) msg = `Saved: average $${Math.round(v.averageCents / 100).toLocaleString("en-US")}`;
   });
   return state.ok ? { ok: true, message: msg } : state;
 }
@@ -187,4 +187,23 @@ export async function setForOthersAction(id: string, forOthers: boolean): Promis
 export async function createCategoryAction(name: string): Promise<EnvelopeState> {
   const { createCategory } = await import("@/server/categories");
   return run(() => createCategory({ name: String(name) }), "Category added.");
+}
+
+export async function addHomeAction(name: string): Promise<EnvelopeState & { id?: string }> {
+  const { addHome } = await import("@/server/home-value");
+  let id = "";
+  const state = await run(async () => {
+    id = (await addHome(String(name))).id;
+  }, "Home added.");
+  return state.ok ? { ...state, id } : state;
+}
+
+export async function renameHomeAction(id: string, name: string): Promise<EnvelopeState> {
+  const { renameHome } = await import("@/server/home-value");
+  return run(() => renameHome(String(id), String(name)), "Renamed.");
+}
+
+export async function removeHomeAction(id: string): Promise<EnvelopeState> {
+  const { removeHome } = await import("@/server/home-value");
+  return run(() => removeHome(String(id)), "Home removed.");
 }

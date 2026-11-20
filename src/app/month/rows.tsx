@@ -55,7 +55,7 @@ export function MonthList({
   return (
     <div className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-5 py-3.5">
-        <h2 className="text-base font-bold">Bills &amp; income</h2>
+        <h2 className="text-base font-bold">Bills &amp; Income</h2>
         <div className="inline-flex rounded-[10px] bg-neutral-soft p-1 text-sm" role="tablist">
           {(["all", "unpaid", "paid"] as const).map((f) => (
             <button

@@ -166,7 +166,7 @@ export function AccountEditor({ a, types }: { a: EditorAccount; types: Array<{ v
           <input type="checkbox" checked={v.billsSource} onChange={(e) => set({ billsSource: e.target.checked })} className="mt-0.5" />
           <span>
             Holds the bills money
-            <span className="block text-xs text-muted">Its balance is where every bill figure starts, updated after each sync.</span>
+            
           </span>
         </label>
       ) : null}

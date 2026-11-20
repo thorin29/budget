@@ -14,6 +14,9 @@ import {
   addPastHomeValueAction,
   clearHomeKeyAction,
   removeHomeHistoryAction,
+  addHomeAction,
+  renameHomeAction,
+  removeHomeAction,
   renameCategoryAction,
   setForOthersAction,
   deleteCategoryAction,
@@ -60,6 +63,9 @@ export interface SetupHome {
   error: string | null;
   triedAt?: string | null;
   nextLookupOn?: string | null;
+  id?: string;
+  name?: string;
+  homes?: Array<{ id: string; name: string }>;
 }
 
 const KINDS: Array<[Tier, string, string]> = [
@@ -99,13 +105,64 @@ function useAct() {
   return { pending, state, setState, act };
 }
 
-/** Settings › Home & net worth. */
+/** Settings › Property Management: a tab per home, the chosen one's value below. */
 export function HomePanel({ home }: { home: SetupHome | null }) {
   const { pending, state, act } = useAct();
+  const router = useRouter();
+  const homes = home?.homes ?? [{ id: "home", name: "Home" }];
+  const id = home?.id ?? "home";
+  const [name, setName] = useState(home?.name ?? "Home");
   return (
-    <section className="rounded-2xl border border-line bg-surface p-5 shadow-card">
-      <HomeValue home={home} pending={pending} act={act} state={state} />
-    </section>
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        {homes.map((h) => (
+          <a key={h.id} href={`/settings/home?home=${encodeURIComponent(h.id)}`} className={`rounded-full px-3.5 py-1.5 text-sm font-semibold ${h.id === id ? "bg-foreground text-background" : "border border-line bg-surface hover:bg-neutral-soft"}`}>
+            {h.name}
+          </a>
+        ))}
+        <button
+          type="button"
+          disabled={pending}
+          className="rounded-full border border-dashed border-line px-3.5 py-1.5 text-sm font-semibold text-accent-text hover:bg-neutral-soft"
+          onClick={() =>
+            act(async () => {
+              const r = await addHomeAction(`Home ${homes.length + 1}`);
+              if (r.ok && r.id) router.push(`/settings/home?home=${encodeURIComponent(r.id)}`);
+              return r;
+            })
+          }
+        >
+          + Add home
+        </button>
+      </div>
+      <section className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <input aria-label="Home name" value={name} maxLength={40} onChange={(e) => setName(e.target.value)} className="w-56 rounded-lg border border-line bg-surface px-2 py-1.5 text-lg font-bold" />
+          {name.trim() && name.trim() !== (home?.name ?? "Home") ? (
+            <button type="button" disabled={pending} className={QUIET} onClick={() => act(() => renameHomeAction(id, name))}>
+              Rename
+            </button>
+          ) : null}
+          {id !== "home" ? (
+            <button
+              type="button"
+              disabled={pending}
+              className="ml-auto text-xs font-semibold text-danger hover:underline"
+              onClick={() =>
+                act(async () => {
+                  const r = await removeHomeAction(id);
+                  if (r.ok) router.push("/settings/home");
+                  return r;
+                })
+              }
+            >
+              Remove this home
+            </button>
+          ) : null}
+        </div>
+        <HomeValue key={id} home={home} pending={pending} act={act} state={state} />
+      </section>
+    </div>
   );
 }
 
@@ -178,15 +235,15 @@ export function BudgetsPanel({
           })}
           <div className="mt-2 space-y-1 border-t border-line pt-2">
             <button type="button" onClick={() => setSel("new")} className={`w-full rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold text-accent-text ${sel === "new" ? "bg-accent-soft" : "hover:bg-neutral-soft"}`}>
-              + New budget
+              + New Budget
             </button>
             <button type="button" onClick={() => setSel("categories")} className={`flex w-full justify-between rounded-lg px-2.5 py-1.5 text-left text-sm ${sel === "categories" ? "bg-accent-soft font-bold" : "hover:bg-neutral-soft"}`}>
-              <span>All categories</span>
+              <span>All Categories</span>
               <span className="tnum text-xs text-muted">{categories.length}</span>
             </button>
             {ungrouped.length ? (
               <button type="button" onClick={() => setSel("unsorted")} className={`flex w-full justify-between rounded-lg px-2.5 py-1.5 text-left text-sm ${sel === "unsorted" ? "bg-accent-soft font-bold" : "hover:bg-neutral-soft"}`}>
-                <span>Without a budget</span>
+                <span>Without a Budget</span>
                 <span className="rounded-full bg-warn-soft px-2 text-xs font-bold text-warn">{ungrouped.length}</span>
               </button>
             ) : null}
@@ -230,7 +287,6 @@ function TopBar({ debt, cushionCents, ungrouped, onUnsorted }: { debt: { cents: 
       </label>
       <label className="flex items-center gap-2">
         <b>Checking cushion</b>
-        <span className="text-xs text-muted">kept in checking, never planned away</span>
         <input aria-label="Checking cushion" className={`${INPUT} w-24`} placeholder="$0" value={c} onChange={(e) => setC(e.target.value)} onBlur={() => c !== (cushionCents ? String(Math.round(cushionCents / 100)) : "") && save(() => setCushionAction(toCents(c)))} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
       </label>
       {pending ? <span className="text-xs text-muted">Saving…</span> : <Note state={state} />}
@@ -303,7 +359,7 @@ function BudgetDetail({ b, budgets, pending, act, state }: { b: SetupBudget; bud
         </div>
       </div>
       <div>
-        <p className="mb-1.5 text-xs text-muted">Categories in this budget · click a name to rename it</p>
+        <p className="mb-1.5 text-xs text-muted">Categories</p>
         <div className="flex flex-wrap items-center gap-1.5">
           {b.categories.map((c) => (
             <span key={c.id} className="inline-flex items-center gap-1 rounded-full border border-line bg-neutral-soft px-2.5 py-0.5 text-xs">
@@ -356,8 +412,8 @@ function Unsorted({ ungrouped, usage, budgets, pending, act, state }: { ungroupe
   return (
     <div className="space-y-3">
       <div>
-        <h2 className="text-xl font-bold">Categories without a budget</h2>
-        <p className="mt-1 text-sm text-muted">A category exists but isn&rsquo;t in any budget, so its spending isn&rsquo;t counted against one. Put it in a budget, or remove it if it isn&rsquo;t used.</p>
+        <h2 className="text-xl font-bold">Categories Without a Budget</h2>
+
       </div>
       {ungrouped.length ? (
         <ul className="divide-y divide-line text-sm">
@@ -412,7 +468,7 @@ function NewBudget({ pending, act, state }: { pending: boolean; act: Act; state:
   const [reset, setReset] = useState(false);
   return (
     <div className="space-y-4">
-      <h2 className="text-xl font-bold">New budget</h2>
+      <h2 className="text-xl font-bold">New Budget</h2>
       <div className="flex flex-wrap items-center gap-3">
         <input aria-label="Name" placeholder="Name" value={name} onChange={(e) => setName(e.target.value)} className="w-56 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm" />
         <div className="flex gap-0.5 rounded-lg bg-neutral-soft p-0.5 text-xs font-semibold">
@@ -426,7 +482,7 @@ function NewBudget({ pending, act, state }: { pending: boolean; act: Act; state:
           Add
         </button>
       </div>
-      <p className="text-xs text-muted">Then pick it in the list to give it categories and a limit.</p>
+
       <Note state={state} />
       <div className="border-t border-line pt-4 text-xs text-muted">
         <p>
@@ -464,8 +520,8 @@ function AllCategories({ list, pending, act, state }: { list: AnyCategory[]; pen
     <div className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
-          <h2 className="text-xl font-bold">All categories</h2>
-          <p className="mt-1 text-sm text-muted">Click a name to rename it; everything using it follows. “For others” keeps money you collect and pass on (a league, a group trip) out of your spending.</p>
+          <h2 className="text-xl font-bold">All Categories</h2>
+          <p className="mt-1 text-sm text-muted">Click a name to rename it.</p>
         </div>
         <Note state={state} />
       </div>
@@ -546,7 +602,7 @@ function CategoryName({ id, name, pending, act, bold = false }: { id: string; na
 }
 
 /** Every value entered or looked up, newest first, with a form for one from the past (year, month optional). */
-function PastValues({ home, pending, act, fmt }: { home: SetupHome | null; pending: boolean; act: Act; fmt: (d: string) => string }) {
+function PastValues({ home, pending, act, fmt, hid }: { home: SetupHome | null; pending: boolean; act: Act; fmt: (d: string) => string; hid: string }) {
   const thisYear = new Date().getFullYear();
   const [source, setSource] = useState("County appraisal");
   const [amount, setAmount] = useState("");
@@ -557,7 +613,7 @@ function PastValues({ home, pending, act, fmt }: { home: SetupHome | null; pendi
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   return (
     <details className="text-sm" open={history.length > 0 && history.length <= 6}>
-      <summary className="cursor-pointer text-xs font-semibold text-accent-text">History{history.length ? ` (${history.length})` : ""} · add a past value</summary>
+      <summary className="cursor-pointer text-xs font-semibold text-accent-text">History{history.length ? ` (${history.length})` : ""} · Add a Past Value</summary>
       <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
         <input aria-label="Where it's from" value={source} onChange={(e) => setSource(e.target.value)} className="w-40 rounded-lg border border-line bg-surface px-2 py-1" />
         <input aria-label="Value" inputMode="decimal" placeholder="$" value={amount} onChange={(e) => setAmount(e.target.value)} className={`${INPUT} w-32 py-1`} />
@@ -582,7 +638,7 @@ function PastValues({ home, pending, act, fmt }: { home: SetupHome | null; pendi
           className={QUIET}
           onClick={() =>
             act(async () => {
-              const r = await addPastHomeValueAction(source, toCents(amount) ?? 0, Number(year), month ? Number(month) : null);
+              const r = await addPastHomeValueAction(source, toCents(amount) ?? 0, Number(year), month ? Number(month) : null, hid);
               if (r.ok) setAmount("");
               return r;
             })
@@ -600,7 +656,7 @@ function PastValues({ home, pending, act, fmt }: { home: SetupHome | null; pendi
               </span>
               <span className="flex items-center gap-2">
                 {money(h.cents)}
-                <button type="button" aria-label={`Remove ${h.source} ${when(h)}`} disabled={pending} className="hover:text-danger" onClick={() => act(() => removeHomeHistoryAction(h))}>
+                <button type="button" aria-label={`Remove ${h.source} ${when(h)}`} disabled={pending} className="hover:text-danger" onClick={() => act(() => removeHomeHistoryAction(h, hid))}>
                   ✕
                 </button>
               </span>
@@ -620,6 +676,7 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
     ...saved,
     ...["Zillow", "Redfin", "Realtor.com", "County appraisal"].filter((s) => !saved.some((x) => x.source.toLowerCase() === s.toLowerCase())).map((source) => ({ source, amount: "" })),
   ];
+  const hid = home?.id ?? "home";
   const [rows, setRows] = useState(start);
   const [address, setAddress] = useState(home?.address ?? "");
   const [key, setKey] = useState("");
@@ -646,17 +703,11 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
   };
   return (
     <div className="max-w-2xl space-y-4">
-      <div>
-        <h2 className="text-xl font-bold">Home value</h2>
-        <p className="mt-1 text-sm text-muted">
-          Type in the estimates from Zillow, Redfin, Realtor.com and your county&rsquo;s appraisal (the value on its yearly notice or its property search). Their average becomes the Home value in net worth. With the address filled in, &ldquo;Look up&rdquo; opens each one for your home.
-        </p>
-      </div>
       <label className="block text-sm">
         <span className="mb-1 block text-xs text-muted">Address</span>
         <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, City, ST 12345" className="w-full max-w-md rounded-lg border border-line bg-surface px-2 py-1.5" />
       </label>
-      {stale ? <p className="rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">Some estimates are out of date (sites after three months, the county after a year): worth checking again.</p> : null}
+      {stale ? <p className="rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">Some estimates are out of date.</p> : null}
       <div className="space-y-1.5">
         {rows.map((r, i) => (
           <div key={i} className="flex items-center gap-2">
@@ -698,7 +749,7 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
           type="button"
           disabled={pending}
           className={BTN}
-          onClick={() => act(() => saveHomeEstimatesAction(rows.map((r) => ({ source: r.source, cents: toCents(r.amount) ?? 0 })).filter((r) => r.source.trim() && r.cents > 0), address))}
+          onClick={() => act(() => saveHomeEstimatesAction(rows.map((r) => ({ source: r.source, cents: toCents(r.amount) ?? 0 })).filter((r) => r.source.trim() && r.cents > 0), address, hid))}
         >
           Save
         </button>
@@ -709,16 +760,15 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
           Net worth uses <b className="tnum">{money(home.usedCents)}</b>
           <span className="text-muted">
             {" "}
-            · {home.usedSources.length > 1 ? `average of ${home.usedSources.join(", ")}` : `from ${home.usedSources[0]}`}. Only current estimates count: a site&rsquo;s for 6 months, the county&rsquo;s for 15, RentCast&rsquo;s for 45 days; with none current, the newest one stands.
+            · {home.usedSources.length > 1 ? `average of ${home.usedSources.join(", ")}` : `from ${home.usedSources[0]}`}
           </span>
         </p>
       ) : null}
-      <PastValues home={home} pending={pending} act={act} fmt={fmt} />
+      <PastValues home={home} pending={pending} act={act} fmt={fmt} hid={hid} />
       <details className="rounded-xl border border-line p-3 text-sm">
-        <summary className="cursor-pointer font-semibold">Or look it up automatically with RentCast</summary>
+        <summary className="cursor-pointer font-semibold">Automatic Lookup (RentCast)</summary>
         <p className="mt-2 text-xs text-muted">
-          Needs a RentCast API key. Best kept on the server as <code>RENTCAST_API_KEY</code>; pasting it here also works (stored encrypted). At most one lookup a month on its own, one a day by hand, and never more than {home?.callsLimit ?? 5} a month.
-          {home ? ` ${home.callsThisMonth} used this month.` : ""} Its value joins the average with the others.
+          {home?.callsThisMonth ?? 0} of {home?.callsLimit ?? 5} lookups used this month (all homes).
         </p>
         {home?.keyFromEnv ? <p className="mt-1 text-xs font-semibold text-ok">Key found in the server&rsquo;s environment.</p> : null}
         {home?.valueCents ? (
@@ -737,15 +787,15 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
           <p className="mt-1 text-xs text-danger">Last lookup: {home.error}</p>
         ) : null}
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <span className="self-center text-xs text-muted">Uses the address above.</span>
+          <span className="self-center text-xs text-muted">API key</span>
           <input aria-label="RentCast API key" value={key} onChange={(e) => setKey(e.target.value)} type="password" autoComplete="off" placeholder={home?.keyFromEnv ? "Set on the server" : home?.hasKey ? "Key saved (blank keeps it)" : "API key"} className="rounded-lg border border-line bg-surface px-2 py-1.5" />
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
-          <button type="button" disabled={pending || !address.trim() || (!key.trim() && !home?.hasKey)} className={QUIET} onClick={() => act(() => saveHomeValueAction(address, key || null))}>
+          <button type="button" disabled={pending || !address.trim() || (!key.trim() && !home?.hasKey)} className={QUIET} onClick={() => act(() => saveHomeValueAction(address, key || null, hid))}>
             Save and look up
           </button>
           {home?.hasKey ? (
-            <button type="button" disabled={pending} className={QUIET} onClick={() => act(() => refreshHomeValueAction())}>
+            <button type="button" disabled={pending} className={QUIET} onClick={() => act(() => refreshHomeValueAction(hid))}>
               Look up again
             </button>
           ) : null}

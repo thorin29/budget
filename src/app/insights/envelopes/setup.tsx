@@ -201,7 +201,7 @@ export function EnvelopeSetupForm({
       </Card>
 
       <Card>
-        <h2 className="text-base font-bold">Minimum cushion</h2>
+        <h2 className="text-base font-bold">Minimum Cushion</h2>
         <p className="mt-0.5 max-w-prose text-xs text-muted">
           The least checking should keep once every card and bill is paid. Available to spend holds it back, and the Budget tab counts how many months the
           cushion lasts before reaching it.
@@ -225,7 +225,7 @@ export function EnvelopeSetupForm({
 
       {setup.ungrouped.length ? (
         <Card>
-          <h2 className="text-base font-bold">Not in a budget yet</h2>
+          <h2 className="text-base font-bold">Not in a Budget Yet</h2>
           <p className="mt-0.5 text-xs text-muted">
             Their spending counts against the month, with no limit, until
             you place them.
@@ -279,7 +279,7 @@ export function EnvelopeSetupForm({
       </div>
 
       <Card>
-        <h2 className="text-base font-bold">Kinds of budget</h2>
+        <h2 className="text-base font-bold">Kinds of Budget</h2>
         <ul className="mt-2 space-y-1 text-sm text-muted">
           <li><b className="text-foreground">Essential</b>: needed every month (groceries, fuel). What its limit hasn&rsquo;t spent yet is held back from safe to spend.</li>
           <li><b className="text-foreground">Extra</b>: everything you could say no to. Each one&rsquo;s room is never more than what&rsquo;s safe to spend.</li>
@@ -302,7 +302,7 @@ export function EnvelopeSetupForm({
       </Card>
 
       <Card>
-        <h2 className="text-base font-bold">Add a budget</h2>
+        <h2 className="text-base font-bold">Add a Budget</h2>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <span className="w-56">
             <input

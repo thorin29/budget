@@ -120,8 +120,55 @@ export function SyncControls() {
   );
 }
 
+/**
+ * Danger zone: deleting every bank account, transaction and import. Opens a red-tinted dialog that
+ * says exactly what goes and needs the red button to go ahead.
+ */
 export function DeleteBankData() {
-  return <Armed label="Delete all bank data" confirm="Yes, delete every account and transaction" action={deleteBankDataAction} danger />;
+  const [open, setOpen] = useState(false);
+  const [pending, start] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  return (
+    <>
+      <button type="button" onClick={() => (setOpen(true), setError(null))} className="rounded-[10px] border border-danger px-3.5 py-2 text-sm font-semibold text-danger hover:bg-danger-soft">
+        Delete all bank data…
+      </button>
+      {open ? (
+        <div role="dialog" aria-modal="true" aria-labelledby="danger-title" className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(127,29,29,0.45)] p-4" onClick={() => !pending && setOpen(false)}>
+          <div className="w-full max-w-md rounded-2xl border-2 border-danger bg-danger-soft p-6 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <p className="text-xs font-bold uppercase tracking-wider text-danger">Danger Zone</p>
+            <h2 id="danger-title" className="mt-1 text-xl font-bold text-danger">Delete All Bank Data?</h2>
+            <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-foreground">
+              <li>Every bank feed account and transaction</li>
+              <li>CSV and Amazon imports</li>
+              <li>The bridge connection</li>
+            </ul>
+            <p className="mt-3 text-sm font-semibold text-danger">This can&rsquo;t be undone.</p>
+            {error ? <p className="mt-2 text-sm text-danger">{error}</p> : null}
+            <div className="mt-5 flex justify-end gap-2">
+              <button type="button" disabled={pending} onClick={() => setOpen(false)} className="rounded-[10px] border border-line-strong bg-surface px-3.5 py-2 text-sm font-semibold hover:bg-neutral-soft">
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={pending}
+                onClick={() =>
+                  start(async () => {
+                    const r = await deleteBankDataAction();
+                    if (r.ok) setOpen(false);
+                    else setError(r.message ?? "Something went wrong");
+                  })
+                }
+                className="rounded-[10px] bg-danger px-3.5 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-60"
+              >
+                {pending ? "Deleting…" : "Delete everything"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 export function AccountTypeSelect({ id, type, options }: { id: string; type: string; options: Array<{ value: string; label: string }> }) {

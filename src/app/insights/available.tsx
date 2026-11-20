@@ -66,7 +66,7 @@ export function AvailableCard({
   return (
     <Card className={`flex flex-col ${className}`}>
       <div className="flex items-baseline justify-between gap-2">
-        <h2 className="text-base font-bold">Available to spend</h2>
+        <h2 className="text-base font-bold">Available to Spend</h2>
         <span className="text-xs text-muted">{caseLabel}</span>
       </div>
       <div className="mt-2 flex flex-wrap items-baseline gap-x-3">

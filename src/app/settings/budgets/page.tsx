@@ -22,7 +22,7 @@ export default async function BudgetsSettings({ searchParams }: { searchParams: 
   }));
   return (
     <div className="space-y-4">
-      <SectionHeading title="Budgets & categories" description="What each budget may spend a month and which categories feed it. Insights shows these; they're changed only here." />
+      <SectionHeading title="Budgets" />
       <BudgetsPanel budgets={budgets} ungrouped={setup.ungrouped} usage={usage} initial={item} categories={everyCategory} />
     </div>
   );
