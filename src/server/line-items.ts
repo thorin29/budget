@@ -300,6 +300,39 @@ export async function deleteLineItem(id: string): Promise<{ deleted: boolean }> 
   return { deleted: true };
 }
 
+/**
+ * Deletes the item and everything recorded against it (payments, planned amounts, bank-matching
+ * rules), for an old or duplicate row the person wants gone from the list. The bank charges it was
+ * matched to stay: they go to `chargesTo` (kept as the person's choice), or with none back to the
+ * category their merchant would get anyway. Returns how many charges were let go.
+ */
+export async function deleteLineItemForGood(id: string, chargesTo: string | null): Promise<{ deleted: true; charges: number }> {
+  await getLineItem(id);
+  if (chargesTo) {
+    const category = await prisma.category.findUnique({ where: { id: chargesTo }, select: { id: true } });
+    if (!category) throw new ValidationError({ chargesTo: ["Pick a category"] });
+  }
+  const matched = (await prisma.actualEntry.findMany({
+    where: { lineItemId: id, bankTransactionId: { not: null } },
+    select: { bankTransactionId: true },
+  })) as Array<{ bankTransactionId: string }>;
+  const ids = matched.map((m) => m.bankTransactionId);
+
+  await prisma.$transaction([
+    prisma.reviewDismissal.deleteMany({ where: { kind: "match", key: { startsWith: `${id}:` } } }),
+    prisma.lineItem.delete({ where: { id } }),
+    // A category picked here wins; with none, a category the person set on a charge stays.
+    chargesTo
+      ? prisma.bankTransaction.updateMany({ where: { id: { in: ids } }, data: { categoryId: chargesTo, categorySource: "person" } })
+      : prisma.bankTransaction.updateMany({ where: { id: { in: ids }, categorySource: { not: "person" } }, data: { categorySource: "guess" } }),
+  ]);
+  if (!chargesTo && ids.length) {
+    const { applyCategories } = await import("./categorize");
+    await applyCategories(ids);
+  }
+  return { deleted: true, charges: ids.length };
+}
+
 /** The form's card choice as columns: left alone when not sent. */
 function paysCardData(kind: string, choice: string | null | undefined): { paysCardId?: string | null; paysCardLocked?: boolean } {
   if (choice === undefined || choice === null) return {};

@@ -3,7 +3,7 @@
 import { requireUser } from "@/server/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createLineItem, deleteLineItem, updateLineItem } from "@/server/line-items";
+import { createLineItem, deleteLineItemForGood, updateLineItem } from "@/server/line-items";
 import { ValidationError } from "@/server/errors";
 import { parseCents } from "@/lib/money";
 
@@ -102,7 +102,9 @@ export async function deleteLineItemAction(
 ): Promise<FormState> {
   try {
     await requireUser();
-    await deleteLineItem(str(form, "id"));
+    // From the web it's gone for good; the phone's DELETE still only turns an item with history off.
+    const to = form.get("chargesTo");
+    await deleteLineItemForGood(str(form, "id"), typeof to === "string" && to ? to : null);
   } catch (error) {
     return toState(error);
   }

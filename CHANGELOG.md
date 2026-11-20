@@ -3,6 +3,16 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.88.3]
+
+No migration. The phone app is unchanged (its delete still turns an item with history off).
+
+### Changed
+- **Removing a bill deletes it for good**, with its recorded payments, planned amounts and bank
+  matching. Before, a bill with history was only turned off and stayed in the list. The bank
+  charges it was matched to stay and count as spending: pick a category for them when removing,
+  or leave "Their usual category". To keep a bill's history, set Status to Inactive instead.
+
 ## [0.88.2]
 
 No migration. The phone app is unchanged.

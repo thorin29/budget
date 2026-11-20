@@ -563,7 +563,7 @@ export function LineItemForm({
       </div>
 
       <div className="flex items-center gap-2 border-t border-line bg-sunken px-6 py-4">
-        {defaults.id ? <DeleteLineItem id={defaults.id} name={defaults.name} /> : null}
+        {defaults.id ? <DeleteLineItem id={defaults.id} name={defaults.name} categories={categories} /> : null}
         <span className="flex-1" />
         <Link href={cancelHref} className={buttonClass("quiet")}>
           Cancel
