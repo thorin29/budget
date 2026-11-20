@@ -5,6 +5,8 @@ import { Button, ErrorBanner, Select, TextInput } from "@/components/ui";
 import { formatCents, toDecimalString } from "@/lib/money";
 import { addRepeatAction, confirmMatchAction, dismissMatchAction, dismissRepeatAction, dueDayAction, undoAutoAction, type ReviewState } from "./actions";
 import type { LooksPaid, RepeatCharge } from "@/server/review";
+import type { AmountReviewItem } from "@/server/bill-amounts";
+import { changeUsualAmountAction, dismissAmountAction } from "@/app/line-items/actions";
 
 const INITIAL: ReviewState = { ok: true };
 const short = (iso: string) =>
@@ -184,6 +186,82 @@ export function DueDayRow({ item }: { item: { lineItemId: string; name: string; 
           Put back
         </Button>
       </span>
+    </li>
+  );
+}
+
+const ymLabel = (ym: string) => new Date(`${ym}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "short", year: "numeric", timeZone: "UTC" });
+
+/**
+ * A bill whose payments say its usual amount is out of date (a new rate, escrow that changed).
+ * Using the new amount starts at the next unpaid month; earlier months keep theirs, and with
+ * "match past months" each earlier stretch of steady payments becomes those months' budget.
+ */
+export function AmountCard({ item }: { item: AmountReviewItem }) {
+  const [busy, start] = useTransition();
+  const [result, setResult] = useState<{ ok: boolean; message?: string } | null>(null);
+  const [past, setPast] = useState(item.pastToFix > 0);
+  const [escrow, setEscrow] = useState(true);
+  if (result?.ok) return <li className="rounded-2xl border border-line bg-surface p-4 text-sm text-muted">{item.name}: {result.message ?? "Done."}</li>;
+  const s = item.suggestion;
+  const up = s.cents > item.usualCents;
+  return (
+    <li className="rounded-2xl border border-line bg-surface p-4 shadow-card">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-xs font-bold uppercase tracking-wide text-warn">{up ? "Went up" : "Went down"}</p>
+          <p className="mt-1 text-base font-semibold">{item.name}</p>
+          <p className="text-sm text-muted">
+            {s.kind === "steady"
+              ? `${s.count} payments in a row at about this since ${ymLabel(s.since!)}`
+              : `Varies; the last ${s.count} payments averaged this`}
+            {" · "}budget {formatCents(item.usualCents)}
+          </p>
+        </div>
+        <p className="tnum text-xl font-bold">{formatCents(s.cents)}</p>
+      </div>
+      {result && !result.ok ? (
+        <div className="mt-3">
+          <ErrorBanner message={result.message} />
+        </div>
+      ) : null}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          disabled={busy}
+          onClick={() =>
+            start(async () => {
+              setResult(await changeUsualAmountAction(item.lineItemId, s.cents, item.startsFrom, escrow && item.hasEscrow, past));
+            })
+          }
+        >
+          Use {formatCents(s.cents)} from {ymLabel(item.startsFrom)}
+        </Button>
+        <Button
+          type="button"
+          variant="quiet"
+          disabled={busy}
+          onClick={() =>
+            start(async () => {
+              setResult(await dismissAmountAction(item.lineItemId, s.cents));
+            })
+          }
+        >
+          Keep {formatCents(item.usualCents)}
+        </Button>
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted">
+        {item.pastToFix ? (
+          <label className="flex items-center gap-1">
+            <input type="checkbox" checked={past} onChange={(e) => setPast(e.target.checked)} /> Also set {item.pastToFix} earlier {item.pastToFix === 1 ? "stretch" : "stretches"} of steady payments as {item.pastToFix === 1 ? "its" : "their"} months&rsquo; budget
+          </label>
+        ) : null}
+        {item.hasEscrow ? (
+          <label className="flex items-center gap-1">
+            <input type="checkbox" checked={escrow} onChange={(e) => setEscrow(e.target.checked)} /> Escrow changes by the same amount
+          </label>
+        ) : null}
+      </div>
     </li>
   );
 }

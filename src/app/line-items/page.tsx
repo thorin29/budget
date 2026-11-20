@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { displayAccountName } from "@/lib/account-type";
 import { createLineItemAction, updateLineItemAction } from "./actions";
 import { Drawer } from "./drawer";
+import { billAmountHistory } from "@/server/bill-amounts";
 
 export const dynamic = "force-dynamic";
 
@@ -131,6 +132,7 @@ export default async function LineItemsPage({
     >,
   ]);
   const payoffById = new Map(payoffs.map((p) => [p.lineItemId, p]));
+  const amountHistory = editing?.id ? { id: editing.id, ...(await billAmountHistory(editing.id).catch(() => null)) } : null;
 
   const accountName = new Map(accounts.map((a) => [a.id, a.name]));
   // Halves follow this month's split, which may come from the pay calendar.
@@ -245,6 +247,7 @@ export default async function LineItemsPage({
             cards={accounts
               .filter((a) => a.kind === "CREDIT_CARD" && (a.active || a.id === editing.chargedToId))
               .map((a) => ({ id: a.id, name: a.name }))}
+            amountHistory={amountHistory && "runs" in amountHistory ? (amountHistory as never) : null}
             paySchedules={paySchedules.map((p) => ({ id: p.id, name: p.name }))}
             loans={loans.map((l) => ({ id: l.id, name: l.nickname || displayAccountName(l.name) }))}
             defaults={{

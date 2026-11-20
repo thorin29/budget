@@ -7,7 +7,8 @@ import { SetupPanel, type SetupBudget } from "./setup-panel";
 
 export const dynamic = "force-dynamic";
 
-export default async function InsightsSettingsPage() {
+export default async function InsightsSettingsPage({ searchParams }: { searchParams: Promise<{ item?: string }> }) {
+  const { item } = await searchParams;
   const [setup, plan, cushion, home] = await Promise.all([getEnvelopeSetup(), getMonthPlan(), cushionSetting(), homeValue().catch(() => null)]);
   const usage = await categoryUsage(setup.ungrouped.map((c) => c.id)).catch(() => ({}));
   const byId = new Map(plan.groups.map((g) => [g.id, g]));
@@ -24,7 +25,7 @@ export default async function InsightsSettingsPage() {
     <div className="space-y-4">
       <InsightsTabs />
       <TabHeading title="Setup" />
-      <SetupPanel budgets={budgets} ungrouped={setup.ungrouped} usage={usage} debt={{ cents: plan.debt.cents, automatic: plan.debt.source !== "set", targetCents: plan.debt.targetCents }} cushionCents={cushion} home={home} />
+      <SetupPanel budgets={budgets} ungrouped={setup.ungrouped} usage={usage} debt={{ cents: plan.debt.cents, automatic: plan.debt.source !== "set", targetCents: plan.debt.targetCents }} cushionCents={cushion} home={home} initial={item} />
     </div>
   );
 }

@@ -3,7 +3,8 @@
 import { requireUser } from "@/server/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { createLineItem, deleteLineItemForGood, updateLineItem } from "@/server/line-items";
+import { createLineItem, deleteLineItemForGood, getLineItem, updateLineItem } from "@/server/line-items";
+import { changeUsualAmount, dismissAmountSuggestion, keepEarlierAmount, matchPastToPayments } from "@/server/bill-amounts";
 import { ValidationError } from "@/server/errors";
 import { parseCents } from "@/lib/money";
 
@@ -88,7 +89,14 @@ export async function updateLineItemAction(
   const id = str(form, "id");
   try {
     await requireUser();
-    await updateLineItem(id, readForm(form));
+    const input = readForm(form);
+    // A new usual amount applies from the month picked; the months before keep the old one.
+    const from = str(form, "amountFrom");
+    const before = await getLineItem(id);
+    if (from && from !== "all" && input.plannedAmountCents !== before.plannedAmountCents) {
+      await keepEarlierAmount(id, before.plannedAmountCents, from);
+    }
+    await updateLineItem(id, input);
   } catch (error) {
     return toState(error);
   }
@@ -110,4 +118,44 @@ export async function deleteLineItemAction(
   }
   revalidatePath("/", "layout");
   redirect("/line-items");
+}
+
+/** Small results for the buttons on Review and in a bill's payment history. */
+export interface AmountState {
+  ok: boolean;
+  message?: string;
+}
+async function quick(work: () => Promise<string>): Promise<AmountState> {
+  try {
+    const message = await work();
+    revalidatePath("/", "layout");
+    return { ok: true, message };
+  } catch (error) {
+    return toState(error);
+  }
+}
+
+export async function changeUsualAmountAction(id: string, cents: number, from: string, escrowFollows: boolean, matchPast: boolean): Promise<AmountState> {
+  return quick(async () => {
+    await requireUser();
+    await changeUsualAmount(String(id), Number(cents), String(from), Boolean(escrowFollows));
+    const fixed = matchPast ? await matchPastToPayments(String(id)) : 0;
+    return fixed ? `Updated, and ${fixed} past ${fixed === 1 ? "month" : "months"} set to what was paid.` : "Updated.";
+  });
+}
+
+export async function matchPastToPaymentsAction(id: string): Promise<AmountState> {
+  return quick(async () => {
+    await requireUser();
+    const n = await matchPastToPayments(String(id));
+    return n ? `${n} past ${n === 1 ? "month" : "months"} set to what was paid.` : "Past months already match.";
+  });
+}
+
+export async function dismissAmountAction(id: string, cents: number): Promise<AmountState> {
+  return quick(async () => {
+    await requireUser();
+    await dismissAmountSuggestion(String(id), Number(cents));
+    return "Hidden.";
+  });
 }

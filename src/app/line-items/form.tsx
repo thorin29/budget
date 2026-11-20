@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ErrorBanner, Field, Segmented, Select, TextInput, buttonClass } from "@/components/ui";
 import type { FormState } from "./actions";
 import { DeleteLineItem } from "./row";
+import { AmountHistory, monthLabel, type AmountHistoryView } from "./amount-history";
 
 const INITIAL: FormState = { ok: true };
 
@@ -114,6 +115,7 @@ export function LineItemForm({
   loans = [],
   submitLabel,
   cancelHref = "/line-items",
+  amountHistory = null,
 }: {
   action: (state: FormState, form: FormData) => Promise<FormState>;
   defaults: LineItemDefaults;
@@ -125,8 +127,18 @@ export function LineItemForm({
   loans?: Array<{ id: string; name: string }>;
   submitLabel: string;
   cancelHref?: string;
+  /** An existing bill's payments in stretches, and where a new amount would start. */
+  amountHistory?: AmountHistoryView | null;
 }) {
   const [state, submit, pending] = useActionState(action, INITIAL);
+  const [amount, setAmount] = useState(defaults.plannedAmount);
+  const amountChanged = !!defaults.id && amount.trim() !== defaults.plannedAmount.trim();
+  const startsFrom = amountHistory?.startsFrom ?? new Date().toISOString().slice(0, 7);
+  const fromOptions = Array.from({ length: 6 }, (_, i) => {
+    const [y, m] = startsFrom.split("-").map(Number);
+    const t = y * 12 + m - 1 + i;
+    return `${Math.floor(t / 12)}-${String((t % 12) + 1).padStart(2, "0")}`;
+  });
   const [kind, setKind] = useState(defaults.kind);
   const [scheduleKind, setScheduleKind] = useState(defaults.scheduleKind);
   const [anchor, setAnchor] = useState(defaults.anchorMonth);
@@ -199,19 +211,33 @@ export function LineItemForm({
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
             label={isIncome ? "Expected amount" : "Usual amount"}
-            hint={isIncome ? "Per arrival. An estimate is fine." : "A single month that differs is changed on the month view."}
+            hint={amountChanged ? "Earlier months keep the old amount." : isIncome ? "Per arrival. An estimate is fine." : "A single month that differs is changed on the month view."}
             error={state.issues?.plannedAmountCents}
           >
             <div className="relative">
               <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-subtle">$</span>
               <TextInput
                 name="plannedAmount"
-                defaultValue={defaults.plannedAmount}
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
                 inputMode="decimal"
                 className="tnum pl-6"
                 required
               />
             </div>
+            {amountChanged ? (
+              <label className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
+                Starting
+                <select name="amountFrom" defaultValue={startsFrom} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm text-foreground">
+                  {fromOptions.map((ym) => (
+                    <option key={ym} value={ym}>
+                      {monthLabel(ym)}
+                    </option>
+                  ))}
+                  <option value="all">Every month, past too</option>
+                </select>
+              </label>
+            ) : null}
           </Field>
 
           <Field
@@ -248,6 +274,8 @@ export function LineItemForm({
             </div>
           </Field>
         </div>
+
+        {amountHistory && !isIncome ? <AmountHistory h={amountHistory} /> : null}
 
         <div>
           <span className="mb-1.5 block text-[13px] font-semibold">How often</span>

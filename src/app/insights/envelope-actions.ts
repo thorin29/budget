@@ -117,20 +117,36 @@ export async function saveHomeValueAction(address: string, apiKey: string | null
   const { saveHomeValueSetup } = await import("@/server/home-value");
   let msg = "Saved.";
   const state = await run(async () => {
-    const v = await saveHomeValueSetup(String(address), apiKey ? String(apiKey) : null);
-    msg = v.error ? `Saved, but RentCast said: ${v.error}` : v.valueCents ? `RentCast estimate: $${Math.round(v.valueCents / 100).toLocaleString("en-US")}` : "Saved.";
+    const { outcome } = await saveHomeValueSetup(String(address), apiKey ? String(apiKey) : null);
+    msg = `Saved. ${lookupWords(outcome)}`;
   });
   return state.ok ? { ok: true, message: msg } : state;
 }
 
+/** What a RentCast lookup did, for the note beside the buttons. */
+function lookupWords(o: import("@/server/home-value").LookupOutcome): string {
+  if (o.kind === "found") return `RentCast estimate: $${Math.round(o.cents / 100).toLocaleString("en-US")}, added to the list.`;
+  if (o.kind === "failed") return `RentCast said: ${o.why}`;
+  return `No lookup: ${o.why}.`;
+}
+
 export async function refreshHomeValueAction(): Promise<EnvelopeState> {
-  const { refreshHomeValue } = await import("@/server/home-value");
-  let msg = "Up to date.";
+  const { lookUpHomeValue } = await import("@/server/home-value");
+  let msg = "";
   const state = await run(async () => {
-    const v = await refreshHomeValue(true);
-    msg = v?.error ? `RentCast said: ${v.error}` : "Updated.";
+    msg = lookupWords((await lookUpHomeValue(true)).outcome);
   });
   return state.ok ? { ok: true, message: msg } : state;
+}
+
+export async function addPastHomeValueAction(source: string, cents: number, year: number, month: number | null): Promise<EnvelopeState> {
+  const { addPastHomeValue } = await import("@/server/home-value");
+  return run(() => addPastHomeValue(String(source), Number(cents), Number(year), month === null ? null : Number(month)), "Past value added.");
+}
+
+export async function removeHomeHistoryAction(item: { source: string; cents: number; on: string }): Promise<EnvelopeState> {
+  const { removeHomeHistory } = await import("@/server/home-value");
+  return run(() => removeHomeHistory({ source: String(item.source), cents: Number(item.cents), on: String(item.on) }), "Removed from the history.");
 }
 
 export async function saveHomeEstimatesAction(list: Array<{ source: string; cents: number }>, address?: string): Promise<EnvelopeState> {

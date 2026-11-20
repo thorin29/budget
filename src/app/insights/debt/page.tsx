@@ -9,8 +9,7 @@ import { PayoffSwitcher } from "./payoff-switcher";
 import { payoffSchedule } from "@/lib/payoff";
 import { TabHeading } from "../shared";
 import { LoanForm } from "./loan-form";
-import { AssetsForm } from "./assets-form";
-import { getNetWorth, ownedAssets } from "@/server/net-worth";
+import { getNetWorth } from "@/server/net-worth";
 
 export const dynamic = "force-dynamic";
 
@@ -23,11 +22,10 @@ const pct = (bps: number) => `${(bps / 100).toFixed(bps % 100 ? 2 : 0)}%`;
 export default async function DebtPage() {
   const plan = await getMonthPlan().catch(() => null);
   const debtCents = plan?.debt.cents ?? 0;
-  const [debt, chart, worth, assets] = await Promise.all([
+  const [debt, chart, worth] = await Promise.all([
     getDebt(debtCents),
     plan ? debtChart(plan.today, debtCents, plan.debt.targetCents).catch(() => null) : null,
     getNetWorth(debtCents),
-    ownedAssets(),
   ]);
   const prev = worth.history.length > 1 ? worth.history[worth.history.length - 2] : null;
   const prevMonth = prev?.month ?? null;
@@ -114,7 +112,13 @@ export default async function DebtPage() {
                   <span className="flex items-baseline justify-between gap-3">
                     <span className="min-w-0 truncate pl-4">
                       {g.entered ? g.name : g.items.length === 1 ? `${g.name} · ${g.items[0].name}` : g.name}
-                      {g.entered ? <span className="text-xs text-muted"> · you set</span> : null}
+                      {g.entered ? (
+                        // The home's value comes from the estimates in Setup, not typed in here.
+                        <Link href="/insights/settings?item=home" className="text-xs text-muted hover:underline">
+                          {" "}
+                          · {/^(home|house)\b/i.test(g.name) ? "estimate" : "you set"}
+                        </Link>
+                      ) : null}
                     </span>
                     <span className="tnum font-semibold">{money(g.cents)}</span>
                   </span>
@@ -122,7 +126,6 @@ export default async function DebtPage() {
               </li>
             ))}
           </ul>
-          <AssetsForm assets={assets} />
         </Card>
         <Card>
           <div className="flex items-baseline justify-between gap-3">

@@ -10,7 +10,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  addPastHomeValueAction,
   clearHomeKeyAction,
+  removeHomeHistoryAction,
   deleteCategoryAction,
   deleteGroupAction,
   refreshHomeValueAction,
@@ -44,7 +46,7 @@ export interface SetupHome {
   averageCents: number | null;
   usedCents: number | null;
   usedSources: string[];
-  history: Array<{ source: string; cents: number; on: string }>;
+  history: Array<{ source: string; cents: number; on: string; yearOnly?: boolean }>;
   address: string;
   hasKey: boolean;
   valueCents: number | null;
@@ -84,6 +86,7 @@ export function SetupPanel({
   debt,
   cushionCents,
   home,
+  initial,
 }: {
   budgets: SetupBudget[];
   ungrouped: Array<{ id: string; name: string }>;
@@ -91,10 +94,12 @@ export function SetupPanel({
   debt: { cents: number; automatic: boolean; targetCents: number | null };
   cushionCents: number;
   home: SetupHome | null;
+  /** The item to open first (?item=home from the net worth card). */
+  initial?: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [sel, choose] = useState<string>(ungrouped.length ? "unsorted" : (budgets[0]?.id ?? "new"));
+  const [sel, choose] = useState<string>(initial === "home" ? "home" : ungrouped.length ? "unsorted" : (budgets[0]?.id ?? "new"));
   const [state, setState] = useState<EnvelopeState | null>(null);
   // A new pick starts without the last one's message.
   const setSel = (id: string) => {
@@ -410,6 +415,73 @@ function NewBudget({ pending, act, state }: { pending: boolean; act: Act; state:
   );
 }
 
+/** Every value entered or looked up, newest first, with a form for one from the past (year, month optional). */
+function PastValues({ home, pending, act, fmt }: { home: SetupHome | null; pending: boolean; act: Act; fmt: (d: string) => string }) {
+  const thisYear = new Date().getFullYear();
+  const [source, setSource] = useState("County appraisal");
+  const [amount, setAmount] = useState("");
+  const [year, setYear] = useState(String(thisYear - 1));
+  const [month, setMonth] = useState("");
+  const history = [...(home?.history ?? [])].sort((a, b) => b.on.localeCompare(a.on));
+  const when = (h: { on: string; yearOnly?: boolean }) => (h.yearOnly ? h.on.slice(0, 4) : fmt(h.on));
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return (
+    <details className="text-sm" open={history.length > 0 && history.length <= 6}>
+      <summary className="cursor-pointer text-xs font-semibold text-accent-text">History{history.length ? ` (${history.length})` : ""} · add a past value</summary>
+      <div className="mt-2 flex flex-wrap items-center gap-2 text-sm">
+        <input aria-label="Where it's from" value={source} onChange={(e) => setSource(e.target.value)} className="w-40 rounded-lg border border-line bg-surface px-2 py-1" />
+        <input aria-label="Value" inputMode="decimal" placeholder="$" value={amount} onChange={(e) => setAmount(e.target.value)} className={`${INPUT} w-32 py-1`} />
+        <select aria-label="Year" value={year} onChange={(e) => setYear(e.target.value)} className="rounded-lg border border-line bg-surface px-2 py-1">
+          {Array.from({ length: 15 }, (_, i) => thisYear - i).map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+        <select aria-label="Month (optional)" value={month} onChange={(e) => setMonth(e.target.value)} className="rounded-lg border border-line bg-surface px-2 py-1">
+          <option value="">Month —</option>
+          {months.map((m, i) => (
+            <option key={m} value={i + 1}>
+              {m}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          disabled={pending || !source.trim() || !(toCents(amount) ?? 0)}
+          className={QUIET}
+          onClick={() =>
+            act(async () => {
+              const r = await addPastHomeValueAction(source, toCents(amount) ?? 0, Number(year), month ? Number(month) : null);
+              if (r.ok) setAmount("");
+              return r;
+            })
+          }
+        >
+          Add
+        </button>
+      </div>
+      {history.length ? (
+        <ul className="mt-2 max-h-48 space-y-0.5 overflow-y-auto text-xs text-muted sm:max-w-md">
+          {history.map((h) => (
+            <li key={`${h.on}:${h.source}:${h.cents}`} className="tnum flex items-center justify-between gap-3">
+              <span>
+                {when(h)} · {h.source}
+              </span>
+              <span className="flex items-center gap-2">
+                {money(h.cents)}
+                <button type="button" aria-label={`Remove ${h.source} ${when(h)}`} disabled={pending} className="hover:text-danger" onClick={() => act(() => removeHomeHistoryAction(h))}>
+                  ✕
+                </button>
+              </span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </details>
+  );
+}
+
 function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pending: boolean; act: Act; state: EnvelopeState | null }) {
   // Saved estimates first, then any of the usual sources not entered yet (so County appraisal
   // shows even after the others were saved).
@@ -471,6 +543,17 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
             </button>
           </div>
         ))}
+        {home?.valueCents ? (
+          // Looked up, not typed: shown with the others so it's easy to find.
+          <div className="flex items-center gap-2 text-sm">
+            <span className="w-40 px-2">RentCast</span>
+            <span className="tnum w-36 px-2 font-semibold">{money(home.valueCents)}</span>
+            <span className="text-xs text-muted">
+              {home.fetchedAt ? fmt(home.fetchedAt.slice(0, 10)) : ""} · looked up
+              {home.lowCents && home.highCents ? ` · range ${money(home.lowCents)}–${money(home.highCents)}` : ""}
+            </span>
+          </div>
+        ) : null}
         <button type="button" className="text-xs font-semibold text-accent-text hover:underline" onClick={() => setRows((x) => [...x, { source: "", amount: "" }])}>
           + Add a source
         </button>
@@ -499,21 +582,7 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
           </span>
         </p>
       ) : null}
-      {home?.history.length ? (
-        <details className="text-sm">
-          <summary className="cursor-pointer text-xs font-semibold text-accent-text">History ({home.history.length})</summary>
-          <ul className="mt-1 max-h-48 space-y-0.5 overflow-y-auto text-xs text-muted">
-            {[...home.history].reverse().map((h, i) => (
-              <li key={i} className="tnum flex justify-between gap-3 sm:max-w-sm">
-                <span>
-                  {fmt(h.on)} · {h.source}
-                </span>
-                <span>{money(h.cents)}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
+      <PastValues home={home} pending={pending} act={act} fmt={fmt} />
       <details className="rounded-xl border border-line p-3 text-sm">
         <summary className="cursor-pointer font-semibold">Or look it up automatically with RentCast</summary>
         <p className="mt-2 text-xs text-muted">

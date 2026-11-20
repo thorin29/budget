@@ -155,7 +155,7 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
             </table>
           </div>
         </Card>
-        {editing ? <Editor a={editing} back={href(current.key)} /> : null}
+        {editing ? <Editor key={editing.id} a={editing} back={href(current.key)} /> : null}
       </div>
     </div>
   );

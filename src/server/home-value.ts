@@ -24,17 +24,30 @@ const envKey = () => (process.env.RENTCAST_API_KEY ?? "").trim() || null;
 const MONTH = 30.44 * DAY;
 const yearlySource = (s: string) => /county|apprais|assess|\bcad\b|tax/i.test(s);
 
-/** The Home value from what's current (see the top of the file), and which sources it used. */
-export function blend(s: Pick<Stored, "estimates" | "valueCents" | "fetchedAt">, now = Date.now()): { cents: number | null; used: string[] } {
-  const all = [
+/**
+ * The Home value from what's current (see the top of the file), and which sources it used. Each
+ * source counts once, with its newest value: one typed in now, or a past one added to the history.
+ */
+export function blend(s: Pick<Stored, "estimates" | "valueCents" | "fetchedAt"> & { history?: HomeEstimate[] }, now = Date.now()): { cents: number | null; used: string[] } {
+  const entries = [
     ...(s.estimates ?? []).map((e) => ({ source: e.source, cents: e.cents, at: Date.parse(`${e.on}T00:00:00Z`), keep: (yearlySource(e.source) ? 15 : 6) * MONTH })),
     ...(s.valueCents && s.fetchedAt ? [{ source: "RentCast", cents: s.valueCents, at: Date.parse(s.fetchedAt), keep: 45 * DAY }] : []),
+    ...(s.history ?? [])
+      .filter((e) => e.source !== "RentCast")
+      .map((e) => ({ source: e.source, cents: e.cents, at: Date.parse(`${e.on}T00:00:00Z`), keep: (yearlySource(e.source) ? 15 : 6) * MONTH })),
   ];
+  const newest = new Map<string, (typeof entries)[number]>();
+  for (const e of entries) {
+    const k = e.source.toLowerCase();
+    const had = newest.get(k);
+    if (!had || e.at > had.at) newest.set(k, e);
+  }
+  const all = [...newest.values()];
   if (!all.length) return { cents: null, used: [] };
   const current = all.filter((e) => now - e.at <= e.keep);
   if (current.length) return { cents: Math.round(current.reduce((t, e) => t + e.cents, 0) / current.length), used: current.map((e) => e.source) };
-  const newest = all.reduce((a, b) => (b.at > a.at ? b : a));
-  return { cents: newest.cents, used: [newest.source] };
+  const last = all.reduce((a, b) => (b.at > a.at ? b : a));
+  return { cents: last.cents, used: [last.source] };
 }
 
 interface Stored {
@@ -45,6 +58,8 @@ interface Stored {
   highCents: number | null;
   fetchedAt: string | null;
   error: string | null;
+  /** When a lookup was last tried (a failed one doesn't hold off the next try for a day). */
+  triedAt?: string | null;
   /** Lookups made this calendar month, to stay far under the plan's limit. */
   calls?: { month: string; count: number };
   /** Estimates typed in, one per source. */
@@ -56,9 +71,14 @@ interface Stored {
 export interface HomeEstimate {
   source: string;
   cents: number;
-  /** YYYY-MM-DD it was entered. */
+  /** YYYY-MM-DD it was entered, or the 1st of the month (or of January) for a past value. */
   on: string;
+  /** A past value known only by year (a county notice): shown as the year. */
+  yearOnly?: boolean;
 }
+
+/** What a lookup asked for by hand did, in words for the page. */
+export type LookupOutcome = { kind: "found"; cents: number } | { kind: "skipped"; why: string } | { kind: "failed"; why: string };
 
 export interface HomeValueView {
   /** The key is set in the server's environment. */
@@ -103,7 +123,7 @@ export async function homeValue(): Promise<HomeValueView | null> {
 }
 
 /** Saves the address and (when given) a new API key, then looks the value up. */
-export async function saveHomeValueSetup(address: string, apiKey: string | null): Promise<HomeValueView> {
+export async function saveHomeValueSetup(address: string, apiKey: string | null): Promise<{ view: HomeValueView | null; outcome: LookupOutcome }> {
   const a = address.trim();
   if (a.length < 8 || a.length > 200) throw new ValidationError({ address: ["Enter the full address: street, city, state and ZIP"] });
   const old = await load();
@@ -116,25 +136,33 @@ export async function saveHomeValueSetup(address: string, apiKey: string | null)
   if (!keyEnc && !envKey()) throw new ValidationError({ apiKey: ["Paste your RentCast API key, or set RENTCAST_API_KEY on the server"] });
   const sameAddress = old?.address === a;
   await store({ ...(old ?? {}), address: a, keyEnc, valueCents: sameAddress ? (old?.valueCents ?? null) : null, lowCents: sameAddress ? (old?.lowCents ?? null) : null, highCents: sameAddress ? (old?.highCents ?? null) : null, fetchedAt: sameAddress ? (old?.fetchedAt ?? null) : null, error: null, estimates: old?.estimates ?? [] });
-  return (await refreshHomeValue(true))!;
+  return lookUpHomeValue(true);
 }
 
 /** Looks the value up when it's a month old (or now, when forced but not twice in a day). */
 export async function refreshHomeValue(force = false): Promise<HomeValueView | null> {
+  return (await lookUpHomeValue(force)).view;
+}
+
+/** The same, saying what happened: found, skipped (and why) or failed (and why). */
+export async function lookUpHomeValue(force = false): Promise<{ view: HomeValueView | null; outcome: LookupOutcome }> {
+  const skip = async (why: string) => ({ view: await homeValue(), outcome: { kind: "skipped", why } as LookupOutcome });
   const s = await load();
-  if (!s) return null;
+  if (!s) return { view: null, outcome: { kind: "skipped", why: "Nothing saved yet" } };
   // Estimates age out on their own, so the Home value is re-blended on every run (no lookup).
   await applyBlend(s);
-  if (!s.address || (!s.keyEnc && !envKey())) return homeValue();
+  if (!s.address) return skip("Add the address first");
+  if (!s.keyEnc && !envKey()) return skip("No RentCast key saved");
   const age = s.fetchedAt ? Date.now() - Date.parse(s.fetchedAt) : Infinity;
-  if (age < (force ? DAY : 30 * DAY)) return homeValue();
+  if (age < (force ? DAY : 30 * DAY)) return skip(force ? "Already looked up today; try again tomorrow" : "Looked up this month");
   const month = new Date().toISOString().slice(0, 7);
   const used = s.calls?.month === month ? s.calls.count : 0;
-  if (used >= MAX_PER_MONTH) return homeValue();
+  if (used >= MAX_PER_MONTH) return skip(`All ${MAX_PER_MONTH} lookups for this month are used`);
   let key = envKey();
   if (!key) {
     const secret = configuredKey();
-    if (!secret || !s.keyEnc) return homeValue();
+    if (!secret) return skip("BANK_SYNC_KEY isn't set on the server, so the saved key can't be opened");
+    if (!s.keyEnc) return skip("No RentCast key saved");
     key = open(s.keyEnc, secret, PURPOSE);
   }
   // Counted before asking, so a failed lookup still counts against the cap.
@@ -145,11 +173,47 @@ export async function refreshHomeValue(force = false): Promise<HomeValueView | n
     if (typeof json.price !== "number" || json.price <= 0) throw new BankFeedError("RentCast has no estimate for that address");
     const valueCents = Math.round(json.price * 100);
     const fetchedAt = new Date().toISOString();
-    const next = { ...s, valueCents, lowCents: json.priceRangeLow ? Math.round(json.priceRangeLow * 100) : null, highCents: json.priceRangeHigh ? Math.round(json.priceRangeHigh * 100) : null, fetchedAt, error: null, history: [...(s.history ?? []), { source: "RentCast", cents: valueCents, on: fetchedAt.slice(0, 10) }].slice(-200) };
+    const next = { ...s, triedAt: fetchedAt, valueCents, lowCents: json.priceRangeLow ? Math.round(json.priceRangeLow * 100) : null, highCents: json.priceRangeHigh ? Math.round(json.priceRangeHigh * 100) : null, fetchedAt, error: null, history: [...(s.history ?? []), { source: "RentCast", cents: valueCents, on: fetchedAt.slice(0, 10) }].slice(-200) };
     await store(next);
     await applyBlend(next);
+    return { view: await homeValue(), outcome: { kind: "found", cents: valueCents } };
   } catch (error) {
-    await store({ ...s, fetchedAt: new Date().toISOString(), error: error instanceof Error ? error.message : "Lookup failed" });
+    // The last good value and its date stay; only the try is noted.
+    const why = error instanceof Error ? error.message : "Lookup failed";
+    await store({ ...s, triedAt: new Date().toISOString(), error: why });
+    return { view: await homeValue(), outcome: { kind: "failed", why } };
+  }
+}
+
+/** Adds a value from the past (a county notice from last year): month optional. */
+export async function addPastHomeValue(source: string, cents: number, year: number, month: number | null): Promise<HomeValueView> {
+  const src = source.trim().slice(0, 40);
+  const thisYear = new Date().getUTCFullYear();
+  const issues: Record<string, string[]> = {};
+  if (!src) issues.source = ["Name where it's from"];
+  if (!Number.isFinite(cents) || cents <= 0 || cents >= 1e12) issues.cents = ["Enter the value"];
+  if (!Number.isInteger(year) || year < 1990 || year > thisYear) issues.year = [`A year from 1990 to ${thisYear}`];
+  if (month !== null && (!Number.isInteger(month) || month < 1 || month > 12)) issues.month = ["Pick a month"];
+  if (Object.keys(issues).length) throw new ValidationError(issues);
+  const on = `${year}-${String(month ?? 1).padStart(2, "0")}-01`;
+  if (on > new Date().toISOString().slice(0, 10)) throw new ValidationError({ month: ["That month hasn't come yet"] });
+  const s = (await load()) ?? { address: "", keyEnc: null, valueCents: null, lowCents: null, highCents: null, fetchedAt: null, error: null };
+  const entry: HomeEstimate = { source: src, cents: Math.round(cents), on, ...(month ? {} : { yearOnly: true }) };
+  s.history = [...(s.history ?? []), entry].sort((a, b) => a.on.localeCompare(b.on)).slice(-200);
+  await store(s);
+  await applyBlend(s);
+  return (await homeValue())!;
+}
+
+/** Removes one value from the history (one typed in by mistake), matched exactly. */
+export async function removeHomeHistory(item: HomeEstimate): Promise<HomeValueView | null> {
+  const s = await load();
+  if (!s) return null;
+  const i = (s.history ?? []).findIndex((h) => h.source === item.source && h.cents === item.cents && h.on === item.on);
+  if (i >= 0) {
+    s.history!.splice(i, 1);
+    await store(s);
+    await applyBlend(s);
   }
   return homeValue();
 }

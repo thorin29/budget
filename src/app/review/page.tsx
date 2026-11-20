@@ -1,6 +1,6 @@
 /**
- * Review in two columns: action items (bills that look paid, due days the bank moved, charges
- * that repeat) on the left, and bill payments recorded automatically from the bank feed on the right,
+ * Review in two columns: action items (bills that look paid, due days the bank moved, bill
+ * amounts the payments say changed, charges that repeat) on the left, and bill payments recorded automatically from the bank feed on the right,
  * grouped by bill (open one for each month, each with its Undo).
  */
 
@@ -8,15 +8,16 @@ import { getReview } from "@/server/review";
 import { Card } from "@/components/ui";
 import { recentAutomation } from "@/server/bills-auto";
 import { formatCents } from "@/lib/money";
-import { AutoRecordedRow, DueDayRow, LooksPaidCard, RepeatCard } from "./cards";
+import { AmountCard, AutoRecordedRow, DueDayRow, LooksPaidCard, RepeatCard } from "./cards";
+import { amountSuggestions } from "@/server/bill-amounts";
 
 export const dynamic = "force-dynamic";
 
 const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 export default async function ReviewPage() {
-  const [review, auto] = await Promise.all([getReview(), recentAutomation()]);
-  const waiting = review.count + auto.moved.length;
+  const [review, auto, amounts] = await Promise.all([getReview(), recentAutomation(), amountSuggestions().catch(() => [])]);
+  const waiting = review.count + auto.moved.length + amounts.length;
 
   // Recorded payments grouped by bill, newest month first, bills with the newest payment first.
   const byBill = new Map<string, typeof auto.recorded>();
@@ -54,6 +55,16 @@ export default async function ReviewPage() {
               <ul className="divide-y divide-line rounded-xl border border-line">
                 {auto.moved.map((m) => (
                   <DueDayRow key={m.lineItemId} item={m} />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {amounts.length ? (
+            <section>
+              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Amounts that changed</h3>
+              <ul className="space-y-2">
+                {amounts.map((item) => (
+                  <AmountCard key={item.lineItemId} item={item} />
                 ))}
               </ul>
             </section>

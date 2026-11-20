@@ -3,6 +3,37 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.89.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Bill amounts that change over time:** changing a bill's usual amount asks which month it
+  starts ("Starting", the next unpaid month by default); earlier months keep the old amount.
+  "Every month, past too" changes them all.
+- **Payment history** in each bill's form: its payments in stretches of about the same amount
+  (three or more in a row within $2 or 2%), e.g. a mortgage by escrow year or while extra
+  principal was paid. "Set past budgets to what was paid" makes each stretch its months' budget.
+- **Review → Amounts that changed:** a bill whose recent payments say the usual amount is out of
+  date (a steady new amount, or for a bill that varies, the last year's average off by 10%+).
+  "Use $X from <month>" updates it, optionally setting earlier stretches as their months'
+  budgets and, for a loan with escrow, moving the escrow by the payment's last change.
+- **Home value, past values:** add a value from an earlier year (month optional), e.g. last
+  year's county appraisal. Each source counts with its newest value while it's current. Values in
+  the history can be removed.
+
+### Changed
+- RentCast's value shows in the estimates list. "Look up again" and "Save and look up" now say
+  what happened: the value found, RentCast's error, or why no lookup was made (already today,
+  monthly limit, no key, BANK_SYNC_KEY missing). A failed lookup no longer blocks a retry for a day.
+- Net worth: the "Edit values" form under Assets is gone. Home comes from the estimates in Setup
+  ("estimate" links there). `src/app/insights/debt/assets-form.tsx` is no longer used and can be deleted.
+
+### Fixed
+- Accounts: switching between accounts in the editor kept the first account's card details
+  (name, close and due days, 0% end date, color), so they showed, and could be saved, on the
+  wrong card.
+
 ## [0.88.3]
 
 No migration. The phone app is unchanged (its delete still turns an item with history off).

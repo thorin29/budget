@@ -164,6 +164,7 @@ interface MonthlyPlanRow {
   month: number;
   amount: { toString(): string } | null;
   skipped: boolean;
+  note?: string | null;
 }
 
 interface ActualRow {
@@ -233,6 +234,8 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   const actualMap = new Map(
     actuals.map((a) => [key(a.lineItemId, a.year, a.month), toCents(a.amount)]),
   );
+  // Months that keep an earlier rate (the usual amount changed later) aren't one-month changes.
+  const rateKeys = new Set(plans.filter((p) => p.note === "rate").map((p) => key(p.lineItemId, p.year, p.month)));
   const autoPaid = new Set(actuals.filter((a) => a.source === "auto").map((a) => key(a.lineItemId, a.year, a.month)));
   const bankLinked = new Set(actuals.filter((a) => a.bankTransactionId).map((a) => key(a.lineItemId, a.year, a.month)));
   const paidOnMap = new Map(
@@ -302,7 +305,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       actualCents: null,
       paidOn: null,
       skipped: false,
-      adjusted: o.amountCents !== (planned.get(item.id) ?? 0),
+      adjusted: o.amountCents !== (planned.get(item.id) ?? 0) && !rateKeys.has(key(item.id, o.year, o.month)),
       half: o.half,
       paidFromSurplus: item.paidFromSurplus,
       carriedFrom: o.carriedOver ? { year: o.year, month: o.month } : null,
@@ -338,7 +341,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       autoPaid: autoPaid.has(k),
       bankLinked: bankLinked.has(k),
       skipped: plan?.skipped ?? false,
-      adjusted: budgeted !== (planned.get(item.id) ?? 0),
+      adjusted: budgeted !== (planned.get(item.id) ?? 0) && !rateKeys.has(k),
       half: halfFor(item.dueDay, item.periodAssignment as never, splitDay),
       paidFromSurplus: item.paidFromSurplus,
       carriedFrom: null,
@@ -404,7 +407,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
         autoPaid: autoPaid.has(k),
         bankLinked: bankLinked.has(k),
         skipped: plan?.skipped ?? false,
-        adjusted: budgeted !== toCents(item.plannedAmount),
+        adjusted: budgeted !== toCents(item.plannedAmount) && !rateKeys.has(k),
         half: halfFor(item.dueDay, item.periodAssignment as never, splitDay),
         paidFromSurplus: false,
         carriedFrom: null,
@@ -594,7 +597,8 @@ export async function adjustMonth(
   await prisma.monthlyPlan.upsert({
     where: { lineItemId_year_month: { lineItemId, year, month } },
     create: { lineItemId, year, month, amount, skipped },
-    update: { amount, skipped },
+    // Changed by hand: no longer just the earlier rate.
+    update: { amount, skipped, note: null },
   });
 }
 

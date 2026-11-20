@@ -17,4 +17,13 @@ describe("home value blend", () => {
     const b = blend({ estimates: [{ source: "Zillow", cents: 300_000_00, on: "2024-01-01" }], valueCents: 310_000_00, fetchedAt: "2025-01-01T00:00:00Z" }, now);
     expect(b).toEqual({ cents: 310_000_00, used: ["RentCast"] });
   });
+  it("counts a past value only while it's current, and each source once with its newest", () => {
+    const b = blend({ estimates: [{ source: "Zillow", cents: 400_000_00, on: "2026-10-01" }], valueCents: null, fetchedAt: null, history: [
+      { source: "County appraisal", cents: 340_000_00, on: "2025-01-01", yearOnly: true },
+      { source: "County appraisal", cents: 360_000_00, on: "2026-01-01", yearOnly: true },
+      { source: "Zillow", cents: 390_000_00, on: "2026-05-01" },
+    ] }, now);
+    expect(b.used).toEqual(["Zillow", "County appraisal"]);
+    expect(b.cents).toBe(380_000_00);
+  });
 });
