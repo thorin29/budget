@@ -24,7 +24,7 @@ const TABS: Array<{ href: string; label: string; month: boolean }> = [
 const SET_IN: Record<string, { href: string; label: string }> = {
   "/insights/budget": { href: "/settings/budgets", label: "Budgets" },
   "/insights/money": { href: "/settings/budgets", label: "Budgets" },
-  "/insights/cash": { href: "/settings/planning", label: "Cushion" },
+  "/insights/cash": { href: "/settings/accounts", label: "Cushion" },
   "/insights/calendar": { href: "/line-items", label: "Bills" },
   "/insights/debt": { href: "/line-items", label: "Loans" },
   "/year": { href: "/line-items", label: "Bills" },
@@ -52,12 +52,22 @@ function Tabs({ active }: { active?: "spending" | "year" }) {
           );
         })}
       </div>
-      {SET_IN[current] ? (
-        <Link href={SET_IN[current].href} className="ml-2 whitespace-nowrap text-xs font-semibold text-accent-text hover:underline">
-          {SET_IN[current].label}: change in Settings →
-        </Link>
-      ) : null}
     </nav>
+  );
+}
+
+/** At the foot of each Insights page: where that page's figures are set. */
+export function SettingsFooter() {
+  const pathname = usePathname() ?? "";
+  const key = pathname.startsWith("/year") ? "/year" : Object.keys(SET_IN).filter((k) => pathname.startsWith(k)).sort((a, b) => b.length - a.length)[0];
+  const to = key ? SET_IN[key] : null;
+  if (!to) return null;
+  return (
+    <p className="mt-6 text-right text-xs">
+      <Link href={to.href} className="font-semibold text-accent-text hover:underline">
+        {to.label}: change in Settings →
+      </Link>
+    </p>
   );
 }
 

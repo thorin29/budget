@@ -42,6 +42,16 @@ export async function setCushionAction(cents: number | null): Promise<EnvelopeSt
   return run(() => setCushion(cents), "Saved.");
 }
 
+export async function setReserveAction(cents: number | null): Promise<EnvelopeState> {
+  const { setReserve } = await import("@/server/envelopes");
+  return run(() => setReserve(cents), "Saved.");
+}
+
+export async function setExtraToDebtAction(on: boolean): Promise<EnvelopeState> {
+  const { setExtraToDebt } = await import("@/server/envelopes");
+  return run(() => setExtraToDebt(on === true), "Saved.");
+}
+
 export async function setDebtPaymentAction(cents: number | null): Promise<EnvelopeState> {
   return run(() => setDebtPayment(cents), "Saved.");
 }

@@ -15,6 +15,8 @@ import { SETTING_KEYS } from "@/lib/settings";
 const KEY_DEBT = "debtMonthlyCents";
 const KEY_CUSHION = "cushionCents";
 const KEY_SEEDED = "envelopesSeededAt";
+const KEY_RESERVE = "unplannedReserveCents";
+const KEY_EXTRA = "extraIncomeToDebt";
 const KEY_PLACED = "envelopesPlacedAt";
 
 type GroupRow = { id: string; name: string; tier: GroupTier; sortOrder: number; limitCents: number | null };
@@ -105,6 +107,23 @@ export async function setCushion(value: number | null): Promise<void> {
   await saveSetting(KEY_CUSHION, value ?? 0);
   // The projection reads the floor from Planning's settings: kept the same.
   await saveSetting(SETTING_KEYS.buffer, value ?? 0);
+}
+
+/** Set aside each month for unplanned costs (medical, repairs, fees); 0 for none. */
+export async function reserveSetting(): Promise<number> {
+  return (await setting<number>(KEY_RESERVE)) ?? 0;
+}
+export async function setReserve(value: number | null): Promise<void> {
+  if (value !== null && !cents.safeParse(value).success) throw new ValidationError({ reserve: ["Enter an amount"] });
+  await saveSetting(KEY_RESERVE, value ?? 0);
+}
+
+/** Budgets come from a normal month's income; bonuses and extra paychecks go to the 0% card. */
+export async function extraToDebtSetting(): Promise<boolean> {
+  return (await setting<boolean>(KEY_EXTRA)) === true;
+}
+export async function setExtraToDebt(on: boolean): Promise<void> {
+  await saveSetting(KEY_EXTRA, on === true);
 }
 
 export async function setDebtPayment(value: number | null): Promise<void> {

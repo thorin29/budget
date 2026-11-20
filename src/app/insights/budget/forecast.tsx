@@ -125,9 +125,33 @@ export interface BillsLine {
   debtPaidCents: number;
   /** Charges in a bill category that aren't on the bill list. */
   otherCents: number;
+  /** Those charges, to list under their row. */
+  other?: Array<{ id: string; date: string; name: string; cents: number; category?: string | null }>;
+  /** YYYY-MM, for links to the month's transactions. */
+  month?: string;
 }
 
-export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows: ForecastRow[]; totals: Totals; bills: BillsLine; monthEnd: string; closed: boolean }) {
+export { Bar, GRID, SUMMARY, COLOR, money, day, left, tone };
+
+export function ForecastTable({
+  rows,
+  totals,
+  bills,
+  monthEnd,
+  closed,
+  reserveCents = 0,
+  cardsBox = null,
+}: {
+  rows: ForecastRow[];
+  totals: Totals;
+  bills: BillsLine;
+  monthEnd: string;
+  closed: boolean;
+  /** Set aside for unplanned costs: the Unplanned row's budget. */
+  reserveCents?: number;
+  /** The By card breakdown, shown under Bills & debt. */
+  cardsBox?: React.ReactNode;
+}) {
   const cell = (show: boolean, value: string) => (closed || !show ? "" : value);
   const planned = bills.billsCents + bills.debtCents + bills.otherCents;
   const paid = bills.billsPaidCents + bills.debtPaidCents + bills.otherCents;
@@ -140,12 +164,12 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
   };
   const swatch = (color: string, opacity = 1) => <span aria-hidden className="inline-block h-2.5 w-4 rounded-full" style={{ background: color, opacity }} />;
   const chevron = <span aria-hidden className="inline-block w-3 text-muted transition-transform group-open:rotate-90">›</span>;
-  const billRow = (name: string, color: string, spent: number, total: number, strong = false) => {
-    const Tag = strong ? "summary" : "div";
+  const billRow = (name: string, color: string, spent: number, total: number, strong = false, summary = false) => {
+    const Tag = strong || summary ? "summary" : "div";
     return (
-    <Tag key={name} className={`${GRID} border-b ${strong ? `border-line bg-neutral-soft py-2 font-bold ${SUMMARY}` : "border-line/60 py-1.5"} ${strong ? "rounded-lg px-2 -mx-2" : ""} text-sm`}>
-      <span className={`flex min-w-0 items-center gap-2 ${strong ? "" : "pl-6"}`}>
-        {strong ? chevron : null}
+    <Tag key={name} className={`${GRID} border-b ${strong ? `border-line bg-neutral-soft py-2 font-bold ${SUMMARY}` : `border-line/60 py-1.5 ${summary ? SUMMARY : ""}`} ${strong ? "rounded-lg px-2 -mx-2" : ""} text-sm`}>
+      <span className={`flex min-w-0 items-center gap-2 ${strong ? "" : summary ? "pl-3" : "pl-6"}`}>
+        {strong ? chevron : summary ? <span aria-hidden className="inline-block w-3 text-muted transition-transform group-open/other:rotate-90">›</span> : null}
         <span aria-hidden className={`${strong ? "h-2.5 w-2.5" : "h-2 w-2"} shrink-0 rounded-sm`} style={{ background: color }} />
         <span className="truncate">{name}</span>
       </span>
@@ -181,16 +205,35 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
               {billRow("Bills & debt", "var(--series-1)", paid, planned, true)}
               {billRow("Bills", "var(--series-1)", bills.billsPaidCents, bills.billsCents)}
               {bills.debtCents > 0 ? billRow("Debt payment", "var(--series-2)", bills.debtPaidCents, bills.debtCents) : null}
-              {bills.otherCents > 0 ? billRow("Charges that may be bills", "var(--series-neutral)", bills.otherCents, bills.otherCents) : null}
+              {bills.otherCents > 0 ? (
+                <details className="group/other">
+                  {billRow("Charges that may be bills", "var(--series-neutral)", bills.otherCents, bills.otherCents, false, true)}
+                  <ul className="border-b border-line/60 py-1.5 pl-12 text-xs">
+                    {(bills.other ?? []).map((t) => (
+                      <li key={`${t.id}-${t.cents}`} className="flex flex-wrap items-baseline gap-x-3 py-0.5">
+                        <span className="tnum w-12 text-muted">{day(t.date)}</span>
+                        <Link href={`/transactions?q=${encodeURIComponent(t.name)}${bills.month ? `&m=${bills.month}` : ""}`} className="font-semibold text-accent-text hover:underline">
+                          {t.name}
+                        </Link>
+                        <span className="text-muted">{t.category ?? ""}</span>
+                        <span className="tnum ml-auto pr-2">{money(t.cents)}</span>
+                      </li>
+                    ))}
+                    <li className="pt-1 text-muted">Not on your bill list. Make it a bill, or give it another category, on Transactions.</li>
+                  </ul>
+                </details>
+              ) : null}
             </details>
           ) : null}
+          {cardsBox}
           {TIERS.map(({ tier, name }) => {
             const list = rows.filter((r) => r.tier === tier && (r.spentCents !== 0 || r.limitCents));
-            if (!list.length) return null;
+            const reserve = tier === "UNPLANNED" ? reserveCents : 0;
+            if (!list.length && !reserve) return null;
             const spent = list.reduce((t, r) => t + r.spentCents, 0);
             const budgeted = tier === "ESSENTIAL" || tier === "FLEXIBLE";
-            const limit = budgeted ? list.reduce((t, r) => t + (r.limitCents ?? 0), 0) : null;
-            const forecast = list.reduce((t, r) => t + r.forecastCents, 0);
+            const limit = budgeted ? list.reduce((t, r) => t + (r.limitCents ?? 0), 0) : reserve ? reserve : null;
+            const forecast = list.reduce((t, r) => t + r.forecastCents, 0) + (closed ? 0 : Math.max(0, reserve - spent));
             const margin = limit === null ? null : closed ? limit - spent : limit - forecast;
             // Open when something in it is over (or heading over); the rest stay folded to save room.
             const open = list.some((r) => r.limitCents !== null && (r.limitCents - r.spentCents < 0 || (!closed && (r.marginCents ?? 0) < 0)));
@@ -202,12 +245,12 @@ export function ForecastTable({ rows, totals, bills, monthEnd, closed }: { rows:
                     <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: COLOR[tier] }} />
                     {name}
                   </span>
-                  <Bar spent={spent} forecast={budgeted ? forecast : spent} limit={limit} color={COLOR[tier]} />
+                  <Bar spent={spent} forecast={budgeted || reserve ? forecast : spent} limit={limit} color={COLOR[tier]} />
                   <span className="tnum text-right">{money(spent)}</span>
                   <span className="tnum text-right">{limit === null ? "none" : money(limit)}</span>
                   <span className={`tnum text-right ${(limit ?? 0) - spent < 0 ? "text-danger" : ""}`}>{money((limit ?? 0) - spent)}</span>
                   <span className="tnum text-right">{cell(limit !== null, money(forecast))}</span>
-                  <span className={`text-right ${tone(margin, closed)}`}>{margin === null ? "—" : left(margin)}</span>
+                  <span className={`text-right ${tone(margin, closed)}`}>{margin === null ? "—" : reserve && !budgeted ? (spent > reserve ? `${money(spent - reserve)} past reserve` : `${money(reserve - spent)} reserve left`) : left(margin)}</span>
                 </summary>
                 {list.map((r) => {
                   const m = r.limitCents === null ? null : closed ? r.limitCents - r.spentCents : r.marginCents;

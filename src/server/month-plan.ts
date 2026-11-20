@@ -15,7 +15,7 @@ import { OTHER_GROUP } from "@/lib/envelope-defaults";
 import { getMonthView, type MonthEntry } from "./month";
 import { payoffTrackers } from "./card-payments";
 import { billCharge } from "./bill-merchants";
-import { ensureGroups, debtSetting } from "./envelopes";
+import { ensureGroups, debtSetting, reserveSetting, extraToDebtSetting } from "./envelopes";
 import { usualFor } from "@/lib/usual";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -41,6 +41,8 @@ export interface PlanTxn {
   pending: boolean;
   /** Part of a charge split by item (an Amazon order). */
   split: boolean;
+  /** The bank account it was charged to. */
+  accountId?: string;
 }
 
 export interface PlanBill {
@@ -80,7 +82,13 @@ export interface MonthPlanView extends Omit<MonthPlanOut, "groups"> {
   closed: boolean;
   daysLeft: number;
   daysInMonth: number;
-  income: { totalCents: number; receivedCents: number; items: Array<{ lineItemId: string; name: string; dueOn: string; cents: number; received: boolean }> };
+  income: {
+    totalCents: number;
+    receivedCents: number;
+    /** Income that isn't in a normal month (third paychecks, bonuses). */
+    extraCents: number;
+    items: Array<{ lineItemId: string; name: string; dueOn: string; cents: number; received: boolean; extra: boolean }>;
+  };
   bills: {
     totalCents: number;
     paidCents: number;
@@ -108,7 +116,11 @@ export interface MonthPlanView extends Omit<MonthPlanOut, "groups"> {
     doneIn: string | null;
     /** How much the month falls short of covering the payment after bills and usual spending (0: enough). */
     shortCents: number;
+    /** Extra income added to the payment this month (included in cents). */
+    extraCents: number;
   };
+  /** Per bank account, for the card breakdown: spent this month by budget ("__bills" for bill-category charges), and the twelve months before. */
+  byAccount: { spent: Record<string, Record<string, number>>; usual: Record<string, Record<string, number>> };
   standing: "ok" | "low" | "over";
   message: string | null;
   groups: PlanGroup[];
@@ -116,8 +128,9 @@ export interface MonthPlanView extends Omit<MonthPlanOut, "groups"> {
   daily: Array<{ date: string; spentCents: number }>;
 }
 
-type Txn = {
+export type Txn = {
   id: string;
+  accountId: string;
   postedOn: Date;
   amount: { toString(): string };
   merchant: string;
@@ -135,6 +148,33 @@ const amount = (e: { skipped: boolean; actualCents: number | null; budgetedCents
 export function dueIso(year: number, month: number, dueDay: number | null): string {
   const last = new Date(Date.UTC(year, month, 0)).getUTCDate();
   return iso(new Date(Date.UTC(year, month - 1, Math.min(last, Math.max(1, dueDay ?? 1)))));
+}
+
+/** How one bank transaction counts: left out, or everyday spending split by category (positive is spending). */
+export function everydayParts(
+  t: Txn,
+  isBill: (t: Txn) => boolean,
+  cardNames: Array<{ id: string; names: string[] }>,
+): Array<{ categoryId: string | null; cents: number }> | null {
+  if (t.category?.managedForOthers) return null;
+  const cents = toCents(t.amount);
+  if (!SPENDING_TYPES.includes(t.account.type)) return null;
+  // A card payment whose other side hasn't arrived yet isn't paired as a transfer: it's
+  // still not spending (leaving checking) or a refund (reaching the card).
+  const cardPayment =
+    PAYMENT_WORDS.test(`${t.description} ${t.merchant}`) &&
+    (t.account.type === "CREDIT_CARD" ? cents > 0 : cents < 0 && cardByName(`${t.merchant} ${t.description}`, cardNames) !== null);
+  if (cardPayment) return null;
+  let everyday = 0;
+  if (cents < 0 && !isBill(t)) everyday = -cents;
+  else if (cents > 0) {
+    const refund = t.account.type === "CREDIT_CARD" || (t.categoryId !== null && !isIncomeCategory(t.category?.name));
+    if (refund && !isBill(t)) everyday = -cents;
+  }
+  if (!everyday) return null;
+  return t.splits.length
+    ? t.splits.map((sp) => ({ categoryId: sp.categoryId, cents: cents !== 0 ? Math.round((everyday * toCents(sp.amount)) / cents) : 0 }))
+    : [{ categoryId: t.categoryId, cents: everyday }];
 }
 
 export type BillItem = { id: string; name: string; kind: string; paysCardId: string | null; paysCardLocked: boolean; paidFromSurplus: boolean };
@@ -183,10 +223,15 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const daysLeft = closed ? 0 : daysInMonth - Number(today.slice(8, 10)) + 1;
 
-  const [view, items, cards, groups, categories, txns, isBill, debtSet, trackers] = await Promise.all([
+  const [view, items, cards, groups, categories, txns, isBill, debtSet, trackers, reserveCents, extraToDebt] = await Promise.all([
     getMonthView(y, m),
-    prisma.lineItem.findMany({ select: { id: true, name: true, kind: true, paysCardId: true, paysCardLocked: true, paidFromSurplus: true } }) as Promise<
-      Array<{ id: string; name: string; kind: string; paysCardId: string | null; paysCardLocked: boolean; paidFromSurplus: boolean }>
+    prisma.lineItem.findMany({
+      select: { id: true, name: true, kind: true, paysCardId: true, paysCardLocked: true, paidFromSurplus: true, scheduleKind: true, months: true, paydayNumber: true, plannedAmount: true },
+    }) as Promise<
+      Array<{
+        id: string; name: string; kind: string; paysCardId: string | null; paysCardLocked: boolean; paidFromSurplus: boolean;
+        scheduleKind: string; months: number[]; paydayNumber: number | null; plannedAmount: { toString(): string };
+      }>
     >,
     prisma.bankAccount.findMany({ where: { type: "CREDIT_CARD", hidden: false }, select: { id: true, name: true, nickname: true, institution: true, promoEndsOn: true } }) as Promise<
       Array<{ id: string; name: string; nickname: string | null; institution: string | null; promoEndsOn: Date | null }>
@@ -196,7 +241,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     prisma.bankTransaction.findMany({
       where: { postedOn: { gte: windowStart, lt: monthEnd }, kind: "NORMAL", account: { hidden: false } },
       select: {
-        id: true, postedOn: true, amount: true, merchant: true, description: true, categoryId: true, pending: true,
+        id: true, accountId: true, postedOn: true, amount: true, merchant: true, description: true, categoryId: true, pending: true,
         category: { select: { name: true, managedForOthers: true } },
         account: { select: { type: true } },
         actual: { select: { id: true } },
@@ -207,15 +252,25 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     billCharge(),
     debtSetting(),
     payoffTrackers(today).catch(() => []),
+    reserveSetting(),
+    extraToDebtSetting(),
   ]);
 
   const { isCardPayment, isDebt } = billTypes(items, cards, today);
 
   // ---- money in
+  // Extra income: not in a normal month (a third paycheck, a bonus, anything not every month).
+  const itemById = new Map(items.map((i) => [i.id, i]));
+  const isExtra = (id: string) => {
+    const i = itemById.get(id);
+    if (!i) return false;
+    return (i.paydayNumber ?? 0) >= 3 || i.scheduleKind !== "MONTHLY" || i.months.length < 12 || toCents(i.plannedAmount) === 0;
+  };
   const income = view.income
     .filter((e) => !e.skipped)
-    .map((e) => ({ lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: amount(e), received: e.actualCents !== null }));
+    .map((e) => ({ lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: amount(e), received: e.actualCents !== null, extra: isExtra(e.lineItemId) }));
   const incomeCents = income.reduce((s, e) => s + e.cents, 0);
+  const extraIncomeCents = income.filter((e) => e.extra).reduce((s, e) => s + e.cents, 0);
 
   // ---- bills: everything due this month, whole, plus unpaid ones carried from before
   const status = (e: MonthEntry): PlanBill["status"] =>
@@ -264,6 +319,9 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   else if (plannedDebt > 0) [debtCents, debtSource] = [Math.max(plannedDebt, paidDebt), "plan"];
   else if (targetCents) [debtCents, debtSource] = [Math.max(targetCents, paidDebt), "target"];
   else if (balance) [debtCents, debtSource] = [Math.ceil(balance / 100), "minimum"];
+  // Extra income this month goes to the 0% card on top of the monthly payment, so budgets run on a normal month.
+  const debtExtraCents = extraToDebt && !closed && balance && balance > 0 && debtSource !== "paid" ? Math.min(extraIncomeCents, Math.max(0, balance - debtCents)) : 0;
+  debtCents += debtExtraCents;
   const doneIn = (() => {
     if (balance === null || balance <= 0 || debtCents <= 0) return null;
     const k = Math.ceil(balance / debtCents) - 1;
@@ -282,36 +340,29 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   const byDay = new Map<string, number>();
   const otherBills: PlanTxn[] = [];
   let firstMonth: number | null = null;
-  // A card payment whose other side hasn't arrived yet isn't paired as a transfer: it's
-  // still not spending (leaving checking) or a refund (reaching the card).
   const cardNames = cards.map((c) => ({ id: c.id, names: [c.nickname ?? "", c.name, c.institution ?? ""] }));
-  const cardPayment = (t: Txn, cents: number) =>
-    PAYMENT_WORDS.test(`${t.description} ${t.merchant}`) &&
-    (t.account.type === "CREDIT_CARD" ? cents > 0 : cents < 0 && cardByName(`${t.merchant} ${t.description}`, cardNames) !== null);
+  // Per account, for the card breakdown: spent this month, and the last twelve months by budget (where each budget's spending usually goes).
+  const acctSpent = new Map<string, Map<string, number>>(); // group -> account -> cents
+  const acctUsual = new Map<string, Map<string, number>>();
+  const bump = (m: Map<string, Map<string, number>>, g: string, a: string, c: number) => {
+    const inner = m.get(g) ?? new Map<string, number>();
+    inner.set(a, (inner.get(a) ?? 0) + c);
+    m.set(g, inner);
+  };
+  const monthN = ymn(monthStart);
   for (const t of txns) {
-    if (t.category?.managedForOthers) continue;
-    const cents = toCents(t.amount);
-    const spending = SPENDING_TYPES.includes(t.account.type);
-    if (!spending) continue;
-    if (cardPayment(t, cents)) continue;
-    let everyday = 0;
-    if (cents < 0 && !isBill(t)) everyday = -cents;
-    else if (cents > 0) {
-      const refund = t.account.type === "CREDIT_CARD" || (t.categoryId !== null && !isIncomeCategory(t.category?.name));
-      if (refund && !isBill(t)) everyday = -cents;
-    }
-    if (!everyday) continue;
-    const parts = t.splits.length
-      ? t.splits.map((s) => ({ categoryId: s.categoryId, cents: cents !== 0 ? Math.round((everyday * toCents(s.amount)) / cents) : 0 }))
-      : [{ categoryId: t.categoryId, cents: everyday }];
+    const parts = everydayParts(t, isBill, cardNames);
+    if (!parts) continue;
     const inMonth = t.postedOn >= monthStart;
     for (const part of parts) {
       if (!part.cents) continue;
       const groupId = part.categoryId ? (groupOf.get(part.categoryId) ?? OTHER_GROUP.id) : UNCATEGORIZED.id;
       const tier = tierOf.get(groupId);
       const row: PlanTxn = { id: t.id, date: iso(t.postedOn), name: t.merchant, cents: part.cents, pending: t.pending, split: t.splits.length > 0 };
+      if (inMonth) bump(acctSpent, tier === "BILLS" ? "__bills" : groupId, t.accountId, part.cents);
+      else if (!t.pending && monthN - ymn(t.postedOn) <= 12) bump(acctUsual, tier === "BILLS" ? "__bills" : groupId, t.accountId, part.cents);
       if (tier === "BILLS") {
-        if (inMonth) otherBills.push({ ...row, category: part.categoryId ? (categoryName.get(part.categoryId) ?? null) : null });
+        if (inMonth) otherBills.push({ ...row, category: part.categoryId ? (categoryName.get(part.categoryId) ?? null) : null, accountId: t.accountId });
         continue;
       }
       if (inMonth) {
@@ -352,6 +403,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     billsCents,
     debtCents,
     closed,
+    reserveCents,
     groups: planGroups.map((g) => ({ id: g.id, tier: g.tier, manualCents: g.manualCents, usualCents: g.usualCents, spentCents: g.spentCents })),
   });
   const outById = new Map(out.groups.map((g) => [g.id, g]));
@@ -398,7 +450,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     closed,
     daysLeft,
     daysInMonth,
-    income: { totalCents: incomeCents, receivedCents: income.filter((e) => e.received).reduce((s, e) => s + e.cents, 0), items: income },
+    income: { totalCents: incomeCents, receivedCents: income.filter((e) => e.received).reduce((s, e) => s + e.cents, 0), extraCents: extraIncomeCents, items: income },
     bills: {
       totalCents: billsCents,
       paidCents: billItems.filter((b) => b.status === "paid").reduce((s, b) => s + b.cents, 0) + otherCents,
@@ -418,9 +470,14 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
       endsOn,
       targetCents,
       shortCents: debtShort,
+      extraCents: debtExtraCents,
       doneIn,
     },
     ...out,
+    byAccount: {
+      spent: Object.fromEntries([...acctSpent].map(([g, m2]) => [g, Object.fromEntries(m2)])),
+      usual: Object.fromEntries([...acctUsual].map(([g, m2]) => [g, Object.fromEntries(m2)])),
+    },
     standing,
     message,
     groups: viewGroups,

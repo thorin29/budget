@@ -16,8 +16,9 @@
  *
  * An overspend anywhere (an essential, an unplanned repair, an extra) lowers
  * safe to spend, and with it every flexible budget's room, even budgets with
- * no spending. Unplanned budgets have no guardrail: irregular costs aren't
- * averaged into a monthly allowance; they come out of the month they happen.
+ * no spending. Unplanned budgets have no guardrail of their own. An optional
+ * reserve sets money aside for them first; what unplanned spending goes past it
+ * comes out of the rest of the pool, lowering every flexible budget's room.
  *
  * Guardrails are set by hand or automatic. Automatic ones start from usual
  * spending; automatic flexible ones are scaled down together so all the
@@ -63,6 +64,8 @@ export interface MonthPlanIn {
   groups: PlanGroupIn[];
   /** The month is over: nothing more is still to come. */
   closed?: boolean;
+  /** Set aside for unplanned costs; past it, unplanned spending comes out of the rest of the pool. */
+  reserveCents?: number;
 }
 
 export interface MonthPlanOut {
@@ -78,13 +81,20 @@ export interface MonthPlanOut {
   gapCents: number;
   /** Set guardrails alone add up past the pool by this much. */
   shortCents: number;
-  /** Usual unplanned spending in a month, for reference; never set aside. */
+  /** Usual unplanned spending in a month, for reference. */
   unplannedUsualCents: number;
+  /** The unplanned reserve, what's left of it, and unplanned spending past it (which lowers everyone's room). */
+  reserveCents: number;
+  reserveLeftCents: number;
+  unplannedOverCents: number;
   groups: PlanGroupOut[];
 }
 
 export function monthPlan(input: MonthPlanIn): MonthPlanOut {
   const poolCents = input.incomeCents - input.billsCents - input.debtCents;
+  const reserveCents = Math.max(0, input.reserveCents ?? 0);
+  const unplannedSpent = input.groups.filter((g) => g.tier === "UNPLANNED").reduce((s, g) => s + g.spentCents, 0);
+  const reserveLeftCents = Math.max(0, reserveCents - unplannedSpent);
   const limits = new Map<string, number>();
 
   // Essentials take their set amount, or their usual one.
@@ -102,7 +112,7 @@ export function monthPlan(input: MonthPlanIn): MonthPlanOut {
   const setTotal = setFlex.reduce((s, g) => s + Math.max(0, g.manualCents!), 0);
   const autoUsual = autoFlex.reduce((s, g) => s + Math.max(0, g.usualCents), 0);
   for (const g of setFlex) limits.set(g.id, Math.max(0, g.manualCents!));
-  const roomForAuto = Math.max(0, poolCents - essentialLimitCents - setTotal);
+  const roomForAuto = Math.max(0, poolCents - essentialLimitCents - setTotal - reserveCents);
   const scale = autoUsual > 0 ? Math.min(1, roomForAuto / autoUsual) : 0;
   let given = 0;
   autoFlex.forEach((g, i) => {
@@ -120,8 +130,8 @@ export function monthPlan(input: MonthPlanIn): MonthPlanOut {
   const usualNeed = input.groups
     .filter((g) => g.tier !== "UNPLANNED")
     .reduce((s, g) => s + Math.max(0, g.tier === "ESSENTIAL" ? (limits.get(g.id) ?? 0) : g.manualCents ?? g.usualCents), 0);
-  const gapCents = Math.max(0, usualNeed - Math.max(0, poolCents));
-  const shortCents = Math.max(0, essentialLimitCents + setTotal - Math.max(0, poolCents));
+  const gapCents = Math.max(0, usualNeed + reserveCents - Math.max(0, poolCents));
+  const shortCents = Math.max(0, essentialLimitCents + setTotal + reserveCents - Math.max(0, poolCents));
 
   const spentCents = input.groups.reduce((s, g) => s + g.spentCents, 0);
   const poolLeftCents = poolCents - spentCents;
@@ -129,7 +139,7 @@ export function monthPlan(input: MonthPlanIn): MonthPlanOut {
     ? 0
     : input.groups
         .filter((g) => g.tier === "ESSENTIAL")
-        .reduce((s, g) => s + Math.max(0, (limits.get(g.id) ?? 0) - g.spentCents), 0);
+        .reduce((s, g) => s + Math.max(0, (limits.get(g.id) ?? 0) - g.spentCents), 0) + reserveLeftCents;
   const safeCents = poolLeftCents - stillToComeCents;
 
   const groups: PlanGroupOut[] = input.groups.map((g) => {
@@ -159,6 +169,9 @@ export function monthPlan(input: MonthPlanIn): MonthPlanOut {
     gapCents,
     shortCents,
     unplannedUsualCents: input.groups.filter((g) => g.tier === "UNPLANNED").reduce((s, g) => s + Math.max(0, g.usualCents), 0),
+    reserveCents,
+    reserveLeftCents,
+    unplannedOverCents: Math.max(0, unplannedSpent - reserveCents),
     groups,
   };
 }

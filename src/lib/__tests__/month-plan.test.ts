@@ -78,3 +78,23 @@ describe("monthPlan", () => {
     expect(monthPlan({ ...base, closed: true }).safeCents).toBe(304_000);
   });
 });
+
+describe("unplanned reserve", () => {
+  const groups = [
+    { id: "food", tier: "ESSENTIAL" as const, manualCents: null, usualCents: 200_000, spentCents: 0 },
+    { id: "fun", tier: "FLEXIBLE" as const, manualCents: null, usualCents: 300_000, spentCents: 0 },
+    { id: "repair", tier: "UNPLANNED" as const, manualCents: null, usualCents: 50_000, spentCents: 0 },
+  ];
+  it("is set aside before the extras' limits", () => {
+    const out = monthPlan({ incomeCents: 400_000, billsCents: 0, debtCents: 0, reserveCents: 50_000, groups });
+    expect(out.groups.find((g) => g.id === "fun")!.limitCents).toBe(150_000);
+    expect(out.safeCents).toBe(400_000 - 200_000 - 50_000);
+  });
+  it("past the reserve, unplanned spending lowers the extras' room", () => {
+    const spent = groups.map((g) => (g.id === "repair" ? { ...g, spentCents: 80_000 } : g));
+    const out = monthPlan({ incomeCents: 400_000, billsCents: 0, debtCents: 0, reserveCents: 50_000, groups: spent });
+    expect(out.unplannedOverCents).toBe(30_000);
+    expect(out.reserveLeftCents).toBe(0);
+    expect(out.groups.find((g) => g.id === "fun")!.roomCents).toBe(120_000);
+  });
+});

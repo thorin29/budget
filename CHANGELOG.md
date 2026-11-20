@@ -3,6 +3,33 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.98.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Budget › By card:** under Bills & debt, the month's money split by where it was paid: each
+  credit card, the 0% card's payment, and checking (bills paid from it and debit purchases). Each
+  card opens to its bills, Essentials, Extras and Unplanned, and each budget in them. A card's
+  budget is the bills that land on it plus its usual share of each budget (from the last twelve
+  months). It only splits money already counted, so the totals don't change. Each card shows its
+  typical month and its card-payment line.
+- **Budget › card statement view** (a tab per card with a typical month over $100): the card from
+  its last statement date to the next. Charged so far, bills still to land on it (and which have),
+  room left in its budgets with a per-day amount, and the statement projected at the same pace the
+  month uses. Budgets are the card's share of the month's, starting over at each statement.
+- **Overview:** a tile for the main card's statement: charged, bills to come, room per day, projected.
+- **Checks** under the Budget tab: the card rows add up to the page, each card's balance matches
+  the bank (statement − paid + new charges), and charges waiting for a category or not on the bill
+  list.
+- **Settings › Budgets:** an unplanned reserve (set aside first; unplanned spending past it comes
+  out of everyone's room), and "Bonuses and 3rd paychecks go to the 0% card": budgets then run on a
+  normal month and any extra income that month is added to the 0% payment.
+
+### Changed
+- The "change in Settings" link sits at the foot of each Insights page. "Charges that may be
+  bills" opens to list them.
+
 ## [0.97.2]
 
 No migration. No app changes: test data replaced with invented names and amounts.
