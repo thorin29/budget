@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.96.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Import & Export › Audit file (JSON):** everything stored (read through the app, so encrypted
+  fields come out readable) and the figures each page shows for every month with data (Tracker,
+  plan, insights), each year's plan, and today's debt, net worth, cash, review, cards, payoffs and
+  homes. Each transaction carries its merchant key so merchant rules can be matched. Passwords,
+  phone sign-ins, the bank link and API keys are left out. A part that fails is recorded in the
+  file instead of stopping it.
+
 ## [0.95.1]
 
 No migration. The phone app is unchanged.

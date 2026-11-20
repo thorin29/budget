@@ -362,6 +362,9 @@ async function Data() {
           <a href="/transactions/export?what=accounts" className="rounded-[10px] border border-line-strong px-3 py-1.5 text-sm font-semibold transition hover:bg-neutral-soft">
             Accounts.csv
           </a>
+          <a href="/export/audit" className="rounded-[10px] border border-line-strong px-3 py-1.5 text-sm font-semibold transition hover:bg-neutral-soft" title="Everything stored and every figure the pages show, for a full check. No passwords or keys.">
+            Audit file (JSON)
+          </a>
         </div>
         {years.length === 0 ? (
           <p className="mt-3 text-sm text-subtle">Nothing recorded yet.</p>
