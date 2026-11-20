@@ -133,7 +133,7 @@ export async function listCsvImports() {
   return prisma.bankImport.findMany({
     orderBy: { createdAt: "desc" },
     take: 20,
-    include: { account: { select: { name: true, institution: true } } },
+    include: { account: { select: { name: true, nickname: true, institution: true } } },
   });
 }
 

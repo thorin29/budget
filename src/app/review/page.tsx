@@ -10,13 +10,15 @@ import { recentAutomation } from "@/server/bills-auto";
 import { formatCents } from "@/lib/money";
 import { AmountCard, AutoRecordedRow, DueDayRow, LooksPaidCard, RepeatCard } from "./cards";
 import { amountSuggestions } from "@/server/bill-amounts";
+import { listCategories } from "@/server/categories";
 
 export const dynamic = "force-dynamic";
 
 const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 export default async function ReviewPage() {
-  const [review, auto, amounts] = await Promise.all([getReview(), recentAutomation(), amountSuggestions().catch(() => [])]);
+  const [review, auto, amounts, categoryRows] = await Promise.all([getReview(), recentAutomation(), amountSuggestions().catch(() => []), listCategories()]);
+  const categories = categoryRows.map((c) => ({ id: c.id, name: c.name }));
   const waiting = review.count + auto.moved.length + amounts.length;
 
   // Recorded payments grouped by bill, newest month first, bills with the newest payment first.
@@ -84,7 +86,7 @@ export default async function ReviewPage() {
         <Card className="p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-base font-bold">Recorded automatically</h2>
-            <span className="text-xs text-muted">Bill payments matched from the bank feed in the last 10 days · open one for each month</span>
+            <span className="text-xs text-muted">Bill payments matched from the bank feed in the last 10 days · open one to change or unrecord it</span>
           </div>
           {groups.length ? (
             <ul className="mt-2 divide-y divide-line">
@@ -107,7 +109,7 @@ export default async function ReviewPage() {
                       </summary>
                       <ul className="mb-1 ml-4 max-h-[26rem] divide-y divide-line overflow-y-auto rounded-xl bg-neutral-soft">
                         {list.map((r) => (
-                          <AutoRecordedRow key={`${r.lineItemId}:${r.year}:${r.month}`} item={r} />
+                          <AutoRecordedRow key={`${r.lineItemId}:${r.year}:${r.month}`} item={r} categories={categories} />
                         ))}
                       </ul>
                     </details>

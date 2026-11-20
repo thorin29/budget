@@ -108,6 +108,19 @@ export async function updateCategory(id: string, input: CategoryInput): Promise<
   }
 }
 
+/** Renames a category; everything that uses it (transactions, bills, budgets, rules) follows. */
+export async function renameCategory(id: string, name: string): Promise<void> {
+  const clean = name.trim().replace(/\s+/g, " ");
+  if (!clean || clean.length > 60) throw new ValidationError({ name: ["Up to 60 characters"] });
+  await getCategory(id);
+  try {
+    await prisma.category.update({ where: { id }, data: { name: clean } });
+  } catch (error) {
+    if (isUniqueViolation(error)) throw new ValidationError({ name: ["A category with that name already exists"] });
+    throw error;
+  }
+}
+
 /** Deactivates rather than deletes when line items still reference it. */
 export async function deleteCategory(id: string): Promise<{ deleted: boolean }> {
   await getCategory(id);

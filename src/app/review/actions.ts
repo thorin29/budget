@@ -77,13 +77,13 @@ export async function dismissRepeatAction(key: string): Promise<ReviewState> {
   }
 }
 
-export async function undoAutoAction(lineItemId: string, year: number, month: number): Promise<ReviewState> {
+export async function undoAutoAction(lineItemId: string, year: number, month: number, categoryId?: string | null): Promise<ReviewState> {
   try {
     await requireUser();
     const { undoAutoRecord } = await import("@/server/bills-auto");
-    await undoAutoRecord(String(lineItemId), Number(year), Number(month));
+    await undoAutoRecord(String(lineItemId), Number(year), Number(month), categoryId ? String(categoryId) : null);
     done();
-    return { ok: true, message: "Removed. That charge won't be used for this bill again." };
+    return { ok: true, message: categoryId ? "Changed: it's now spending in that category, not a bill payment." : "Unrecorded: it's ordinary spending again, and won't be used for this bill again." };
   } catch (error) {
     return failure(error);
   }

@@ -225,6 +225,8 @@ export interface AutoRecorded {
   amountCents: number;
   paidOn: string | null;
   merchant: string | null;
+  /** The card or account the charge came from. */
+  account?: string | null;
 }
 
 export interface DueDayMoved {
@@ -238,8 +240,8 @@ export async function recentAutomation(): Promise<{ recorded: AutoRecorded[]; mo
   const recorded = (await prisma.actualEntry.findMany({
     where: { source: "auto", createdAt: { gte: new Date(Date.now() - 10 * DAY) } },
     orderBy: { createdAt: "desc" },
-    select: { lineItemId: true, year: true, month: true, amount: true, paidOn: true, lineItem: { select: { name: true } }, bankTransaction: { select: { merchant: true } } },
-  })) as Array<{ lineItemId: string; year: number; month: number; amount: { toString(): string }; paidOn: Date | null; lineItem: { name: string }; bankTransaction: { merchant: string } | null }>;
+    select: { lineItemId: true, year: true, month: true, amount: true, paidOn: true, lineItem: { select: { name: true } }, bankTransaction: { select: { merchant: true, account: { select: { name: true, nickname: true } } } } },
+  })) as Array<{ lineItemId: string; year: number; month: number; amount: { toString(): string }; paidOn: Date | null; lineItem: { name: string }; bankTransaction: { merchant: string; account: { name: string; nickname: string | null } } | null }>;
   const moved = (await prisma.lineItem.findMany({
     where: { dueDayChangedAt: { gte: new Date(Date.now() - 30 * DAY) } },
     orderBy: { dueDayChangedAt: "desc" },
@@ -249,20 +251,37 @@ export async function recentAutomation(): Promise<{ recorded: AutoRecorded[]; mo
     recorded: recorded.map((r) => ({
       lineItemId: r.lineItemId, year: r.year, month: r.month, name: r.lineItem.name, amountCents: toCents(r.amount),
       paidOn: r.paidOn ? iso(r.paidOn) : null, merchant: r.bankTransaction?.merchant ?? null,
+      account: r.bankTransaction ? r.bankTransaction.account.nickname || r.bankTransaction.account.name : null,
     })),
     moved: moved.map((m) => ({ lineItemId: m.id, name: m.name, from: m.dueDayPrevious, to: m.dueDay })),
   };
 }
 
-/** Removes a payment recorded on its own, and doesn't offer that charge for the bill again. */
-export async function undoAutoRecord(lineItemId: string, year: number, month: number): Promise<void> {
+/**
+ * Removes a payment recorded on its own, and doesn't offer that charge for the bill again. The
+ * charge stays in Transactions as ordinary spending: in `categoryId` when given (kept as the
+ * person's choice), otherwise in the category its merchant would get anyway (not the bill's).
+ */
+export async function undoAutoRecord(lineItemId: string, year: number, month: number, categoryId?: string | null): Promise<void> {
   const entry = (await prisma.actualEntry.findUnique({
     where: { lineItemId_year_month: { lineItemId, year, month } },
     select: { source: true, bankTransactionId: true },
   })) as { source: string; bankTransactionId: string | null } | null;
   if (!entry || entry.source !== "auto") throw new NotFoundError("Automatic payment");
+  if (categoryId) {
+    const found = await prisma.category.findUnique({ where: { id: categoryId }, select: { id: true } });
+    if (!found) throw new NotFoundError("Category");
+  }
   await clearActual(lineItemId, year, month);
-  if (entry.bankTransactionId) await dismissMatch(lineItemId, entry.bankTransactionId);
+  const txn = entry.bankTransactionId;
+  if (!txn) return;
+  await dismissMatch(lineItemId, txn);
+  if (categoryId) {
+    await prisma.bankTransaction.update({ where: { id: txn }, data: { categoryId, categorySource: "person" } });
+  } else {
+    await prisma.bankTransaction.updateMany({ where: { id: txn, categorySource: "bill" }, data: { categorySource: "guess" } });
+    await applyCategories([txn]);
+  }
 }
 
 /** Puts a due day back and stops the bank from moving it again. */

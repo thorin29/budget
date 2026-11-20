@@ -89,6 +89,13 @@ export async function autoLinkBills(): Promise<void> {
   await pushLinkedBalances();
 }
 
+/** A feed account as shown in lists: the name given in Accounts (with the card's last digits), or the feed's. */
+export function feedLabel(a: { name: string; nickname?: string | null }): string {
+  if (!a.nickname) return a.name;
+  const digits = /\((?:[^()]*?)(\d{4})\)\s*$/.exec(a.name)?.[1];
+  return digits ? `${a.nickname} (${digits})` : a.nickname;
+}
+
 export async function listBankAccounts(): Promise<BankAccountView[]> {
   const [accounts, stats, settings] = await Promise.all([
     prisma.bankAccount.findMany({}),
@@ -210,7 +217,7 @@ export async function listBankTransactions({
     },
     orderBy: [{ postedOn: "desc" }, { createdAt: "desc" }],
     take: text ? 20_000 : limit,
-    include: { account: { select: { name: true, institution: true } } },
+    include: { account: { select: { name: true, nickname: true, institution: true } } },
   });
   return (rows as Array<{
     id: string;
@@ -223,14 +230,14 @@ export async function listBankTransactions({
     source: string;
     categoryId: string | null;
     categorySource: string;
-    account: { name: string; institution: string | null };
+    account: { name: string; nickname: string | null; institution: string | null };
   }>)
     .filter((r) => !text || r.merchant.toLowerCase().includes(text) || r.description.toLowerCase().includes(text))
     .slice(0, limit)
     .map((r) => ({
     id: r.id,
     postedOn: r.postedOn,
-    accountName: r.account.name,
+    accountName: feedLabel(r.account),
     institution: r.account.institution,
     merchant: r.merchant,
     description: r.description,

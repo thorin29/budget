@@ -103,7 +103,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                 <option value="">All accounts</option>
                 {accounts.map((a) => (
                   <option key={a.id} value={a.id}>
-                    {a.institution ? `${a.institution} · ${a.name}` : a.name}
+                    {a.institution ? `${a.institution} · ${a.displayName}` : a.displayName}
                   </option>
                 ))}
               </Select>

@@ -101,6 +101,8 @@ export interface HomeValueView {
   highCents: number | null;
   fetchedAt: string | null;
   error: string | null;
+  /** When a lookup was last tried, found or not. */
+  triedAt: string | null;
 }
 
 async function load(): Promise<Stored | null> {
@@ -118,8 +120,8 @@ export async function homeValue(): Promise<HomeValueView | null> {
   const month = new Date().toISOString().slice(0, 7);
   const calls = s?.calls?.month === month ? s.calls.count : 0;
   const b = s ? blend(s) : { cents: null, used: [] };
-  if (!s && envKey()) return { keyFromEnv: true, keySaved: false, callsThisMonth: 0, callsLimit: MAX_PER_MONTH, estimates: [], averageCents: null, usedCents: null, usedSources: [], history: [], address: "", hasKey: true, valueCents: null, lowCents: null, highCents: null, fetchedAt: null, error: null };
-  return s ? { keyFromEnv: !!envKey(), keySaved: !!s.keyEnc, callsThisMonth: calls, callsLimit: MAX_PER_MONTH, estimates, averageCents, usedCents: b.cents, usedSources: b.used, history: s.history ?? [], address: s.address, hasKey: !!s.keyEnc || !!envKey(), valueCents: s.valueCents, lowCents: s.lowCents, highCents: s.highCents, fetchedAt: s.fetchedAt, error: s.error } : null;
+  if (!s && envKey()) return { keyFromEnv: true, keySaved: false, callsThisMonth: 0, callsLimit: MAX_PER_MONTH, estimates: [], averageCents: null, usedCents: null, usedSources: [], history: [], address: "", hasKey: true, valueCents: null, lowCents: null, highCents: null, fetchedAt: null, error: null, triedAt: null };
+  return s ? { keyFromEnv: !!envKey(), keySaved: !!s.keyEnc, callsThisMonth: calls, callsLimit: MAX_PER_MONTH, estimates, averageCents, usedCents: b.cents, usedSources: b.used, history: s.history ?? [], address: s.address, hasKey: !!s.keyEnc || !!envKey(), valueCents: s.valueCents, lowCents: s.lowCents, highCents: s.highCents, fetchedAt: s.valueCents ? s.fetchedAt : null, error: s.error, triedAt: s.triedAt ?? null } : null;
 }
 
 /** Saves the address and (when given) a new API key, then looks the value up. */
@@ -153,7 +155,8 @@ export async function lookUpHomeValue(force = false): Promise<{ view: HomeValueV
   await applyBlend(s);
   if (!s.address) return skip("Add the address first");
   if (!s.keyEnc && !envKey()) return skip("No RentCast key saved");
-  const age = s.fetchedAt ? Date.now() - Date.parse(s.fetchedAt) : Infinity;
+  // Only a lookup that found a value holds off the next one (an older version stamped failures too).
+  const age = s.fetchedAt && s.valueCents ? Date.now() - Date.parse(s.fetchedAt) : Infinity;
   if (age < (force ? DAY : 30 * DAY)) return skip(force ? "Already looked up today; try again tomorrow" : "Looked up this month");
   const month = new Date().toISOString().slice(0, 7);
   const used = s.calls?.month === month ? s.calls.count : 0;

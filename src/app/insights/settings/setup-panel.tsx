@@ -13,6 +13,7 @@ import {
   addPastHomeValueAction,
   clearHomeKeyAction,
   removeHomeHistoryAction,
+  renameCategoryAction,
   deleteCategoryAction,
   deleteGroupAction,
   refreshHomeValueAction,
@@ -54,6 +55,7 @@ export interface SetupHome {
   highCents: number | null;
   fetchedAt: string | null;
   error: string | null;
+  triedAt?: string | null;
 }
 
 const KINDS: Array<[Tier, string, string]> = [
@@ -265,11 +267,11 @@ function BudgetDetail({ b, budgets, pending, act, state }: { b: SetupBudget; bud
         </div>
       </div>
       <div>
-        <p className="mb-1.5 text-xs text-muted">Categories in this budget</p>
+        <p className="mb-1.5 text-xs text-muted">Categories in this budget · click a name to rename it</p>
         <div className="flex flex-wrap items-center gap-1.5">
           {b.categories.map((c) => (
             <span key={c.id} className="inline-flex items-center gap-1 rounded-full border border-line bg-neutral-soft px-2.5 py-0.5 text-xs">
-              {c.name}
+              <CategoryName id={c.id} name={c.name} pending={pending} act={act} />
               <button type="button" aria-label={`Take ${c.name} out of ${b.name}`} disabled={pending} className="text-muted hover:text-danger" onClick={() => act(() => setCategoryGroupAction(c.id, null))}>
                 ✕
               </button>
@@ -328,7 +330,7 @@ function Unsorted({ ungrouped, usage, budgets, pending, act, state }: { ungroupe
             return (
               <li key={c.id} className="flex flex-wrap items-start justify-between gap-3 py-3">
                 <span className="min-w-0">
-                  <b>{c.name}</b>
+                  <CategoryName id={c.id} name={c.name} pending={pending} act={act} bold />
                   <span className="block text-xs text-muted">
                     {u && u.count ? (
                       <>
@@ -412,6 +414,44 @@ function NewBudget({ pending, act, state }: { pending: boolean; act: Act; state:
         )}
       </div>
     </div>
+  );
+}
+
+/** A category's name that turns into a box when clicked: Enter or leaving it saves, Esc cancels. */
+function CategoryName({ id, name, pending, act, bold = false }: { id: string; name: string; pending: boolean; act: Act; bold?: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState(name);
+  if (!editing)
+    return (
+      <button type="button" title="Rename" disabled={pending} className={`text-left hover:underline ${bold ? "font-bold" : ""}`} onClick={() => setEditing(true)}>
+        {name}
+      </button>
+    );
+  const save = () => {
+    setEditing(false);
+    if (value.trim() && value.trim() !== name) act(() => renameCategoryAction(id, value));
+    else setValue(name);
+  };
+  return (
+    <input
+      aria-label={`New name for ${name}`}
+      autoFocus
+      value={value}
+      maxLength={60}
+      onChange={(e) => setValue(e.target.value)}
+      onBlur={save}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          save();
+        }
+        if (e.key === "Escape") {
+          setValue(name);
+          setEditing(false);
+        }
+      }}
+      className="w-36 rounded border border-line bg-surface px-1.5 py-0 text-xs"
+    />
   );
 }
 
@@ -597,7 +637,14 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
             {home.fetchedAt ? ` · ${new Date(home.fetchedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
           </p>
         ) : null}
-        {home?.error ? <p className="mt-1 text-xs text-danger">Last lookup: {home.error}</p> : null}
+        {home?.triedAt ? (
+          <p className={`mt-1 text-xs ${home.error ? "text-danger" : "text-muted"}`}>
+            Last tried {new Date(home.triedAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+            {home.error ? `: ${home.error}` : ": found a value"}
+          </p>
+        ) : home?.error ? (
+          <p className="mt-1 text-xs text-danger">Last lookup: {home.error}</p>
+        ) : null}
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
           <span className="self-center text-xs text-muted">Uses the address above.</span>
           <input aria-label="RentCast API key" value={key} onChange={(e) => setKey(e.target.value)} type="password" autoComplete="off" placeholder={home?.keyFromEnv ? "Set on the server" : home?.hasKey ? "Key saved (blank keeps it)" : "API key"} className="rounded-lg border border-line bg-surface px-2 py-1.5" />

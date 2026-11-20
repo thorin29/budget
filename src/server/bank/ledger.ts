@@ -103,9 +103,14 @@ async function mergeInto(from: string, to: string): Promise<void> {
   await prisma.account.delete({ where: { id: from } });
 }
 
-/** What to call each account: the typed name, or the feed account's name for accounts made for the feed. */
+/**
+ * What to call each account: a name given to its feed account (Accounts → Name) wins everywhere,
+ * even for an account typed in or imported before the feed was linked; otherwise the feed's name
+ * for accounts made for the feed, or the typed name.
+ */
 export function ledgerLabel(row: { name: string; origin?: string; bankAccount?: { institution: string | null; name: string; nickname?: string | null } | null }): string {
-  if (row.origin === "bank" && row.bankAccount) return row.bankAccount.nickname || displayAccountName(row.bankAccount.name);
+  if (row.bankAccount?.nickname) return row.bankAccount.nickname;
+  if (row.origin === "bank" && row.bankAccount) return displayAccountName(row.bankAccount.name);
   return row.name;
 }
 

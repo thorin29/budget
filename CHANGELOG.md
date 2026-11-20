@@ -3,6 +3,28 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.90.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Review → Recorded automatically:** each payment has **Change** (not a bill payment: count the
+  charge as spending in a category you pick) and **Unrecord** (the charge goes back to ordinary
+  spending in its usual category). Either way it stays on its card and isn't matched to that bill
+  again. Before, Undo left the charge in the bill's category.
+- **Rename categories** in Setup: click a category's name (in a budget, or under Categories
+  without a budget). Transactions, bills, budgets and rules follow.
+
+### Changed
+- **A name given to an account in Accounts applies everywhere:** Transactions (with the card's
+  last four digits), the account filter, Bills & income's Paid from and Charged to, the month
+  view, Review and CSV import history, including accounts that came from the spreadsheet import.
+
+### Fixed
+- RentCast: a failed lookup stamped by an older version blocked new ones as "already looked up
+  today" while showing no value. Only a lookup that found a value holds off the next one now, and
+  the last try (time and RentCast's error) shows under "Or look it up automatically".
+
 ## [0.89.0]
 
 No migration. The phone app is unchanged.

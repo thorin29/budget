@@ -720,12 +720,12 @@ async function Bank() {
           </details>
           {imports.length ? (
             <ul className="mt-5 divide-y divide-line rounded-xl border border-line text-sm">
-              {imports.map((b: { id: string; createdAt: Date; fileName: string | null; added: number; skipped: number; revertedAt: Date | null; account: { name: string } }) => (
+              {imports.map((b: { id: string; createdAt: Date; fileName: string | null; added: number; skipped: number; revertedAt: Date | null; account: { name: string; nickname?: string | null } }) => (
                 <li key={b.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5">
                   <span>
                     <span className="font-medium">{b.fileName ?? "CSV file"}</span>
                     <span className="block text-xs text-muted">
-                      {dateFormat.format(b.createdAt)} · {b.account.name} · {b.added} added, {b.skipped} skipped
+                      {dateFormat.format(b.createdAt)} · {b.account.nickname || b.account.name} · {b.added} added, {b.skipped} skipped
                       {b.revertedAt ? " · undone" : ""}
                     </span>
                   </span>

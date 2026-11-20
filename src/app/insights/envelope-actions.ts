@@ -173,3 +173,8 @@ export async function clearHomeKeyAction(): Promise<EnvelopeState> {
   const { clearHomeKey } = await import("@/server/home-value");
   return run(() => clearHomeKey(), "Saved key removed.");
 }
+
+export async function renameCategoryAction(id: string, name: string): Promise<EnvelopeState> {
+  const { renameCategory } = await import("@/server/categories");
+  return run(() => renameCategory(String(id), String(name)), "Renamed.");
+}

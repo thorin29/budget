@@ -143,25 +143,55 @@ export function RepeatCard({ item }: { item: RepeatCharge }) {
 
 const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 === 2 && n !== 12 ? "nd" : n % 10 === 3 && n !== 13 ? "rd" : "th"}`;
 
-/** A payment the bank feed recorded on its own, with Undo. */
-export function AutoRecordedRow({ item }: { item: { lineItemId: string; year: number; month: number; name: string; amountCents: number; paidOn: string | null; merchant: string | null } }) {
+/**
+ * A payment the bank feed recorded on its own. Change: it wasn't this bill, so the charge counts
+ * as spending in a category picked here. Unrecord: the same, in the category it would get anyway.
+ * Either way the charge stays on its card and isn't matched to this bill again.
+ */
+export function AutoRecordedRow({ item, categories }: { item: { lineItemId: string; year: number; month: number; name: string; amountCents: number; paidOn: string | null; merchant: string | null; account?: string | null }; categories: Array<{ id: string; name: string }> }) {
   const [busy, start] = useTransition();
   const [result, setResult] = useState<ReviewState | null>(null);
+  const [changing, setChanging] = useState(false);
+  const [category, setCategory] = useState("");
   if (result?.ok) return <li className="px-4 py-3 text-sm text-muted">{result.message}</li>;
   return (
-    <li className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
-      <span className="min-w-0">
-        <span className="font-semibold">{item.name}</span> <span className="text-muted">for {monthName(item.year, item.month)}</span>
-        <span className="block truncate text-xs text-muted">
-          {formatCents(item.amountCents)}
-          {item.paidOn ? ` on ${short(item.paidOn)}` : ""}
-          {item.merchant ? ` · ${item.merchant}` : ""}
+    <li className="px-4 py-3 text-sm">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="min-w-0">
+          <span className="font-semibold">{item.name}</span> <span className="text-muted">for {monthName(item.year, item.month)}</span>
+          <span className="block truncate text-xs text-muted">
+            {formatCents(item.amountCents)}
+            {item.paidOn ? ` on ${short(item.paidOn)}` : ""}
+            {item.merchant ? ` · ${item.merchant}` : ""}
+            {item.account ? ` · ${item.account}` : ""}
+          </span>
         </span>
-        {result && !result.ok ? <span className="text-xs text-danger">{result.message}</span> : null}
-      </span>
-      <Button type="button" variant="quiet" disabled={busy} onClick={() => start(async () => setResult(await undoAutoAction(item.lineItemId, item.year, item.month)))}>
-        Undo
-      </Button>
+        <span className="flex items-center gap-1">
+          <Button type="button" variant="quiet" disabled={busy} onClick={() => setChanging((v) => !v)}>
+            Change
+          </Button>
+          <Button type="button" variant="quiet" disabled={busy} title="Not a payment for this bill: the charge goes back to ordinary spending" onClick={() => start(async () => setResult(await undoAutoAction(item.lineItemId, item.year, item.month)))}>
+            Unrecord
+          </Button>
+        </span>
+      </div>
+      {changing ? (
+        <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+          <span className="text-muted">Not a bill payment. Count it as spending in</span>
+          <select aria-label="Category" value={category} onChange={(e) => setCategory(e.target.value)} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm">
+            <option value="">Pick a category…</option>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+          <Button type="button" disabled={busy || !category} onClick={() => start(async () => setResult(await undoAutoAction(item.lineItemId, item.year, item.month, category)))}>
+            Save
+          </Button>
+        </div>
+      ) : null}
+      {result && !result.ok ? <span className="text-xs text-danger">{result.message}</span> : null}
     </li>
   );
 }
