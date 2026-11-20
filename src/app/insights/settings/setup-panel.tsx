@@ -14,6 +14,7 @@ import {
   clearHomeKeyAction,
   removeHomeHistoryAction,
   renameCategoryAction,
+  setForOthersAction,
   deleteCategoryAction,
   deleteGroupAction,
   refreshHomeValueAction,
@@ -56,6 +57,7 @@ export interface SetupHome {
   fetchedAt: string | null;
   error: string | null;
   triedAt?: string | null;
+  nextLookupOn?: string | null;
 }
 
 const KINDS: Array<[Tier, string, string]> = [
@@ -89,6 +91,7 @@ export function SetupPanel({
   cushionCents,
   home,
   initial,
+  categories = [],
 }: {
   budgets: SetupBudget[];
   ungrouped: Array<{ id: string; name: string }>;
@@ -98,10 +101,12 @@ export function SetupPanel({
   home: SetupHome | null;
   /** The item to open first (?item=home from the net worth card). */
   initial?: string;
+  /** Every category, for the Categories list (rename, money for others). */
+  categories?: AnyCategory[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [sel, choose] = useState<string>(initial === "home" ? "home" : ungrouped.length ? "unsorted" : (budgets[0]?.id ?? "new"));
+  const [sel, choose] = useState<string>(initial === "home" || initial === "categories" ? initial : ungrouped.length ? "unsorted" : (budgets[0]?.id ?? "new"));
   const [state, setState] = useState<EnvelopeState | null>(null);
   // A new pick starts without the last one's message.
   const setSel = (id: string) => {
@@ -151,9 +156,13 @@ export function SetupPanel({
             <button type="button" onClick={() => setSel("new")} className={`w-full rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold text-accent-text ${sel === "new" ? "bg-accent-soft" : "hover:bg-neutral-soft"}`}>
               + New budget
             </button>
+            <button type="button" onClick={() => setSel("categories")} className={`flex w-full justify-between rounded-lg px-2.5 py-1.5 text-left text-sm ${sel === "categories" ? "bg-accent-soft font-bold" : "hover:bg-neutral-soft"}`}>
+              <span>All categories</span>
+              <span className="tnum text-xs text-muted">{categories.length}</span>
+            </button>
             <button type="button" onClick={() => setSel("home")} className={`flex w-full justify-between rounded-lg px-2.5 py-1.5 text-left text-sm ${sel === "home" ? "bg-accent-soft font-bold" : "hover:bg-neutral-soft"}`}>
               <span>Home value</span>
-              <span className="tnum text-xs text-muted">{home?.averageCents ? money(home.averageCents) : home?.valueCents ? money(home.valueCents) : ""}</span>
+              <span className="tnum text-xs text-muted">{home?.usedCents ? money(home.usedCents) : home?.averageCents ? money(home.averageCents) : ""}</span>
             </button>
           </div>
         </nav>
@@ -163,6 +172,8 @@ export function SetupPanel({
             <BudgetDetail key={current.id} b={current} budgets={budgets} pending={pending} act={act} state={state} />
           ) : sel === "unsorted" ? (
             <Unsorted ungrouped={ungrouped} usage={usage} budgets={budgets} pending={pending} act={act} state={state} />
+          ) : sel === "categories" ? (
+            <AllCategories list={categories} pending={pending} act={act} state={state} />
           ) : sel === "home" ? (
             <HomeValue home={home} pending={pending} act={act} state={state} />
           ) : (
@@ -417,6 +428,41 @@ function NewBudget({ pending, act, state }: { pending: boolean; act: Act; state:
   );
 }
 
+type AnyCategory = { id: string; name: string; budget: string | null; forOthers: boolean; active: boolean };
+
+/** Every category in one list: rename any of them, and see which budget (if any) it's in. */
+function AllCategories({ list, pending, act, state }: { list: AnyCategory[]; pending: boolean; act: Act; state: EnvelopeState | null }) {
+  const [q, setQ] = useState("");
+  const shown = list.filter((c) => !q.trim() || c.name.toLowerCase().includes(q.trim().toLowerCase()));
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-baseline justify-between gap-3">
+        <div>
+          <h2 className="text-xl font-bold">All categories</h2>
+          <p className="mt-1 text-sm text-muted">Click a name to rename it. Everything using it follows.</p>
+        </div>
+        <Note state={state} />
+      </div>
+      <input aria-label="Find a category" placeholder="Find a category" value={q} onChange={(e) => setQ(e.target.value)} className="w-full max-w-xs rounded-lg border border-line bg-surface px-2 py-1.5 text-sm" />
+      <ul className="grid gap-x-6 text-sm sm:grid-cols-2">
+        {shown.map((c) => (
+          <li key={c.id} className="flex items-center justify-between gap-3 border-b border-line py-1.5">
+            <CategoryName id={c.id} name={c.name} pending={pending} act={act} />
+            <span className="flex shrink-0 items-center gap-2 text-xs text-muted">
+              {!c.active ? <span>turned off</span> : c.forOthers ? <span>money for others</span> : c.budget ? <span>{c.budget}</span> : <span className="text-warn">no budget</span>}
+              {c.forOthers ? (
+                <button type="button" disabled={pending} title="Count it as your own spending again" className="font-semibold text-accent-text hover:underline" onClick={() => act(() => setForOthersAction(c.id, false))}>
+                  Count as mine
+                </button>
+              ) : null}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /** A category's name that turns into a box when clicked: Enter or leaving it saves, Esc cancels. */
 function CategoryName({ id, name, pending, act, bold = false }: { id: string; name: string; pending: boolean; act: Act; bold?: boolean }) {
   const [editing, setEditing] = useState(false);
@@ -591,6 +637,7 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
             <span className="text-xs text-muted">
               {home.fetchedAt ? fmt(home.fetchedAt.slice(0, 10)) : ""} · looked up
               {home.lowCents && home.highCents ? ` · range ${money(home.lowCents)}–${money(home.highCents)}` : ""}
+              {home.nextLookupOn ? ` · next ${fmt(home.nextLookupOn)}` : ""}
             </span>
           </div>
         ) : null}
@@ -600,7 +647,7 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
       </div>
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm">
-          Average <b className="tnum">{avg !== null ? money(avg) : "—"}</b>
+          Typed-in average <b className="tnum">{avg !== null ? money(avg) : "—"}</b>
           {nums.length > 1 ? <span className="tnum text-xs text-muted"> · range {money(Math.min(...nums))}–{money(Math.max(...nums))}</span> : null}
         </span>
         <button

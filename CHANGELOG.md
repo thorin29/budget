@@ -3,6 +3,23 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.90.1]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Setup → All categories:** every category in one list, with its budget, "money for others"
+  or "turned off", and a search box. Click a name to rename it. A money-for-others category
+  (like a league you collected for) has "Count as mine" to make it ordinary spending again.
+  Before, those categories didn't appear anywhere in Setup.
+- Home value: RentCast's row says when the next automatic lookup is.
+
+### Fixed
+- Home value history now includes every estimate in the list, also ones saved before the history
+  was kept. Removing one from the history also takes it out of the list.
+- The Home value item in Setup's list shows the value net worth uses (with RentCast), not only the
+  typed-in average; the line by Save is labeled "Typed-in average".
+
 ## [0.90.0]
 
 No migration. The phone app is unchanged.

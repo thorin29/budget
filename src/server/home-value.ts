@@ -103,6 +103,33 @@ export interface HomeValueView {
   error: string | null;
   /** When a lookup was last tried, found or not. */
   triedAt: string | null;
+  /** When the next lookup happens on its own (YYYY-MM-DD), or null when none is set up. */
+  nextLookupOn: string | null;
+}
+
+/** The history with every current estimate in it (ones saved before the history was kept were missing). */
+function fullHistory(s: Stored): HomeEstimate[] {
+  const list = [...(s.history ?? [])];
+  const has = (e: HomeEstimate) => list.some((h) => h.source.toLowerCase() === e.source.toLowerCase() && h.cents === e.cents && h.on === e.on);
+  for (const e of s.estimates ?? []) if (!has(e)) list.push(e);
+  if (s.valueCents && s.fetchedAt) {
+    const r = { source: "RentCast", cents: s.valueCents, on: s.fetchedAt.slice(0, 10) };
+    if (!has(r)) list.push(r);
+  }
+  return list.sort((a, b) => a.on.localeCompare(b.on));
+}
+
+/** The automatic lookup runs once a value is 30 days old (checked hourly), within the month's limit. */
+function nextLookup(s: Stored): string | null {
+  if (!s.address || (!s.keyEnc && !envKey())) return null;
+  const now = Date.now();
+  let next = s.valueCents && s.fetchedAt ? Date.parse(s.fetchedAt) + 30 * DAY : now;
+  const month = new Date(now).toISOString().slice(0, 7);
+  if ((s.calls?.month === month ? s.calls.count : 0) >= MAX_PER_MONTH) {
+    const d = new Date(now);
+    next = Math.max(next, Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
+  }
+  return new Date(Math.max(next, now)).toISOString().slice(0, 10);
 }
 
 async function load(): Promise<Stored | null> {
@@ -120,8 +147,8 @@ export async function homeValue(): Promise<HomeValueView | null> {
   const month = new Date().toISOString().slice(0, 7);
   const calls = s?.calls?.month === month ? s.calls.count : 0;
   const b = s ? blend(s) : { cents: null, used: [] };
-  if (!s && envKey()) return { keyFromEnv: true, keySaved: false, callsThisMonth: 0, callsLimit: MAX_PER_MONTH, estimates: [], averageCents: null, usedCents: null, usedSources: [], history: [], address: "", hasKey: true, valueCents: null, lowCents: null, highCents: null, fetchedAt: null, error: null, triedAt: null };
-  return s ? { keyFromEnv: !!envKey(), keySaved: !!s.keyEnc, callsThisMonth: calls, callsLimit: MAX_PER_MONTH, estimates, averageCents, usedCents: b.cents, usedSources: b.used, history: s.history ?? [], address: s.address, hasKey: !!s.keyEnc || !!envKey(), valueCents: s.valueCents, lowCents: s.lowCents, highCents: s.highCents, fetchedAt: s.valueCents ? s.fetchedAt : null, error: s.error, triedAt: s.triedAt ?? null } : null;
+  if (!s && envKey()) return { keyFromEnv: true, keySaved: false, callsThisMonth: 0, callsLimit: MAX_PER_MONTH, estimates: [], averageCents: null, usedCents: null, usedSources: [], history: [], address: "", hasKey: true, valueCents: null, lowCents: null, highCents: null, fetchedAt: null, error: null, triedAt: null, nextLookupOn: null };
+  return s ? { keyFromEnv: !!envKey(), keySaved: !!s.keyEnc, callsThisMonth: calls, callsLimit: MAX_PER_MONTH, estimates, averageCents, usedCents: b.cents, usedSources: b.used, history: fullHistory(s), address: s.address, hasKey: !!s.keyEnc || !!envKey(), valueCents: s.valueCents, lowCents: s.lowCents, highCents: s.highCents, fetchedAt: s.valueCents ? s.fetchedAt : null, error: s.error, triedAt: s.triedAt ?? null, nextLookupOn: nextLookup(s) } : null;
 }
 
 /** Saves the address and (when given) a new API key, then looks the value up. */
@@ -212,9 +239,13 @@ export async function addPastHomeValue(source: string, cents: number, year: numb
 export async function removeHomeHistory(item: HomeEstimate): Promise<HomeValueView | null> {
   const s = await load();
   if (!s) return null;
-  const i = (s.history ?? []).findIndex((h) => h.source === item.source && h.cents === item.cents && h.on === item.on);
-  if (i >= 0) {
-    s.history!.splice(i, 1);
+  const same = (h: HomeEstimate) => h.source === item.source && h.cents === item.cents && h.on === item.on;
+  const i = (s.history ?? []).findIndex(same);
+  // A value still in the list above goes from there too, or it would come straight back.
+  const j = (s.estimates ?? []).findIndex(same);
+  if (i >= 0) s.history!.splice(i, 1);
+  if (j >= 0) s.estimates!.splice(j, 1);
+  if (i >= 0 || j >= 0) {
     await store(s);
     await applyBlend(s);
   }

@@ -178,3 +178,8 @@ export async function renameCategoryAction(id: string, name: string): Promise<En
   const { renameCategory } = await import("@/server/categories");
   return run(() => renameCategory(String(id), String(name)), "Renamed.");
 }
+
+export async function setForOthersAction(id: string, forOthers: boolean): Promise<EnvelopeState> {
+  const { setManagedForOthers } = await import("@/server/categories");
+  return run(() => setManagedForOthers(String(id), Boolean(forOthers)), forOthers ? "Now kept out of your spending." : "Now counted as your spending.");
+}

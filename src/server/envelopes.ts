@@ -167,6 +167,15 @@ export async function getEnvelopeSetup(): Promise<EnvelopeSetup> {
   };
 }
 
+/** Every category, for the list in Setup: its budget, whether it's money for others, and whether it's turned off. */
+export async function allCategories(): Promise<Array<{ id: string; name: string; budget: string | null; forOthers: boolean; active: boolean }>> {
+  const rows = (await prisma.category.findMany({
+    select: { id: true, name: true, active: true, managedForOthers: true, group: { select: { name: true } } },
+    orderBy: { name: "asc" },
+  })) as Array<{ id: string; name: string; active: boolean; managedForOthers: boolean; group: { name: string } | null }>;
+  return rows.map((r) => ({ id: r.id, name: r.name, budget: r.group?.name ?? null, forOthers: r.managedForOthers, active: r.active }));
+}
+
 /** For categories without a budget: how much they've been used in the last year, and the latest charges. */
 export async function categoryUsage(ids: string[]): Promise<Record<string, { count: number; cents: number; latest: Array<{ date: string; merchant: string; cents: number }> }>> {
   if (!ids.length) return {};
