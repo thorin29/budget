@@ -14,6 +14,7 @@
  */
 
 import { loadPaydays, monthSplit } from "./pay-split";
+import { periodBounds, periodIndex } from "@/lib/pay-periods";
 import { accountLabels } from "./bank/ledger";
 import { safeHttpUrl } from "@/lib/safe-url";
 import { prisma } from "@/lib/prisma";
@@ -73,6 +74,25 @@ export interface HalfSummary {
   remainingCents: Cents;
 }
 
+/** One paycheck's share of the month (Pay Settings › Tracker periods: per paycheck). */
+export interface PayPeriod {
+  /** YYYY-MM-DD, within the month. */
+  start: string;
+  end: string;
+  /** The payday that starts it; null for the days before the month's first payday. */
+  payday: string | null;
+  /** For the days before the first payday: the last payday of the month before, whose pay covers them. */
+  fromPayday: string | null;
+  /** Pay expected on that payday. */
+  incomeCents: Cents;
+  entries: MonthEntry[];
+  budgetedCents: Cents;
+  paidCents: Cents;
+  remainingCents: Cents;
+  /** Today is in it. */
+  current: boolean;
+}
+
 export interface MonthView {
   year: number;
   month: number;
@@ -81,6 +101,8 @@ export interface MonthView {
   splitPayday: string | null;
   /** The month isn't divided (Pay Settings): one period, shown as "This Month". */
   wholeMonth: boolean;
+  /** One period per paycheck, when Pay Settings asks for it (null otherwise). */
+  periods: PayPeriod[] | null;
   halves: [HalfSummary, HalfSummary];
   /**
    * Paid from whatever is left after the bills. Excluded from the halves, the
@@ -382,6 +404,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
 
   const halves: [HalfSummary, HalfSummary] = [buildHalf(0), buildHalf(1)];
 
+
   // Income for this month.
   const income: MonthEntry[] = items
     .filter((i) => i.kind === "INCOME")
@@ -419,6 +442,28 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     .filter((e) => e.budgetedCents > 0 || e.actualCents !== null)
     .sort((a, b) => (a.dueDay ?? 0) - (b.dueDay ?? 0));
 
+  // Per paycheck: the same bills, grouped by the pay period their due day falls in.
+  let periods: PayPeriod[] | null = null;
+  if (settings.splitMode === "paycheck") {
+    const dim = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const bounds = periodBounds(paydaysIn(year, month).map((d) => d.getUTCDate()), dim);
+    const iso = (d: number) => `${year}-${String(month).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    const todayIso = new Date().toISOString().slice(0, 10);
+    const prev = paydaysIn(month === 1 ? year - 1 : year, month === 1 ? 12 : month - 1).at(-1);
+    periods = bounds.map((b) => ({ start: iso(b.startDay), end: iso(b.endDay), payday: b.payday ? iso(b.payday) : null, fromPayday: !b.payday && prev ? prev.toISOString().slice(0, 10) : null, incomeCents: 0, entries: [] as MonthEntry[], budgetedCents: 0, paidCents: 0, remainingCents: 0, current: todayIso >= iso(b.startDay) && todayIso <= iso(b.endDay) }));
+    for (const e of [...thisMonth].sort((a, b) => (a.dueDay ?? 0) - (b.dueDay ?? 0))) {
+      const p = periods[periodIndex(bounds, e.dueDay)];
+      p.entries.push(e);
+      p.budgetedCents += e.budgetedCents;
+      p.paidCents += e.actualCents ?? 0;
+      if (e.actualCents === null) p.remainingCents += e.budgetedCents;
+    }
+    for (const e of income) {
+      const p = periods[periodIndex(bounds, e.dueDay)];
+      if (p) p.incomeCents += e.budgetedCents;
+    }
+  }
+
   const carriedCents = carried.reduce((sum, e) => sum + e.budgetedCents, 0);
 
   const billsBalanceCents = balance ? toCents(balance.amount) : null;
@@ -433,6 +478,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     splitDay,
     splitPayday: split.payday,
     wholeMonth: settings.splitMode === "none",
+    periods,
     halves,
     surplusItems: surplus,
     surplusBudgetedCents: surplus.reduce((sum, e) => sum + e.budgetedCents, 0),

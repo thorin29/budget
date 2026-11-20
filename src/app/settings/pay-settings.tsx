@@ -117,11 +117,21 @@ export function ScheduleCard({
 }
 
 /** How the Tracker divides a month: one period, halves at a payday, or halves at a fixed day. */
-export function PeriodsForm({ mode, splitDay, scheduleId, schedules }: { mode: "payday" | "day" | "none"; splitDay: number; scheduleId: string | null; schedules: Ref[] }) {
+export function PeriodsForm({ mode, splitDay, scheduleId, schedules }: { mode: "payday" | "day" | "none" | "paycheck"; splitDay: number; scheduleId: string | null; schedules: Ref[] }) {
   const { pending, note, run } = useRun();
   const [m, setM] = useState(mode);
   const [day, setDay] = useState(String(splitDay));
   const [sched, setSched] = useState(scheduleId ?? "");
+  const scheduleSelect = (
+    <select aria-label="Which schedule" value={sched} onChange={(e) => setSched(e.target.value)} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm">
+      <option value="">Main paycheck</option>
+      {schedules.map((s) => (
+        <option key={s.id} value={s.id}>
+          {s.name}
+        </option>
+      ))}
+    </select>
+  );
   const option = (value: typeof m, label: string, extra?: React.ReactNode) => (
     <label className={`flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2.5 text-sm ${m === value ? "border-accent bg-accent-soft" : "border-line"}`}>
       <input type="radio" name="periods" checked={m === value} onChange={() => setM(value)} />
@@ -131,20 +141,12 @@ export function PeriodsForm({ mode, splitDay, scheduleId, schedules }: { mode: "
   );
   return (
     <div className="space-y-2">
+      {option("paycheck", "One period per paycheck (follows your pay schedule)", schedules.length > 1 ? scheduleSelect : null)}
       {option("none", "Whole month (no split)")}
       {option(
         "payday",
         "Two halves at the payday nearest the 15th",
-        schedules.length > 1 ? (
-          <select aria-label="Which schedule" value={sched} onChange={(e) => setSched(e.target.value)} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm">
-            <option value="">Main paycheck</option>
-            {schedules.map((s) => (
-              <option key={s.id} value={s.id}>
-                {s.name}
-              </option>
-            ))}
-          </select>
-        ) : null,
+        schedules.length > 1 ? scheduleSelect : null,
       )}
       {option(
         "day",

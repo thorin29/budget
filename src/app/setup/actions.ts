@@ -172,8 +172,8 @@ export async function savePeriodsAction(mode: string, splitDay: number, schedule
     const { prisma } = await import("@/lib/prisma");
     const { SETTING_KEYS } = await import("@/lib/settings");
     const s = await getSettings();
-    const m = mode === "none" || mode === "day" ? mode : "payday";
-    await prisma.setting.upsert({ where: { key: SETTING_KEYS.splitSchedule }, create: { key: SETTING_KEYS.splitSchedule, value: (m === "payday" ? scheduleId : null) as never }, update: { value: (m === "payday" ? scheduleId : null) as never } });
+    const m = mode === "none" || mode === "day" || mode === "paycheck" ? mode : "payday";
+    await prisma.setting.upsert({ where: { key: SETTING_KEYS.splitSchedule }, create: { key: SETTING_KEYS.splitSchedule, value: (m === "payday" || m === "paycheck" ? scheduleId : null) as never }, update: { value: (m === "payday" || m === "paycheck" ? scheduleId : null) as never } });
     await updateSettings({ splitDay: m === "day" ? Number(splitDay) : s.splitDay, splitMode: m, horizonDays: s.horizonDays, bufferCents: s.bufferCents, carryMonths: s.carryMonths, billsAccountId: s.billsAccountId });
   });
 }

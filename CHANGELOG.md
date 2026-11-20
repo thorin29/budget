@@ -3,6 +3,24 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.95.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Tracker periods: one per paycheck.** Pay Settings › Tracker Periods › "One period per paycheck"
+  groups the month's bills by the pay period their due day falls in (payday to the day before the
+  next), weekly, every two weeks, twice a month or monthly, following whichever schedule is in
+  effect, so a new employer's schedule takes over on its own once the old one is ended. Days before
+  the month's first payday show as the previous paycheck "(Cont.)". The Tracker shows each period's
+  pay, paid and pending, and a card for the current paycheck. The halves stay behind the scenes for
+  the cash figures.
+
+### Changed
+- Tracker: the line under the month says what the split means ("Second half starts Nov 21, after the
+  20th payday", or "2 paychecks this month"), and "still owed" / "left" now read "pending".
+- The Settings menu pins where it starts, so it no longer slides up before locking.
+
 ## [0.94.0]
 
 No migration. The phone app is unchanged.

@@ -138,17 +138,31 @@ export default async function MonthPage({
       } carried — change that in Settings › Bills & Income › Options.`,
     });
   }
-  if (view.wholeMonth) {
+  const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
+  const current = view.periods?.find((p) => p.current) ?? null;
+  if (view.periods) {
+    // One section per paycheck: the bills due from its payday until the next one.
+    view.periods.forEach((p, i) => {
+      const rows = p.entries.map((e) => withSuggestion(toRow(e, today)));
+      sections.push({
+        key: `period-${i}`,
+        title: `${p.payday ? `${short(p.payday)} Paycheck` : p.fromPayday ? `${short(p.fromPayday)} Paycheck (Cont.)` : "Before the First Payday"}${p.current ? " · Now" : ""}`,
+        summary: `${short(p.start)}–${short(p.end)}${p.incomeCents ? ` · ${formatCents(p.incomeCents)} pay` : ""} · ${formatCents(p.paidCents)} paid · ${formatCents(p.remainingCents)} pending`,
+        rows,
+        progress: { value: p.budgetedCents - p.remainingCents, max: p.budgetedCents },
+      });
+    });
+  } else if (view.wholeMonth) {
     // Not divided (Pay Settings): one period for the month.
     const paid = view.halves[0].paidCents + view.halves[1].paidCents;
     const left = view.halves[0].remainingCents + view.halves[1].remainingCents;
     const budgeted = view.halves[0].budgetedCents + view.halves[1].budgetedCents;
-    sections.push({ key: "half-0", title: "This Month", summary: `${formatCents(paid)} paid · ${formatCents(left)} left`, rows: [...halves[0], ...halves[1]], progress: { value: budgeted - left, max: budgeted } });
+    sections.push({ key: "half-0", title: "This Month", summary: `${formatCents(paid)} paid · ${formatCents(left)} pending`, rows: [...halves[0], ...halves[1]], progress: { value: budgeted - left, max: budgeted } });
   } else view.halves.forEach((half, i) => {
     sections.push({
       key: `half-${i}`,
       title: half.half.label,
-      summary: `${formatCents(half.paidCents)} paid · ${formatCents(half.remainingCents)} left`,
+      summary: `${formatCents(half.paidCents)} paid · ${formatCents(half.remainingCents)} pending`,
       rows: halves[i],
       progress: { value: half.budgetedCents - half.remainingCents, max: half.budgetedCents },
     });
@@ -186,12 +200,17 @@ export default async function MonthPage({
             {MONTH_NAMES[month - 1]} {year}
           </h1>
           <p className="tnum mt-1 text-sm text-muted">
-            {view.wholeMonth ? "Whole month" : view.splitPayday ? `Split at the ${ordinal(view.splitDay)} payday` : `Split on the ${ordinal(view.splitDay)}`} ·{" "}
+            {view.periods
+              ? `${view.periods.filter((p) => p.payday).length} paychecks this month`
+              : view.wholeMonth
+                ? "Whole month"
+                : `Second half starts ${MONTH_NAMES[month - 1].slice(0, 3)} ${view.splitDay + 1}${view.splitPayday ? `, after the ${ordinal(view.splitDay)} payday` : ""}`}{" "}
+            ·{" "}
             {unpaidBills.length === 0
               ? "every bill settled"
               : `${unpaidBills.length} ${unpaidBills.length === 1 ? "bill" : "bills"} left · ${formatCents(
                   view.totalRemainingCents,
-                )} still owed`}
+                )} pending`}
           </p>
         </div>
 
@@ -263,18 +282,24 @@ export default async function MonthPage({
           />
         )}
 
-        {view.wholeMonth ? null : <StatCard
+        {view.periods ? (
+          <StatCard
+            label={current?.payday ? `${short(current.payday)} paycheck` : "This pay period"}
+            value={formatCents(current?.remainingCents ?? 0)}
+            detail={current ? `pending ${short(current.start)}–${short(current.end)}` : "no period today"}
+          />
+        ) : view.wholeMonth ? null : <StatCard
           label="First half remaining"
           value={view.transferAfterFirstCents === null ? "—" : formatCents(view.transferAfterFirstCents)}
           tone={view.transferAfterFirstCents !== null && view.transferAfterFirstCents < 0 ? "danger" : "default"}
-          detail={`${formatCents(view.halves[0].remainingCents + view.carriedCents)} still owed before the ${ordinal(view.splitDay)}${view.splitPayday ? " payday" : ""}`}
+          detail={`${formatCents(view.halves[0].remainingCents + view.carriedCents)} pending through the ${ordinal(view.splitDay)}`}
         />}
 
         <StatCard
-          label={view.wholeMonth ? "Left this month" : "Second half remaining"}
+          label={view.wholeMonth || view.periods ? "Left this month" : "Second half remaining"}
           value={free === null ? "—" : formatCents(free)}
           tone={free !== null && free < 0 ? "danger" : "default"}
-          detail={`${formatCents(view.totalRemainingCents)} still owed this month`}
+          detail={`${formatCents(view.totalRemainingCents)} pending this month`}
         />
 
         {cards && deckCards.length ? (
