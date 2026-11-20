@@ -3,6 +3,30 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.84.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Calendar:** one month at a time (‹ › to move). Every day is the same size, with up to three
+  lines and "+N more". Past days are one color (actual), days ahead another (forecast); a day
+  forecast under the cushion is amber, below $0 red, with a legend. Same-named rows on a day are
+  one line ("Coinbase ×3"). The two explanation lines are gone; the accuracy line shows only once
+  there are saved forecasts to compare.
+- **Cash chart:** about six months of history load with the page, and "‹ Earlier", "Now" and
+  "Later ›" slide the chart instead of reloading. All three stay on screen (greyed out at either
+  end), with the dates shown beside them.
+- **Debt & net worth:** Own is grouped (Cash, Retirement, Investments, Crypto, then values you
+  entered), each group opening to its accounts, with readable names (no feed ids; "401(k)",
+  "Thrift Savings Plan", last four once). With a home value entered, the net worth card shows
+  home equity (home less mortgage). The three cards sit at the same height; the trend line and
+  the loans/cards summary line are gone.
+- **Year plan:** hover any trend bar or cell for what was paid and planned. A $0 plan, or a month
+  before a row's first recorded payment, is no longer "Not paid", and the totals skip those
+  months. "Paid from what's left" items sit under Card payments. The comparison with last year
+  reads as two figures (this year, last year, same months). Tighter columns, so the table fits;
+  the note under it is gone.
+
 ## [0.83.0]
 
 **Migration 0025** (runs on start): two new tables, `ForecastPoint` (checking's forecast as it

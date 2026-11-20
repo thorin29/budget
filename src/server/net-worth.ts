@@ -19,8 +19,20 @@ export interface OwnedAsset {
   cents: number;
 }
 
+export interface OwnGroup {
+  name: string;
+  cents: number;
+  items: Array<{ name: string; cents: number }>;
+  /** A value you entered (a home, a car), not a bank account. */
+  entered: boolean;
+}
+
 export interface NetWorthView {
   own: Array<{ name: string; cents: number; entered: boolean; id?: string }>;
+  /** What you own, grouped: cash, retirement, investments, crypto, then each value you entered. */
+  groups: OwnGroup[];
+  /** A home value you entered, less the mortgage: null without both. */
+  homeEquity: { valueCents: number; mortgageCents: number; equityCents: number } | null;
   ownCents: number;
   owe: Array<{ name: string; cents: number }>;
   oweCents: number;
@@ -42,6 +54,37 @@ export async function saveOwnedAssets(list: OwnedAsset[]): Promise<void> {
   await prisma.setting.upsert({ where: { key: KEY_ASSETS }, create: { key: KEY_ASSETS, value: parsed.data as never }, update: { value: parsed.data as never } });
 }
 
+const CRYPTO = /\b(wallet|staked|btc|eth|sol|xrp|usdc|usdt|doge|dimo|coin|crypto|bitcoin|ethereum)\b/i;
+const RETIRE = /401\s*\(?k\)?|\bira\b|roth|thrift savings|\btsp\b|403\s*\(?b\)?|pension|retirement/i;
+
+/** Which group a bank account's balance belongs to. */
+function groupOf(type: string, name: string): string {
+  if (type === "CHECKING" || type === "SAVINGS") return "Cash";
+  if (type === "RETIREMENT" || RETIRE.test(name)) return "Retirement";
+  if (type === "CRYPTO" || CRYPTO.test(name)) return "Crypto";
+  if (type === "INVESTMENT") return "Investments";
+  return /saving|checking|money market/i.test(name) ? "Cash" : "Other";
+}
+const GROUP_ORDER = ["Cash", "Retirement", "Investments", "Crypto", "Other"];
+
+/**
+ * A readable account name: feed ids in brackets dropped, a repeated last-four shown once, and
+ * retirement plans called what they are.
+ */
+export function friendlyName(raw: string): string {
+  if (/401\s*\(?k\)?/i.test(raw)) return "401(k)";
+  if (/thrift savings/i.test(raw)) return "Thrift Savings Plan";
+  if (/\broth\b/i.test(raw)) return "Roth IRA";
+  let s = raw.replace(/\s*\([0-9a-f-]{12,}\)?.*$/i, "").replace(/\s*\([0-9a-f]{8}-[^)]*\)?/gi, "");
+  const four = s.match(/\((\d{3,4})\)\s*$/);
+  if (four) {
+    s = s.replace(/\s*\(\d{3,4}\)\s*$/, "");
+    if (!s.includes(four[1])) s = `${s} ··${four[1]}`;
+  }
+  s = s.replace(/\s*-\s*(\d{3,4})\b/, " ··$1").replace(/\.{2,}\s*(\d{3,4})/, "··$1").replace(/\s{2,}/g, " ").trim();
+  return s || raw;
+}
+
 const ym = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
 /** Works out net worth now and saves it as this month's figure. */
@@ -61,6 +104,21 @@ export async function getNetWorth(debtPaymentCents: number): Promise<NetWorthVie
   ];
   const owe = [...debt.installment.map((d) => ({ name: d.name, cents: d.balanceCents })), ...debt.revolving.filter((c) => c.balanceCents > 0).map((c) => ({ name: c.name, cents: c.balanceCents }))];
   const ownCents = own.reduce((t, a) => t + a.cents, 0);
+  const banks = new Map<string, Array<{ name: string; cents: number }>>();
+  for (const a of accounts.filter((x) => OWNED_TYPES.has(x.type) && x.balance !== null && toCents(x.balance) > 0)) {
+    const g = groupOf(a.type, `${a.nickname ?? ""} ${a.name}`);
+    banks.set(g, [...(banks.get(g) ?? []), { name: a.nickname || friendlyName(a.name), cents: toCents(a.balance!) }]);
+  }
+  const groups: OwnGroup[] = [
+    ...GROUP_ORDER.filter((g) => banks.has(g)).map((g) => {
+      const items = banks.get(g)!.sort((x, y) => y.cents - x.cents);
+      return { name: g, cents: items.reduce((s, i) => s + i.cents, 0), items, entered: false };
+    }),
+    ...assets.map((a) => ({ name: a.name, cents: a.cents, items: [], entered: true })),
+  ];
+  const home = assets.find((a) => /home|house|condo|property/i.test(a.name));
+  const mortgage = debt.installment.filter((d) => /mortgage|home loan|heloc/i.test(d.name)).reduce((s, d) => s + d.balanceCents, 0);
+  const homeEquity = home && mortgage ? { valueCents: home.cents, mortgageCents: mortgage, equityCents: home.cents - mortgage } : null;
   const oweCents = debt.totalCents;
   const month = ym();
   await prisma.netWorthSnapshot
@@ -68,5 +126,5 @@ export async function getNetWorth(debtPaymentCents: number): Promise<NetWorthVie
     .catch((error: unknown) => console.error("Net worth snapshot:", error instanceof Error ? error.message : error));
   const saved = (await prisma.netWorthSnapshot.findMany({ orderBy: { month: "asc" }, take: 240 }).catch(() => [])) as Array<{ month: string; ownCents: bigint; oweCents: bigint }>;
   const history = saved.slice(-12).map((s) => ({ month: s.month, netCents: Number(s.ownCents - s.oweCents) }));
-  return { own, ownCents, owe, oweCents, netCents: ownCents - oweCents, history };
+  return { own, groups, homeEquity, ownCents, owe, oweCents, netCents: ownCents - oweCents, history };
 }

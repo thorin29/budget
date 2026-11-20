@@ -53,7 +53,7 @@ export default async function DebtPage() {
       <InsightsTabs />
       <TabHeading title="Debt & net worth" />
 
-      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
         <Card>
           <p className="text-sm font-semibold text-muted">Net worth</p>
           <p className={`tnum text-3xl font-bold ${worth.netCents < 0 ? "text-danger" : "text-ok"}`}>{money(worth.netCents)}</p>
@@ -74,9 +74,15 @@ export default async function DebtPage() {
                 );
               })}
             </div>
-          ) : (
-            <p className="mt-3 text-xs text-muted">The trend builds month by month from here.</p>
-          )}
+          ) : null}
+          {worth.homeEquity ? (
+            <p className="tnum mt-3 flex justify-between gap-3 border-t border-line pt-2 text-sm">
+              <span className="text-muted" title={`Home ${money(worth.homeEquity.valueCents)} − mortgage ${money(worth.homeEquity.mortgageCents)}`}>
+                Home equity
+              </span>
+              <b className={worth.homeEquity.equityCents < 0 ? "text-danger" : "text-ok"}>{money(worth.homeEquity.equityCents)}</b>
+            </p>
+          ) : null}
         </Card>
         <Card>
           <div className="flex items-baseline justify-between gap-3">
@@ -84,13 +90,35 @@ export default async function DebtPage() {
             <span className="tnum font-bold">{money(worth.ownCents)}</span>
           </div>
           <ul className="mt-1 divide-y divide-line text-sm">
-            {worth.own.map((a, i) => (
-              <li key={`${a.name}:${i}`} className="flex items-baseline justify-between gap-3 py-1.5">
-                <span className="min-w-0 truncate">
-                  {a.name}
-                  {a.entered ? <span className="text-xs text-muted"> · you set</span> : null}
-                </span>
-                <span className="tnum font-semibold">{money(a.cents)}</span>
+            {worth.groups.map((g) => (
+              <li key={g.name} className="py-1.5">
+                {g.items.length > 1 ? (
+                  <details className="group">
+                    <summary className="flex cursor-pointer list-none items-baseline justify-between gap-3">
+                      <span>
+                        <span aria-hidden className="mr-1 inline-block text-muted transition-transform group-open:rotate-90">›</span>
+                        {g.name} <span className="text-xs text-muted">· {g.items.length}</span>
+                      </span>
+                      <span className="tnum font-semibold">{money(g.cents)}</span>
+                    </summary>
+                    <ul className="mt-1 space-y-0.5 pl-4 text-xs text-muted">
+                      {g.items.map((i, k) => (
+                        <li key={`${i.name}:${k}`} className="flex justify-between gap-3">
+                          <span className="min-w-0 truncate">{i.name}</span>
+                          <span className="tnum">{money(i.cents)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                ) : (
+                  <span className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 truncate pl-4">
+                      {g.entered ? g.name : g.items.length === 1 ? `${g.name} · ${g.items[0].name}` : g.name}
+                      {g.entered ? <span className="text-xs text-muted"> · you set</span> : null}
+                    </span>
+                    <span className="tnum font-semibold">{money(g.cents)}</span>
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -109,9 +137,6 @@ export default async function DebtPage() {
               </li>
             ))}
           </ul>
-          <p className={`mt-1 text-xs ${fees ? "text-danger" : "text-muted"}`}>
-            {money(debt.installmentCents)} in loans · {money(debt.revolvingCents)} on cards · {fees ? `${exact(fees)} card interest and fees this year` : "no card interest or fees this year"}
-          </p>
         </Card>
       </div>
 

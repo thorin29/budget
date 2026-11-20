@@ -18,11 +18,18 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 const whole = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(Math.round(cents / 100)).toLocaleString("en-US")}`;
 
 type State = "paid" | "over" | "missed" | "planned" | "none";
-function stateOf(c: YearCell): State {
+/**
+ * A $0 plan isn't owed, and before a row's first recorded payment an empty month isn't a miss (the
+ * bill likely didn't exist yet).
+ */
+function stateOf(c: YearCell, beforeFirst = false): State {
   if (c.actualCents !== null) return c.over ? "over" : "paid";
-  if (c.budgetedCents === null) return "none";
-  return c.future ? "planned" : "missed";
+  if (c.budgetedCents === null || c.budgetedCents === 0) return "none";
+  if (c.future) return "planned";
+  return beforeFirst ? "none" : "missed";
 }
+const tip = (i: number, c: YearCell) =>
+  `${MONTHS[i]}: ${c.actualCents !== null ? `${whole(c.actualCents)} paid` : "nothing paid"}${c.budgetedCents !== null ? ` · ${whole(c.budgetedCents)} planned` : ""}`;
 const TINT: Record<State, string> = {
   paid: "bg-ok-soft",
   over: "bg-warn-soft",
@@ -43,30 +50,33 @@ const SECTIONS: Array<[YearSection, string]> = [
   ["bills", "Bills"],
   ["debt", "Debt payment"],
   ["cards", "Card payments"],
-  ["surplus", "Paid from what's left"],
 ];
 
 /** What a cell counts as: paid if paid, otherwise the plan. */
 const amount = (c: YearCell) => c.actualCents ?? c.budgetedCents ?? 0;
 
-function Trend({ cells }: { cells: YearCell[] }) {
+function Trend({ cells, first }: { cells: YearCell[]; first: number }) {
   const max = Math.max(1, ...cells.map(amount));
   return (
-    <span className="flex h-[18px] items-end gap-[2px]" aria-hidden>
-      {cells.map((c, i) => (
-        <span key={i} className="w-[4px] rounded-[1px]" style={{ height: `${Math.max(c.budgetedCents === null && c.actualCents === null ? 0 : 2, (amount(c) / max) * 18)}px`, background: BAR[stateOf(c)] }} />
-      ))}
+    <span className="flex h-[18px] items-end gap-[2px]">
+      {cells.map((c, i) => {
+        const s = stateOf(c, i < first);
+        return (
+          <span key={i} title={tip(i, c)} className="flex h-full w-[5px] items-end">
+            <span className="block w-full rounded-[1px]" style={{ height: `${s === "none" && !c.actualCents ? 0 : Math.max(2, (amount(c) / max) * 18)}px`, background: BAR[s] }} />
+          </span>
+        );
+      })}
     </span>
   );
 }
 
-function CellText({ c }: { c: YearCell }) {
-  const s = stateOf(c);
-  if (s === "none") return <span className="text-line-strong">·</span>;
+function CellText({ c, s }: { c: YearCell; s: State }) {
+  if (s === "none") return <span className="text-line-strong">{c.budgetedCents === 0 && !c.future ? "" : "·"}</span>;
   if (s === "planned") return <span className="italic text-subtle">{whole(c.budgetedCents!)}</span>;
-  if (s === "missed") return <span className="font-bold text-danger" title="Not paid">{whole(c.budgetedCents!)} !</span>;
+  if (s === "missed") return <span className="font-bold text-danger">{whole(c.budgetedCents!)} !</span>;
   return (
-    <span className={s === "over" ? "font-semibold text-warn" : ""} title={s === "over" && c.budgetedCents !== null ? `Planned ${whole(c.budgetedCents)}` : undefined}>
+    <span className={s === "over" ? "font-semibold text-warn" : ""}>
       {whole(c.actualCents!)}
     </span>
   );
@@ -80,11 +90,20 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
   const now = new Date();
   const nowMonth = year === now.getFullYear() ? now.getMonth() : year < now.getFullYear() ? 12 : -1; // index of the current month
 
+  const firstIdx = (id: string) => {
+    const f = view.firstPaid[id];
+    if (!f) return 12;
+    const fy = Number(f.slice(0, 4));
+    return fy < year ? 0 : fy > year ? 12 : Number(f.slice(5, 7)) - 1;
+  };
+  // Paid amounts, or the plan where it's still owed; nothing for months that don't count (a $0
+  // plan, or before the row's first payment).
+  const monthTotal = (rows: YearRow[], i: number) => rows.reduce((t, r) => t + (stateOf(r.cells[i], i < firstIdx(r.lineItemId)) === "none" ? (r.cells[i].actualCents ?? 0) : amount(r.cells[i])), 0);
   const parts = SECTIONS.map(([key, title]) => ({ key, title, rows: view.rows.filter((r) => (view.sectionOf[r.lineItemId] ?? "bills") === key) })).filter((p) => p.rows.length);
   const rowsOf = (key: YearSection) => parts.find((p) => p.key === key)?.rows ?? [];
   const paid = (rows: YearRow[]) => rows.reduce((t, r) => t + r.paidCents, 0);
   const planned = (rows: YearRow[]) => rows.reduce((t, r) => t + r.budgetedCents, 0);
-  const monthTotal = (rows: YearRow[], i: number) => rows.reduce((t, r) => t + amount(r.cells[i]), 0);
+
 
   const income = paid(rowsOf("income"));
   const bills = paid(rowsOf("bills"));
@@ -133,7 +152,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
           .
         </EmptyState>
       ) : (
-        <div className="grid grid-cols-1 items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_18rem]">
+        <div className="grid grid-cols-1 items-start gap-4 2xl:grid-cols-[minmax(0,1fr)_15rem]">
           <Card className="!px-4 !py-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-base font-bold">Every item, every month</h2>
@@ -154,7 +173,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
               </ul>
             </div>
             <div className="mt-2 overflow-x-auto">
-              <table className="tnum w-full min-w-[900px] border-collapse text-[13px]">
+              <table className="tnum w-full border-collapse text-xs xl:text-[13px]">
                 <thead>
                   <tr className="text-xs text-muted">
                     <th scope="col" className="sticky left-0 bg-surface px-2 py-2 text-left font-semibold">
@@ -164,7 +183,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
                       Trend
                     </th>
                     {MONTHS.map((m, i) => (
-                      <th key={m} scope="col" className={`px-1.5 py-2 text-right font-semibold ${i === nowMonth ? "rounded-t-md bg-accent-soft text-accent-text" : ""}`}>
+                      <th key={m} scope="col" className={`px-1 py-2 text-right font-semibold ${i === nowMonth ? "rounded-t-md bg-accent-soft text-accent-text" : ""}`}>
                         {m}
                       </th>
                     ))}
@@ -175,7 +194,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
                 </thead>
                 <tbody>
                   {parts.map((p) => (
-                    <SectionRows key={p.key} title={p.title} rows={p.rows} nowMonth={nowMonth} monthTotal={(i) => monthTotal(p.rows, i)} paid={paid(p.rows)} />
+                    <SectionRows key={p.key} title={p.title} rows={p.rows} nowMonth={nowMonth} monthTotal={(i) => monthTotal(p.rows, i)} paid={paid(p.rows)} firstIdx={firstIdx} />
                   ))}
                 </tbody>
                 <tfoot>
@@ -187,7 +206,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
                     {MONTHS.map((m, i) => {
                       const v = monthTotal(rowsOf("income"), i) - monthTotal(rowsOf("bills"), i) - monthTotal(rowsOf("debt"), i);
                       return (
-                        <td key={m} className={`px-1.5 py-2 text-right ${v < 0 ? "text-danger" : "text-ok"} ${i >= nowMonth ? "font-semibold opacity-70" : ""}`}>
+                        <td key={m} className={`px-1 py-2 text-right ${v < 0 ? "text-danger" : "text-ok"} ${i >= nowMonth ? "font-semibold opacity-70" : ""}`}>
                           {whole(v)}
                         </td>
                       );
@@ -197,7 +216,6 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
                 </tfoot>
               </table>
             </div>
-            <p className="mt-2 text-xs text-muted">Months still to come show the plan. The bottom row counts paid amounts, or the plan where nothing is paid yet.</p>
           </Card>
 
           <Card className="grid gap-x-8 gap-y-3 sm:grid-cols-3 2xl:block 2xl:space-y-3">
@@ -241,9 +259,20 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
               </div>
             ) : null}
             {closed > 0 && lastSame > 0 ? (
-              <p className="text-xs text-muted">
-                vs {year - 1}, {MONTHS[0]}–{MONTHS[closed - 1]}: bills {thisSame >= lastSame ? "up" : "down"} {whole(Math.abs(thisSame - lastSame))} ({Math.round((Math.abs(thisSame - lastSame) / lastSame) * 100)}%)
-              </p>
+              <div className="text-sm">
+                <h3 className="font-bold">Bills paid, {MONTHS[0]}–{MONTHS[closed - 1]}</h3>
+                <p className="tnum mt-1 flex justify-between">
+                  <span className="text-muted">{year}</span>
+                  <b>{whole(thisSame)}</b>
+                </p>
+                <p className="tnum flex justify-between">
+                  <span className="text-muted">{year - 1}</span>
+                  <span>{whole(lastSame)}</span>
+                </p>
+                <p className={`tnum text-xs ${thisSame > lastSame ? "text-warn" : "text-ok"}`}>
+                  {thisSame >= lastSame ? "Up" : "Down"} {whole(Math.abs(thisSame - lastSame))} ({Math.round((Math.abs(thisSame - lastSame) / lastSame) * 100)}%) on the same months last year
+                </p>
+              </div>
             ) : null}
           </Card>
         </div>
@@ -252,7 +281,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
   );
 }
 
-function SectionRows({ title, rows, nowMonth, monthTotal, paid }: { title: string; rows: YearRow[]; nowMonth: number; monthTotal: (i: number) => number; paid: number }) {
+function SectionRows({ title, rows, nowMonth, monthTotal, paid, firstIdx }: { title: string; rows: YearRow[]; nowMonth: number; monthTotal: (i: number) => number; paid: number; firstIdx: (id: string) => number }) {
   return (
     <>
       <tr className="bg-neutral-soft">
@@ -261,7 +290,7 @@ function SectionRows({ title, rows, nowMonth, monthTotal, paid }: { title: strin
         </th>
         <td />
         {MONTHS.map((m, i) => (
-          <td key={m} className={`px-1.5 py-1.5 text-right font-bold ${i === nowMonth ? "bg-accent-soft" : ""}`}>
+          <td key={m} className={`px-1 py-1.5 text-right font-bold ${i === nowMonth ? "bg-accent-soft" : ""}`}>
             {whole(monthTotal(i))}
           </td>
         ))}
@@ -269,17 +298,20 @@ function SectionRows({ title, rows, nowMonth, monthTotal, paid }: { title: strin
       </tr>
       {rows.map((row) => (
         <tr key={row.lineItemId} className="border-t border-line">
-          <th scope="row" className="sticky left-0 max-w-44 truncate bg-surface px-2 py-1.5 pl-4 text-left font-medium">
+          <th scope="row" className="sticky left-0 max-w-40 truncate bg-surface px-2 py-1.5 pl-3 text-left font-medium">
             {row.name}
           </th>
           <td className="px-2 py-1.5">
-            <Trend cells={row.cells} />
+            <Trend cells={row.cells} first={firstIdx(row.lineItemId)} />
           </td>
-          {row.cells.map((cell, i) => (
-            <td key={i} className={`px-1.5 py-1.5 text-right ${TINT[stateOf(cell)]} ${i === nowMonth ? "outline outline-1 -outline-offset-1 outline-accent/40" : ""}`}>
-              <CellText c={cell} />
-            </td>
-          ))}
+          {row.cells.map((cell, i) => {
+            const s = stateOf(cell, i < firstIdx(row.lineItemId));
+            return (
+              <td key={i} title={tip(i, cell)} className={`px-1 py-1.5 text-right ${TINT[s]} ${i === nowMonth ? "outline outline-1 -outline-offset-1 outline-accent/40" : ""}`}>
+                <CellText c={cell} s={s} />
+              </td>
+            );
+          })}
           <td className="px-2 py-1.5 text-right font-semibold">{whole(row.paidCents)}</td>
         </tr>
       ))}

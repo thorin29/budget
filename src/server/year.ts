@@ -46,6 +46,8 @@ export interface YearView extends YearGrid {
   sectionOf: Record<string, YearSection>;
   /** Previous year, by month (index 0 = January): what was paid on rows that are bills now. */
   previousBillsByMonth: Cents[];
+  /** Each row's first recorded payment ever, YYYY-MM: before it, an empty month isn't a miss. */
+  firstPaid: Record<string, string>;
 }
 
 export type YearSection = "income" | "bills" | "debt" | "cards" | "surplus";
@@ -106,15 +108,23 @@ export async function getYearView(year: number, now = new Date()): Promise<YearV
     paydaysIn: await loadPaydays(),
   });
 
-  const [cardRows, prevActuals] = (await Promise.all([
+  const [cardRows, prevActuals, firsts] = (await Promise.all([
     prisma.bankAccount.findMany({ where: { type: "CREDIT_CARD", hidden: false }, select: { id: true, name: true, nickname: true, institution: true, promoEndsOn: true } }),
     prisma.actualEntry.findMany({ where: { year: year - 1 }, select: { lineItemId: true, month: true, amount: true } }),
-  ])) as [CardRow[], Array<{ lineItemId: string; month: number; amount: { toString(): string } }>];
+    prisma.actualEntry.findMany({ select: { lineItemId: true, year: true, month: true } }),
+  ])) as [CardRow[], Array<{ lineItemId: string; month: number; amount: { toString(): string } }>, Array<{ lineItemId: string; year: number; month: number }>];
+  // The first month with a payment, for each row.
+  const firstPaid: Record<string, string> = {};
+  for (const f of firsts) {
+    const k = `${f.year}-${String(f.month).padStart(2, "0")}`;
+    if (!firstPaid[f.lineItemId] || k < firstPaid[f.lineItemId]) firstPaid[f.lineItemId] = k;
+  }
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
   const { isCardPayment, isDebt } = billTypes(items as unknown as BillItem[], cardRows, today);
   const sectionOf: Record<string, YearSection> = {};
   for (const i of items) {
-    sectionOf[i.id] = i.kind === "INCOME" ? "income" : i.paidFromSurplus ? "surplus" : isDebt(i.id) ? "debt" : isCardPayment(i.id) ? "cards" : "bills";
+    // Paid from what's left is a card payment too (the month plan treats it as one).
+    sectionOf[i.id] = i.kind === "INCOME" ? "income" : isDebt(i.id) ? "debt" : isCardPayment(i.id) || i.paidFromSurplus ? "cards" : "bills";
   }
   const previousBillsByMonth = Array.from({ length: 12 }, () => 0);
   for (const a of prevActuals) if (sectionOf[a.lineItemId] === "bills") previousBillsByMonth[a.month - 1] += toCents(a.amount);
@@ -131,5 +141,6 @@ export async function getYearView(year: number, now = new Date()): Promise<YearV
       : null,
     sectionOf,
     previousBillsByMonth,
+    firstPaid,
   };
 }
