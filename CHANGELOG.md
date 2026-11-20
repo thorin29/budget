@@ -3,6 +3,16 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.87.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Home value** (Setup): type in the estimates from Zillow, Redfin, Realtor.com or any other
+  source; their average becomes the Home value in net worth, with the range shown. Each keeps the
+  date it was entered, and a note appears once they're over three months old. RentCast is still
+  there, folded away, for anyone with a key; typed-in estimates take priority.
+
 ## [0.86.0]
 
 No migration. The phone app is unchanged.

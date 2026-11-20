@@ -14,6 +14,7 @@ import {
   refreshHomeValueAction,
   resetGroupsAction,
   saveGroupAction,
+  saveHomeEstimatesAction,
   saveHomeValueAction,
   setCategoryGroupAction,
   setCushionAction,
@@ -33,6 +34,8 @@ export interface SetupBudget {
   categories: Array<{ id: string; name: string }>;
 }
 export interface SetupHome {
+  estimates: Array<{ source: string; cents: number; on: string }>;
+  averageCents: number | null;
   address: string;
   hasKey: boolean;
   valueCents: number | null;
@@ -128,8 +131,9 @@ export function SetupPanel({
             <button type="button" onClick={() => setSel("new")} className={`w-full rounded-lg px-2.5 py-1.5 text-left text-sm font-semibold text-accent-text ${sel === "new" ? "bg-accent-soft" : "hover:bg-neutral-soft"}`}>
               + New budget
             </button>
-            <button type="button" onClick={() => setSel("home")} className={`w-full rounded-lg px-2.5 py-1.5 text-left text-sm ${sel === "home" ? "bg-accent-soft font-bold" : "hover:bg-neutral-soft"}`}>
-              Home value <span className="text-xs text-muted">· RentCast</span>
+            <button type="button" onClick={() => setSel("home")} className={`flex w-full justify-between rounded-lg px-2.5 py-1.5 text-left text-sm ${sel === "home" ? "bg-accent-soft font-bold" : "hover:bg-neutral-soft"}`}>
+              <span>Home value</span>
+              <span className="tnum text-xs text-muted">{home?.averageCents ? money(home.averageCents) : home?.valueCents ? money(home.valueCents) : ""}</span>
             </button>
           </div>
         </nav>
@@ -366,49 +370,81 @@ function NewBudget({ pending, act, state }: { pending: boolean; act: Act; state:
 }
 
 function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pending: boolean; act: Act; state: EnvelopeState | null }) {
+  const start: Array<{ source: string; amount: string; on?: string }> = home?.estimates.length
+    ? home.estimates.map((e) => ({ source: e.source, amount: String(Math.round(e.cents / 100)), on: e.on }))
+    : [{ source: "Zillow", amount: "" }, { source: "Redfin", amount: "" }, { source: "Realtor.com", amount: "" }];
+  const [rows, setRows] = useState(start);
   const [address, setAddress] = useState(home?.address ?? "");
   const [key, setKey] = useState("");
-  const when = home?.fetchedAt ? new Date(home.fetchedAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" }) : null;
+  const nums = rows.map((r) => toCents(r.amount)).filter((c): c is number => c !== null && c > 0);
+  const avg = nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : null;
+  const set = (i: number, patch: Partial<{ source: string; amount: string }>) => setRows((r) => r.map((x, k) => (k === i ? { ...x, ...patch } : x)));
+  const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
+  const oldest = home?.estimates.length ? home.estimates.map((e) => e.on).sort()[0] : null;
+  const stale = oldest ? Date.now() - Date.parse(`${oldest}T00:00:00Z`) > 90 * 86_400_000 : false;
   return (
     <div className="max-w-2xl space-y-4">
       <div>
         <h2 className="text-xl font-bold">Home value</h2>
-        <p className="mt-1 text-sm text-muted">
-          An estimate from RentCast by address, kept as the Home value in net worth and refreshed once a month. Needs a RentCast API key (free plan at rentcast.io).
-        </p>
+        <p className="mt-1 text-sm text-muted">Type in the estimates from Zillow, Redfin and others (a web search for your address shows them). Their average becomes the Home value in net worth.</p>
       </div>
-      {home?.valueCents ? (
-        <p className="rounded-xl bg-neutral-soft px-4 py-3 text-sm">
-          <b className="tnum text-lg">{money(home.valueCents)}</b>
-          {home.lowCents && home.highCents ? (
-            <span className="tnum text-muted">
-              {" "}
-              · range {money(home.lowCents)}–{money(home.highCents)}
-            </span>
-          ) : null}
-          {when ? <span className="text-muted"> · as of {when}</span> : null}
-        </p>
-      ) : null}
-      {home?.error ? <p className="text-sm text-danger">Last lookup: {home.error}</p> : null}
-      <label className="block text-sm">
-        <span className="mb-1 block text-xs text-muted">Address</span>
-        <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, City, ST 12345" className="w-full rounded-lg border border-line bg-surface px-2 py-1.5" />
-      </label>
-      <label className="block text-sm">
-        <span className="mb-1 block text-xs text-muted">RentCast API key {home?.hasKey ? "(saved; leave blank to keep it)" : ""}</span>
-        <input value={key} onChange={(e) => setKey(e.target.value)} type="password" autoComplete="off" placeholder={home?.hasKey ? "••••••••" : "Paste the key"} className="w-full rounded-lg border border-line bg-surface px-2 py-1.5" />
-      </label>
-      <div className="flex flex-wrap items-center gap-3">
-        <button type="button" disabled={pending || !address.trim() || (!key.trim() && !home?.hasKey)} className={BTN} onClick={() => act(() => saveHomeValueAction(address, key || null))}>
-          Save and look up
+      {stale ? <p className="rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">These are over three months old: worth checking again.</p> : null}
+      <div className="space-y-1.5">
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center gap-2">
+            <input aria-label="Source" value={r.source} onChange={(e) => set(i, { source: e.target.value })} className="w-40 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm" />
+            <input aria-label={`${r.source || "Source"} estimate`} inputMode="decimal" placeholder="$" value={r.amount} onChange={(e) => set(i, { amount: e.target.value })} className={`${INPUT} w-36 py-1.5`} />
+            {r.on ? <span className="text-xs text-muted">{fmt(r.on)}</span> : null}
+            <button type="button" aria-label={`Remove ${r.source || "row"}`} className="text-sm text-muted hover:text-danger" onClick={() => setRows((x) => x.filter((_, k) => k !== i))}>
+              ✕
+            </button>
+          </div>
+        ))}
+        <button type="button" className="text-xs font-semibold text-accent-text hover:underline" onClick={() => setRows((x) => [...x, { source: "", amount: "" }])}>
+          + Add a source
         </button>
-        {home?.hasKey ? (
-          <button type="button" disabled={pending} className={QUIET} onClick={() => act(() => refreshHomeValueAction())}>
-            Look up again
-          </button>
-        ) : null}
-        {pending ? <span className="text-xs text-muted">Asking RentCast…</span> : <Note state={state} />}
       </div>
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-sm">
+          Average <b className="tnum">{avg !== null ? money(avg) : "—"}</b>
+          {nums.length > 1 ? <span className="tnum text-xs text-muted"> · range {money(Math.min(...nums))}–{money(Math.max(...nums))}</span> : null}
+        </span>
+        <button
+          type="button"
+          disabled={pending}
+          className={BTN}
+          onClick={() => act(() => saveHomeEstimatesAction(rows.map((r) => ({ source: r.source, cents: toCents(r.amount) ?? 0 })).filter((r) => r.source.trim() && r.cents > 0)))}
+        >
+          Save
+        </button>
+        <Note state={state} />
+      </div>
+      <details className="rounded-xl border border-line p-3 text-sm">
+        <summary className="cursor-pointer font-semibold">Or look it up automatically with RentCast</summary>
+        <p className="mt-2 text-xs text-muted">Needs a RentCast account and API key (they ask for a card even on the free plan). Typed-in estimates above take priority when there are any.</p>
+        {home?.valueCents ? (
+          <p className="tnum mt-2 text-xs">
+            RentCast: <b>{money(home.valueCents)}</b>
+            {home.lowCents && home.highCents ? ` (range ${money(home.lowCents)}–${money(home.highCents)})` : ""}
+            {home.fetchedAt ? ` · ${new Date(home.fetchedAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}` : ""}
+          </p>
+        ) : null}
+        {home?.error ? <p className="mt-1 text-xs text-danger">Last lookup: {home.error}</p> : null}
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <input aria-label="Address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, City, ST 12345" className="rounded-lg border border-line bg-surface px-2 py-1.5" />
+          <input aria-label="RentCast API key" value={key} onChange={(e) => setKey(e.target.value)} type="password" autoComplete="off" placeholder={home?.hasKey ? "Key saved (blank keeps it)" : "API key"} className="rounded-lg border border-line bg-surface px-2 py-1.5" />
+        </div>
+        <div className="mt-2 flex flex-wrap gap-2">
+          <button type="button" disabled={pending || !address.trim() || (!key.trim() && !home?.hasKey)} className={QUIET} onClick={() => act(() => saveHomeValueAction(address, key || null))}>
+            Save and look up
+          </button>
+          {home?.hasKey ? (
+            <button type="button" disabled={pending} className={QUIET} onClick={() => act(() => refreshHomeValueAction())}>
+              Look up again
+            </button>
+          ) : null}
+        </div>
+      </details>
     </div>
   );
 }

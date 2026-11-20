@@ -1,5 +1,6 @@
 /**
- * The home's value from RentCast (an estimate by address), kept as the "Home" value in net worth.
+ * The home's value: estimates you type in from Zillow, Redfin and the like (averaged), or one
+ * from RentCast by address. Either way it's kept as the "Home" value in net worth.
  * The address and API key are saved in Setup (the key sealed with BANK_SYNC_KEY); the value
  * refreshes once a month on its own, or now from Setup. The free RentCast plan allows a limited
  * number of lookups a month, so it's never asked more than once a day.
@@ -24,9 +25,21 @@ interface Stored {
   highCents: number | null;
   fetchedAt: string | null;
   error: string | null;
+  /** Estimates typed in, one per source. */
+  estimates?: HomeEstimate[];
+}
+
+export interface HomeEstimate {
+  source: string;
+  cents: number;
+  /** YYYY-MM-DD it was entered. */
+  on: string;
 }
 
 export interface HomeValueView {
+  estimates: HomeEstimate[];
+  /** The average of the estimates, or null without any. */
+  averageCents: number | null;
   address: string;
   hasKey: boolean;
   valueCents: number | null;
@@ -46,7 +59,9 @@ async function store(v: Stored) {
 
 export async function homeValue(): Promise<HomeValueView | null> {
   const s = await load();
-  return s ? { address: s.address, hasKey: !!s.keyEnc, valueCents: s.valueCents, lowCents: s.lowCents, highCents: s.highCents, fetchedAt: s.fetchedAt, error: s.error } : null;
+  const estimates = s?.estimates ?? [];
+  const averageCents = estimates.length ? Math.round(estimates.reduce((t, e) => t + e.cents, 0) / estimates.length) : null;
+  return s ? { estimates, averageCents, address: s.address, hasKey: !!s.keyEnc, valueCents: s.valueCents, lowCents: s.lowCents, highCents: s.highCents, fetchedAt: s.fetchedAt, error: s.error } : null;
 }
 
 /** Saves the address and (when given) a new API key, then looks the value up. */
@@ -58,7 +73,7 @@ export async function saveHomeValueSetup(address: string, apiKey: string | null)
   const old = await load();
   const keyEnc = apiKey && apiKey.trim() ? seal(apiKey.trim(), secret, PURPOSE) : (old?.keyEnc ?? null);
   if (!keyEnc) throw new ValidationError({ apiKey: ["Paste your RentCast API key"] });
-  await store({ address: a, keyEnc, valueCents: old?.address === a ? old.valueCents : null, lowCents: null, highCents: null, fetchedAt: old?.address === a ? old.fetchedAt : null, error: null });
+  await store({ address: a, keyEnc, valueCents: old?.address === a ? old.valueCents : null, lowCents: null, highCents: null, fetchedAt: old?.address === a ? old.fetchedAt : null, error: null, estimates: old?.estimates ?? [] });
   return (await refreshHomeValue(true))!;
 }
 
@@ -75,14 +90,37 @@ export async function refreshHomeValue(force = false): Promise<HomeValueView | n
     if (typeof json.price !== "number" || json.price <= 0) throw new BankFeedError("RentCast has no estimate for that address");
     const valueCents = Math.round(json.price * 100);
     await store({ ...s, valueCents, lowCents: json.priceRangeLow ? Math.round(json.priceRangeLow * 100) : null, highCents: json.priceRangeHigh ? Math.round(json.priceRangeHigh * 100) : null, fetchedAt: new Date().toISOString(), error: null });
-    // Net worth's "Home" value follows the estimate.
-    const assets = await ownedAssets();
-    const i = assets.findIndex((x) => /^(home|house)\b/i.test(x.name));
-    if (i >= 0) assets[i] = { ...assets[i], cents: valueCents };
-    else assets.unshift({ id: "home", name: "Home", cents: valueCents });
-    await saveOwnedAssets(assets);
+    // Net worth's "Home" value follows the estimate, unless estimates were typed in (they win).
+    if (!s.estimates?.length) await setHomeAsset(valueCents);
   } catch (error) {
     await store({ ...s, fetchedAt: new Date().toISOString(), error: error instanceof Error ? error.message : "Lookup failed" });
   }
   return homeValue();
+}
+
+async function setHomeAsset(cents: number) {
+  const assets = await ownedAssets();
+  const i = assets.findIndex((x) => /^(home|house)\b/i.test(x.name));
+  if (i >= 0) assets[i] = { ...assets[i], cents };
+  else assets.unshift({ id: "home", name: "Home", cents });
+  await saveOwnedAssets(assets);
+}
+
+/** Saves the estimates typed in; their average becomes the Home value. */
+export async function saveHomeEstimates(list: Array<{ source: string; cents: number }>): Promise<HomeValueView> {
+  const clean = list
+    .map((e) => ({ source: e.source.trim().slice(0, 40), cents: Math.round(e.cents) }))
+    .filter((e) => e.source && Number.isFinite(e.cents) && e.cents > 0 && e.cents < 1e12);
+  if (clean.length > 8) throw new ValidationError({ estimates: ["Up to 8 estimates"] });
+  const old = await load();
+  const before = new Map((old?.estimates ?? []).map((e) => [e.source.toLowerCase(), e]));
+  const today = new Date().toISOString().slice(0, 10);
+  // A source whose amount didn't change keeps the date it was entered.
+  const estimates = clean.map((e) => {
+    const had = before.get(e.source.toLowerCase());
+    return { ...e, on: had && had.cents === e.cents ? had.on : today };
+  });
+  await store({ address: old?.address ?? "", keyEnc: old?.keyEnc ?? null, valueCents: old?.valueCents ?? null, lowCents: old?.lowCents ?? null, highCents: old?.highCents ?? null, fetchedAt: old?.fetchedAt ?? null, error: old?.error ?? null, estimates });
+  if (estimates.length) await setHomeAsset(Math.round(estimates.reduce((t, e) => t + e.cents, 0) / estimates.length));
+  return (await homeValue())!;
 }
