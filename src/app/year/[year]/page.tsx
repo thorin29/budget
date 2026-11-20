@@ -197,6 +197,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
         }
       />
       <h1 className="sr-only">Year plan {year}</h1>
+      <p className="text-xs text-muted">From the bill list: what was paid, in the month it was paid. Card spending shows when the card is paid.</p>
 
       {view.rows.length === 0 ? (
         <EmptyState>

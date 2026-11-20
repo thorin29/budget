@@ -15,6 +15,7 @@ import { recentPlans, trendMonth, type TrendMonth } from "@/server/plan-charts";
 import { MonthPicker, TabHeading, monthLabel, monthParam, pickMonth } from "../shared";
 import { formatCents } from "@/lib/money";
 import { Card } from "@/components/ui";
+import { historyStarts } from "@/server/history-coverage";
 
 export const dynamic = "force-dynamic";
 
@@ -30,10 +31,14 @@ const VIEWS: Array<[View, string]> = [
   ["suggestions", "Suggestions"],
 ];
 
-/** The average of the closed months before [ym] (up to three), or null without any. */
+/** The middle of the closed months before [ym] (up to three), or null without any. Not an average: one big month doesn't move it. */
+const middle = (xs: number[]) => {
+  const s = [...xs].sort((a, b) => a - b);
+  return s.length % 2 ? s[(s.length - 1) / 2] : Math.round((s[s.length / 2 - 1] + s[s.length / 2]) / 2);
+};
 function usual<T extends { month: string }>(rows: T[], ym: string, pick: (r: T) => number): number | null {
   const before = rows.filter((r) => r.month < ym).slice(-3);
-  return before.length ? Math.round(before.reduce((t, r) => t + pick(r), 0) / before.length) : null;
+  return before.length ? middle(before.map(pick)) : null;
 }
 
 function versus(cents: number, avg: number | null) {
@@ -71,7 +76,7 @@ function categoryRows(plan: MonthPlanView, before: MonthPlanView[]): CatRow[] {
   return [...keys]
     .map((key) => {
       const r = now.get(key) ?? past.map((m) => m.get(key)).find(Boolean)!;
-      const avg = past.length ? Math.round(past.reduce((t, m) => t + (m.get(key)?.cents ?? 0), 0) / past.length) : null;
+      const avg = past.length ? middle(past.map((m) => m.get(key)?.cents ?? 0)) : null;
       return { key, id: r.id, name: r.name, cents: now.get(key)?.cents ?? 0, avgCents: avg };
     })
     .filter((r) => r.cents !== 0 || (r.avgCents ?? 0) > 0);
@@ -126,7 +131,7 @@ function CategoriesView({ plan, before, sort }: { plan: MonthPlanView; before: M
             Where it went <span className="tnum font-normal text-muted">· {whole(total)} everyday spending</span>
           </h2>
           <span className="flex items-center gap-3 text-xs text-muted">
-            <span>Line = usual (3-month average)</span>
+            <span>Line = usual (middle of 3 months)</span>
             <span>
               Sort:{" "}
               <Link href={href("biggest")} className={sort === "biggest" ? "font-bold text-foreground" : "hover:underline"}>
@@ -259,7 +264,7 @@ function MonthsView({ months, selected, everydayOnly }: { months: TrendMonth[]; 
       </Card>
       <Card>
         <h2 className="text-base font-bold">{long(sel.month)} vs usual</h2>
-        <p className="text-xs text-muted">Usual = average of the 3 full months before</p>
+        <p className="text-xs text-muted">Usual = the middle of the 3 full months before</p>
         <dl className="mt-2 divide-y divide-line text-sm">
           {panel.map(([label, cents, a, sub]) => (
             <div key={label} className={`flex items-baseline justify-between gap-3 py-2 ${sub ? "pl-3" : ""}`}>
@@ -391,7 +396,19 @@ export default async function TrendsPage({ searchParams }: { searchParams: Promi
     // Months with nothing in or out are before the history starts: leave them off.
     const months = (await recentPlans(plan, 12)).map(trendMonth);
     const first = months.findIndex((x) => x.incomeCents || x.expensesCents);
-    body = <MonthsView months={months.slice(Math.max(0, first))} selected={ym} everydayOnly={out === "everyday"} />;
+    const shown = months.slice(Math.max(0, first));
+    // Accounts whose history starts partway through the months shown: those months are missing their spending.
+    const late = (await historyStarts().catch(() => [])).filter((a) => shown.length && a.firstMonth > shown[0].month);
+    body = (
+      <>
+        {late.length ? (
+          <p className="rounded-xl bg-warn-soft px-3.5 py-2 text-xs text-warn">
+            Partial before {late.map((a) => `${monthLabel(Number(a.firstMonth.slice(0, 4)), Number(a.firstMonth.slice(5, 7)), "short")} (${a.name})`).join(", ")}: no bank history yet for {late.length === 1 ? "that account" : "those accounts"}.
+          </p>
+        ) : null}
+        <MonthsView months={shown} selected={ym} everydayOnly={out === "everyday"} />
+      </>
+    );
   }
 
   const tab = (k: View) => `/insights/trends?view=${k}&m=${ym}`;
@@ -412,6 +429,7 @@ export default async function TrendsPage({ searchParams }: { searchParams: Promi
         }
       />
       <TabHeading title="Trends" />
+      {view !== "suggestions" ? <p className="text-xs text-muted">From bank transactions: spending counts in the month it was charged.</p> : null}
       {body}
     </div>
   );

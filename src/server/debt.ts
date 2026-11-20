@@ -33,8 +33,8 @@ export const INTEREST_FEE = /\b(interest( charge)?|finance charge|late fee|past 
 const NOT_LOAN = "loan";
 
 export interface InstallmentDebt {
-  /** A bill, or a 0% card. */
-  kind: "bill" | "zero";
+  /** A bill, a 0% card, or a loan account from the bank feed that no bill pays yet. */
+  kind: "bill" | "zero" | "account";
   id: string;
   name: string;
   balanceCents: number;
@@ -104,6 +104,14 @@ export async function getDebt(debtPaymentCents: number): Promise<DebtView> {
     }) as Promise<Array<{ id: string; name: string; plannedAmount: { toString(): string }; endYear: number | null; endMonth: number | null; category: { name: string } | null }>>,
     prisma.reviewDismissal.findMany({ where: { kind: NOT_LOAN }, select: { key: true } }) as Promise<Array<{ key: string }>>,
   ]);
+  // Loan and mortgage accounts in the feed count even before a bill is tied to them.
+  const [loanAccounts, tied] = await Promise.all([
+    prisma.bankAccount.findMany({ where: { hidden: false, type: { in: ["LOAN", "MORTGAGE"] } }, select: { id: true, name: true, nickname: true, balance: true } }) as Promise<
+      Array<{ id: string; name: string; nickname: string | null; balance: { toString(): string } | null }>
+    >,
+    prisma.lineItem.findMany({ where: { payoffAccountId: { not: null } }, select: { payoffAccountId: true } }) as Promise<Array<{ payoffAccountId: string | null }>>,
+  ]);
+  const tiedIds = new Set(tied.map((t) => t.payoffAccountId));
 
   const ym = (y: number | null, m: number | null) => (y && m ? `${y}-${String(m).padStart(2, "0")}` : null);
   // A bill that has ended (its last month is behind us) isn't a loan any more, even with a balance on it.
@@ -122,6 +130,20 @@ export async function getDebt(debtPaymentCents: number): Promise<DebtView> {
     installment.push({
       kind: "zero", id: t.id, name: t.name, balanceCents: t.balanceCents, paymentCents: debtPaymentCents, aprBps: 0, paymentsLeft: months,
       lastMonth: last ? iso(last).slice(0, 7) : null, neverEnds: false, interestLeftCents: null, source: "card", asOf: null, endsOn: t.endsOn, startCents: t.startCents,
+    });
+  }
+  for (const a of loanAccounts) {
+    const owed = a.balance === null ? 0 : Math.abs(toCents(a.balance));
+    if (tiedIds.has(a.id) || owed <= 0) continue;
+    // A bill with a typed balance may already be this loan: same balance (within 3%), or a mortgage bill for a mortgage account.
+    const label = `${a.nickname ?? ""} ${a.name}`;
+    const typedTwin = installment.some(
+      (d) => d.kind === "bill" && (Math.abs(d.balanceCents - owed) <= owed * 0.03 || (/mortgage|home loan/i.test(label) && /mortgage|home loan/i.test(d.name))),
+    );
+    if (typedTwin) continue;
+    installment.push({
+      kind: "account", id: a.id, name: a.nickname || displayAccountName(a.name), balanceCents: owed, paymentCents: 0, aprBps: null, paymentsLeft: null,
+      lastMonth: null, neverEnds: false, interestLeftCents: null, source: "bank", asOf: null, endsOn: null, startCents: null,
     });
   }
   installment.sort((a, b) => b.balanceCents - a.balanceCents);

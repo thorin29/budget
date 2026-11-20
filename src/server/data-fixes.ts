@@ -8,6 +8,8 @@
  *  - subscriptionsAreBills: a subscription is a charge that repeats on its own, so the separate
  *    Subscriptions budget goes away and its categories move to the bills group. A subscription
  *    charge not on the bill list then shows on the Money tab with "Make it a bill."
+ *  - linkAllHistory: payments on record for any year are paired with their bank charges, so an
+ *    imported year's charges stop showing as "charges that may be bills" next to the payment.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -59,6 +61,8 @@ async function subscriptionsAreBills(): Promise<number> {
 const FIXES: Array<[string, () => Promise<number>]> = [
   ["parkingTolls", parkingTolls],
   ["subscriptionsAreBills", subscriptionsAreBills],
+  // Payments recorded or imported for earlier years meet their bank charges (it used to look back two years).
+  ["linkAllHistory", async () => (await import("./bills-auto")).linkRecordedPayments()],
 ];
 
 export async function runDataFixes(): Promise<void> {

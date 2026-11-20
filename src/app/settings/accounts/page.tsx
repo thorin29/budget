@@ -34,7 +34,7 @@ export default async function AccountsSettings({ searchParams }: { searchParams:
   const { g, edit } = await searchParams;
   if (configuredKey()) await applyTypeGuesses();
   const [accounts, connection, ledger, cushion, plan] = await Promise.all([listBankAccounts(), getConnection(), listAccounts({ includeInactive: true }), cushionSetting(), getMonthPlan().catch(() => null)]);
-  const debt = { cents: plan?.debt.cents ?? 0, automatic: (plan?.debt.source ?? "auto") !== "set", targetCents: plan?.debt.targetCents ?? null };
+  const debt = { cents: plan?.debt.cents ?? 0, automatic: (plan?.debt.source ?? "auto") !== "set", targetCents: plan?.debt.targetCents ?? null, shortCents: plan?.debt.shortCents ?? 0 };
   const typed = ledger.filter((a) => a.origin !== "bank");
 
   const live = accounts.filter((a) => !a.hidden);

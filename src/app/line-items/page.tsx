@@ -1,6 +1,7 @@
 import { monthSplit } from "@/server/pay-split";
 import Link from "next/link";
 import { getLineItem, lineItemHistory, listLineItems } from "@/server/line-items";
+import { sameNameTags } from "@/lib/same-names";
 import { listAccounts } from "@/server/accounts";
 import { listCategories } from "@/server/categories";
 import { listPaySchedules } from "@/server/pay-schedule";
@@ -145,6 +146,7 @@ export default async function LineItemsPage({
   const { splitDay } = await monthSplit(now.getUTCFullYear(), now.getUTCMonth() + 1, settings);
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
   const inactiveCount = items.filter((i) => !i.active).length;
+  const shownName = sameNameTags(items);
   const visible = showInactive ? items : items.filter((i) => i.active);
   const base = showInactive ? "/line-items?show=all" : "/line-items";
   const join = (extra: string) => `${base}${base.includes("?") ? "&" : "?"}${extra}`;
@@ -203,7 +205,7 @@ export default async function LineItemsPage({
                   >
                     <div className="min-w-0 flex-1">
                       <p className={`truncate text-sm font-semibold ${item.active ? "" : "text-muted line-through"}`}>
-                        {item.name}
+                        {shownName.get(item.id) ?? item.name}
                       </p>
                       <p className="mt-0.5 truncate text-xs text-muted">
                         {[

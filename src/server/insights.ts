@@ -11,6 +11,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { middleOf } from "@/lib/usual";
 import { toCents } from "@/lib/money";
 import { SPENDING_TYPES, type AccountType } from "@/lib/account-type";
 import { isIncomeCategory } from "@/lib/category-guess";
@@ -203,7 +204,8 @@ export async function getInsights(year: number, month: number, monthsBack = 12, 
     id: key || null,
     name,
     cents: byCategory.get(end)?.get(key)?.cents ?? 0,
-    averageCents: prior.length ? Math.round(prior.reduce((s, n) => s + (byCategory.get(n)?.get(key)?.cents ?? 0), 0) / prior.length) : 0,
+    // The typical month before, not an average (kept under its old name).
+    averageCents: middleOf(prior.map((n) => byCategory.get(n)?.get(key)?.cents ?? 0)),
     lastYearCents: null as number | null,
   }))
     .filter((c) => c.cents > 0 || c.averageCents > 0)
@@ -246,8 +248,8 @@ export async function getInsights(year: number, month: number, monthsBack = 12, 
   const avg = (xs: number[]) => (xs.length ? Math.round(xs.reduce((a, b) => a + b, 0) / xs.length) : 0);
   let pace: Pace | null = null;
   if (isCurrent && prior.length) {
-    const usualMonthCents = avg(avgOf);
-    const usualByNowCents = avg(prior.map((n) => byNow.get(n) ?? 0));
+    const usualMonthCents = middleOf(avgOf);
+    const usualByNowCents = middleOf(prior.map((n) => byNow.get(n) ?? 0));
     const cardShare = avgOf.reduce((a, b) => a + b, 0) ? prior.reduce((a, n) => a + (onCards.get(n) ?? 0), 0) / avgOf.reduce((a, b) => a + b, 0) : 0;
     pace = {
       day: todayDay,

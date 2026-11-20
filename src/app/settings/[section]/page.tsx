@@ -30,6 +30,7 @@ import { cushionSetting } from "@/server/envelopes";
 import { getMonthPlan } from "@/server/month-plan";
 import { SETTING_KEYS } from "@/lib/settings";
 import { Importer } from "../../import/importer";
+import { ChangesFile } from "../changes-file";
 import { setAppearanceAction } from "../actions";
 import { SECTIONS, type SectionSlug } from "../sections";
 import { currentUser, listUsers } from "@/server/auth";
@@ -351,6 +352,14 @@ async function Data() {
         <SectionHeading title="Import & Export" />
         <Importer batches={batches} />
       </div>
+
+      <Card>
+        <h3 className="font-sans text-base font-bold">Changes File</h3>
+        <p className="mt-1 text-sm text-muted">Fixes many things at once. Check the steps, then apply. It can&rsquo;t be undone, so back up the database first.</p>
+        <div className="mt-3">
+          <ChangesFile />
+        </div>
+      </Card>
 
       <Card>
         <h3 className="font-sans text-base font-bold">Export</h3>

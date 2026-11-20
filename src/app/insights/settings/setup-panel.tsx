@@ -167,7 +167,7 @@ export function HomePanel({ home }: { home: SetupHome | null }) {
 }
 
 /** Settings › Planning: the 0% debt payment and the one checking cushion. */
-export function PlanningExtras({ debt, cushionCents, only }: { debt: { cents: number; automatic: boolean; targetCents: number | null }; cushionCents: number; only?: "debt" | "cushion" }) {
+export function PlanningExtras({ debt, cushionCents, only }: { debt: { cents: number; automatic: boolean; targetCents: number | null; shortCents?: number }; cushionCents: number; only?: "debt" | "cushion" }) {
   return <TopBar debt={debt} cushionCents={cushionCents} ungrouped={0} onUnsorted={() => undefined} only={only} />;
 }
 
@@ -266,7 +266,7 @@ export function BudgetsPanel({
   );
 }
 
-function TopBar({ debt, cushionCents, ungrouped, onUnsorted, only }: { debt: { cents: number; automatic: boolean; targetCents: number | null }; cushionCents: number; ungrouped: number; onUnsorted: () => void; only?: "debt" | "cushion" }) {
+function TopBar({ debt, cushionCents, ungrouped, onUnsorted, only }: { debt: { cents: number; automatic: boolean; targetCents: number | null; shortCents?: number }; cushionCents: number; ungrouped: number; onUnsorted: () => void; only?: "debt" | "cushion" }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [d, setD] = useState(debt.automatic ? "" : String(Math.round(debt.cents / 100)));
@@ -284,7 +284,8 @@ function TopBar({ debt, cushionCents, ungrouped, onUnsorted, only }: { debt: { c
       <label className="flex items-center gap-2">
         <b>0% debt payment</b>
         <input aria-label="0% debt payment each month" className={`${INPUT} w-24`} placeholder="auto" value={d} onChange={(e) => setD(e.target.value)} onBlur={() => d !== (debt.automatic ? "" : String(Math.round(debt.cents / 100))) && save(() => setDebtPaymentAction(toCents(d)))} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
-        {debt.targetCents ? <span className="text-xs text-muted">{money(debt.targetCents)}/mo clears it in time</span> : null}
+        {debt.targetCents ? <span className="text-xs text-muted">{debt.automatic ? `Auto: ${money(debt.targetCents)}/mo clears it in time` : `${money(debt.targetCents)}/mo clears it in time`}</span> : null}
+        {debt.targetCents ? <span className={`text-xs font-semibold ${debt.shortCents ? "text-danger" : "text-ok"}`}>{debt.shortCents ? `Short by ${money(debt.shortCents)} this month` : "Enough this month"}</span> : null}
       </label>
       ) : null}
       {only !== "debt" ? (

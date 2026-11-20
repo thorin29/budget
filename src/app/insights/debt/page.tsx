@@ -38,6 +38,7 @@ export default async function DebtPage() {
   const short = (n: string) => n.replace(/\s*\(.*?\)\s*/g, " ").trim().split(/\s+/).slice(0, 2).join(" ");
   const tabs = debt.installment.flatMap((d) => {
     if (d.kind === "zero") return chart ? [{ key: d.id, label: short(d.name), panel: <ZeroPanel debt={chart} /> }] : [];
+    if (d.kind === "account") return [];
     return [{
       key: d.id,
       label: short(d.name),
@@ -165,7 +166,7 @@ export default async function DebtPage() {
                     <td className="py-2 pr-3">
                       <span className="font-semibold">{d.name}</span>
                       <span className="block text-xs text-muted">
-                        {d.kind === "zero" ? `0% until ${day(d.endsOn!)}, ${d.endsOn!.slice(0, 4)}` : d.source === "bank" ? "Balance from the bank" : d.asOf ? `Balance as of ${day(d.asOf)}, less payments since` : ""}
+                        {d.kind === "zero" ? `0% until ${day(d.endsOn!)}, ${d.endsOn!.slice(0, 4)}` : d.kind === "account" ? "From the bank · no bill pays it yet" : d.source === "bank" ? "Balance from the bank" : d.asOf ? `Balance as of ${day(d.asOf)}, less payments since` : ""}
                         {d.interestLeftCents ? ` · about ${money(d.interestLeftCents)} interest to go` : ""}
                       </span>
                       {d.kind === "bill" ? (
@@ -175,10 +176,17 @@ export default async function DebtPage() {
                             {d.aprBps === null ? "Add its rate" : "Change"} in Bills &amp; income
                           </Link>
                         </span>
+                      ) : d.kind === "account" ? (
+                        <span className="block text-xs text-muted">
+                          Pick it as the loan in its bill&rsquo;s{" "}
+                          <Link href="/line-items" className="font-semibold text-accent-text hover:underline">
+                            payoff settings
+                          </Link>
+                        </span>
                       ) : null}
                     </td>
                     <td className="tnum py-2 pr-3 text-right font-semibold">{money(d.balanceCents)}</td>
-                    <td className="tnum py-2 pr-3 text-right">{money(d.paymentCents)}/mo</td>
+                    <td className="tnum py-2 pr-3 text-right">{d.paymentCents ? `${money(d.paymentCents)}/mo` : "—"}</td>
                     <td className="tnum py-2 pr-3 text-right">{d.aprBps === null ? <span className="text-muted">?</span> : pct(d.aprBps)}</td>
                     <td className={`py-2 text-right ${d.neverEnds || (d.endsOn && d.lastMonth && d.lastMonth > d.endsOn.slice(0, 7)) ? "text-danger" : ""}`}>
                       {d.neverEnds ? "Never: the payment is below the interest" : d.lastMonth ? monthYear(d.lastMonth) : "—"}

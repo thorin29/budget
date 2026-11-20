@@ -20,6 +20,7 @@ import { safeHttpUrl } from "@/lib/safe-url";
 import { prisma } from "@/lib/prisma";
 import { toCents, toDecimalString, type Cents } from "@/lib/money";
 import { ChangedElsewhereError, ValidationError } from "./errors";
+import { sameNameTags } from "@/lib/same-names";
 import {
   buildObligations,
   halfFor,
@@ -210,7 +211,8 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   const splitDay = split.splitDay;
 
   const [items, categories, accounts] = (await Promise.all([
-    prisma.lineItem.findMany({ where: { active: true } }),
+    // Inactive items still show in a month they were paid, so the month matches the Year view.
+    prisma.lineItem.findMany({ where: { OR: [{ active: true }, { actuals: { some: { year, month } } }] } }),
     prisma.category.findMany(),
     prisma.account.findMany(),
   ])) as [LineItemRow[], NamedRow[], NamedRow[]];
@@ -272,9 +274,10 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   );
   const settled = new Set(actuals.map((a) => key(a.lineItemId, a.year, a.month)));
 
+  const shown = sameNameTags(items.map((i) => ({ id: i.id, name: i.name, dueDay: i.dueDay, paydayNumber: (i as { paydayNumber?: number | null }).paydayNumber ?? null, active: i.active })));
   const forModel: LineItemForMonth[] = items.map((i) => ({
     id: i.id,
-    name: i.name,
+    name: shown.get(i.id) ?? i.name,
     kind: i.kind as MonthEntry["kind"],
     dueDay: i.dueDay,
     periodAssignment: i.periodAssignment as never,
@@ -318,7 +321,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     const item = itemById.get(o.lineItemId)!;
     return {
       lineItemId: item.id,
-      name: item.name,
+      name: shown.get(item.id) ?? item.name,
       year: o.year,
       month: o.month,
       kind: item.kind as MonthEntry["kind"],
@@ -341,8 +344,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
   // Paid items for this month, which buildObligations deliberately omits.
   for (const item of items) {
     if (item.kind === "INCOME") continue;
-    if (!isDueInMonth(forModel.find((f) => f.id === item.id)!, year, month)) continue;
-
+    // Paid in a month outside its schedule: still shown, so the month adds up to what was paid.
     const k = key(item.id, year, month);
     const actual = actualMap.get(k);
     if (actual === undefined) continue;
@@ -352,7 +354,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
 
     entries.push({
       lineItemId: item.id,
-      name: item.name,
+      name: shown.get(item.id) ?? item.name,
       year,
       month,
       kind: item.kind as MonthEntry["kind"],
@@ -419,7 +421,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
       const payday = item.paydayNumber ? paydaysIn(year, month)[item.paydayNumber - 1] : undefined;
       return {
         lineItemId: item.id,
-        name: item.name,
+        name: shown.get(item.id) ?? item.name,
         year,
         month,
         kind: "INCOME" as const,

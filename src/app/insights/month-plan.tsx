@@ -189,12 +189,17 @@ export function HowItAddsUp({ plan }: { plan: MonthPlanView }) {
             label={`Debt payment${d.name ? `: ${d.name}` : ""}`}
             cents={d.cents}
             note={
-              d.source === "paid" ? "Paid this month" : d.source === "set" ? "The amount you set" : d.source === "plan" ? "The bill for that card" : d.source === "minimum" ? "About the minimum (1% of the balance)" : undefined
+              d.source === "paid" ? "Paid this month" : d.source === "set" ? "The amount you set" : d.source === "plan" ? "The bill for that card" : d.source === "target" ? "Clears it before the 0% offer ends" : d.source === "minimum" ? "About the minimum (1% of the balance)" : undefined
             }
           >
             <ul className="space-y-1 text-xs">
               {d.dueOn ? <li>Due {day(d.dueOn)}</li> : null}
               {d.balanceCents !== null ? <li>{exact(d.balanceCents)} owed{d.endsOn ? `; the 0% offer ends ${day(d.endsOn)}, ${d.endsOn.slice(0, 4)}` : ""}</li> : null}
+              {d.balanceCents && !plan.closed ? (
+                <li className={d.shortCents ? "font-semibold text-danger" : "font-semibold text-ok"}>
+                  {d.shortCents ? `Short by ${money(d.shortCents)} after bills and usual spending` : "Enough after bills and usual spending"}
+                </li>
+              ) : null}
               {d.doneIn ? <li>At {money(d.cents)} a month it&rsquo;s paid off in {monthName(d.doneIn)}.</li> : null}
               {d.targetCents ? (
                 <li className={d.cents >= d.targetCents ? "text-ok" : "text-warn"}>

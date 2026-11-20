@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { middleOf } from "@/lib/usual";
 import { notFound } from "next/navigation";
 import { getCategoryDetail } from "@/server/category-detail";
 import { NotFoundError } from "@/server/errors";
@@ -28,7 +29,7 @@ export default async function CategoryPage({ params, searchParams }: { params: P
   }
   const max = Math.max(1, ...detail.months.map((x) => x.cents));
   const prior = detail.months.slice(-4, -1);
-  const average = prior.length ? Math.round(prior.reduce((s, x) => s + x.cents, 0) / prior.length) : 0;
+  const average = middleOf(prior.map((x) => x.cents));
   const thisMonth = detail.months[detail.months.length - 1]?.cents ?? 0;
   const yearTotal = detail.months.reduce((s, x) => s + x.cents, 0);
 
@@ -39,7 +40,7 @@ export default async function CategoryPage({ params, searchParams }: { params: P
       </Link>
       <PageHeading
         title={detail.name}
-        description={`${money(thisMonth)} in ${monthLabel(year, month)} · ${whole(average)} a month on average over the three months before · ${whole(yearTotal)} over these 12 months`}
+        description={`${money(thisMonth)} in ${monthLabel(year, month)} · ${whole(average)} usually (the middle of the three months before) · ${whole(yearTotal)} over these 12 months`}
       />
 
       {detail.id === null ? (

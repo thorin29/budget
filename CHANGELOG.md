@@ -3,6 +3,38 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.97.0]
+
+No migration. The phone app is unchanged. On first start, payments on record for every year are
+paired with their bank charges (once).
+
+### Added
+- **Import & Export › Changes File:** a JSON list of fixes (rename, merge or delete categories and
+  budgets, set a bill's category, kind, accounts or months, merge bills, tie a loan account or a pay
+  schedule, recategorize or unpair transactions, merchant rules, and picks left to you). Every step
+  is shown and checked before anything changes.
+- **0% card:** the automatic payment is what clears the balance before the offer ends, and the
+  month shows "Enough" or "Short by $X" after bills and usual spending.
+- **Same-name items** show one name with a tag: "Pay · 2nd paycheck", "Crypto · 23rd".
+- **Trends** marks months before an account's bank history starts as partial. Trends and the Year
+  plan each say what they count (charged vs paid).
+
+### Changed
+- **Usual spending** is the typical month (the middle of the last 12), or the same month when it ran
+  higher in each of the past two years. It was a 12-month average, so one big month inflated it.
+  Trends, category pages and the month's pace compare with the middle of the months before, not
+  their average.
+- Recorded payments pair with bank charges across all history (it stopped at about two years), and
+  pairing settles monthly chains by month, prefers a charge that names the bill, and needs the
+  bill's name or merchant for round small amounts like $35.00.
+
+### Fixed
+- Loan and mortgage accounts from the bank count in Debt and Net Worth even before a bill is tied
+  to them (unless a bill with a typed balance already looks like the same loan).
+- A month that's over counts the 0% payment actually made, not one worked out from today's balance.
+- A payment recorded in a month outside its bill's schedule (or on an inactive bill) shows on the
+  Tracker, as it already did in the Year plan.
+
 ## [0.96.1]
 
 No migration. The phone app is unchanged.

@@ -53,6 +53,7 @@ const STOP = new Set(["the", "and", "for", "bill", "payment", "pymt", "pmt", "au
 export function tokens(text: string): Set<string> {
   return new Set(
     text
+      .split(" · ")[0] // a same-name tag ("Pay · 2nd paycheck") isn't part of the name
       .toLowerCase()
       .replace(/[^a-z0-9 ]+/g, " ")
       .split(/\s+/)

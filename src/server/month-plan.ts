@@ -16,6 +16,7 @@ import { getMonthView, type MonthEntry } from "./month";
 import { payoffTrackers } from "./card-payments";
 import { billCharge } from "./bill-merchants";
 import { ensureGroups, debtSetting } from "./envelopes";
+import { usualFor } from "@/lib/usual";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 /** A credit on a card, or money leaving checking, that reads like a card payment. */
@@ -95,8 +96,8 @@ export interface MonthPlanView extends Omit<MonthPlanOut, "groups"> {
   };
   debt: {
     cents: number;
-    /** "set": the amount you set; "plan": the bill for that card; "paid": what was paid this month; "minimum": about 1% of the balance. */
-    source: "set" | "plan" | "paid" | "minimum" | "none";
+    /** "set": the amount you set; "plan": the bill for that card; "paid": what was paid this month; "target": what clears the 0% balance before the offer ends; "minimum": about 1% of the balance. */
+    source: "set" | "plan" | "paid" | "target" | "minimum" | "none";
     name: string | null;
     dueOn: string | null;
     balanceCents: number | null;
@@ -105,6 +106,8 @@ export interface MonthPlanView extends Omit<MonthPlanOut, "groups"> {
     targetCents: number | null;
     /** The month it clears at this payment. YYYY-MM */
     doneIn: string | null;
+    /** How much the month falls short of covering the payment after bills and usual spending (0: enough). */
+    shortCents: number;
   };
   standing: "ok" | "low" | "over";
   message: string | null;
@@ -176,7 +179,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   const closed = n < nowN;
   const monthStart = new Date(Date.UTC(y, m - 1, 1));
   const monthEnd = new Date(Date.UTC(y, m, 1));
-  const windowStart = new Date(Date.UTC(y, m - 1 - 12, 1));
+  const windowStart = new Date(Date.UTC(y, m - 1 - 24, 1));
   const daysInMonth = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const daysLeft = closed ? 0 : daysInMonth - Number(today.slice(8, 10)) + 1;
 
@@ -248,15 +251,19 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   const balance = trackers.length ? trackers.reduce((s, t) => s + t.balanceCents, 0) : null;
   const paidDebt = debtEntries.filter((e) => e.actualCents !== null).reduce((s, e) => s + (e.actualCents ?? 0), 0);
   const plannedDebt = debtEntries.filter((e) => !e.skipped).reduce((s, e) => s + e.budgetedCents, 0);
-  let debtSource: MonthPlanView["debt"]["source"] = "none";
-  let debtCents = 0;
-  if (paidDebt > 0 && debtEntries.every((e) => e.actualCents !== null || e.skipped)) [debtCents, debtSource] = [paidDebt, "paid"];
-  else if (debtSet !== null) [debtCents, debtSource] = [Math.max(debtSet, paidDebt), "set"];
-  else if (plannedDebt > 0) [debtCents, debtSource] = [Math.max(plannedDebt, paidDebt), "plan"];
-  else if (balance) [debtCents, debtSource] = [Math.ceil(balance / 100), "minimum"];
   const endsOn = trackers.length ? trackers.map((t) => t.endsOn).sort()[0] : null;
   // Payments left before the offer ends, counting from next month.
   const monthsToEnd = endsOn ? Math.max(1, Number(endsOn.slice(0, 4)) * 12 + Number(endsOn.slice(5, 7)) - nowN) : null;
+  const targetCents = balance !== null && balance > 0 && monthsToEnd ? Math.ceil(balance / monthsToEnd) : null;
+  let debtSource: MonthPlanView["debt"]["source"] = "none";
+  let debtCents = 0;
+  // A month that's over counts what was actually paid; today's balance says nothing about it.
+  if (closed) [debtCents, debtSource] = paidDebt > 0 ? [paidDebt, "paid"] : [0, "none"];
+  else if (paidDebt > 0 && debtEntries.every((e) => e.actualCents !== null || e.skipped)) [debtCents, debtSource] = [paidDebt, "paid"];
+  else if (debtSet !== null) [debtCents, debtSource] = [Math.max(debtSet, paidDebt), "set"];
+  else if (plannedDebt > 0) [debtCents, debtSource] = [Math.max(plannedDebt, paidDebt), "plan"];
+  else if (targetCents) [debtCents, debtSource] = [Math.max(targetCents, paidDebt), "target"];
+  else if (balance) [debtCents, debtSource] = [Math.ceil(balance / 100), "minimum"];
   const doneIn = (() => {
     if (balance === null || balance <= 0 || debtCents <= 0) return null;
     const k = Math.ceil(balance / debtCents) - 1;
@@ -325,8 +332,8 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
       }
     }
   }
-  const history = firstMonth === null ? 1 : Math.max(1, Math.min(12, ymn(monthStart) - firstMonth));
-  const usual = (id: string) => Math.round([...(usualByMonth.get(id)?.values() ?? [])].reduce((a, b) => a + b, 0) / history);
+  // The typical month (or the same month, when it runs higher every year), not an average.
+  const usual = (id: string) => usualFor(usualByMonth.get(id) ?? new Map(), ymn(monthStart), firstMonth);
   const spentIn = (id: string) => [...(spent.get(id)?.values() ?? [])].reduce((s, c) => s + c.cents, 0);
 
   const otherCents = otherBills.reduce((s, t) => s + t.cents, 0);
@@ -348,6 +355,9 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     groups: planGroups.map((g) => ({ id: g.id, tier: g.tier, manualCents: g.manualCents, usualCents: g.usualCents, spentCents: g.spentCents })),
   });
   const outById = new Map(out.groups.map((g) => [g.id, g]));
+  // Whether the month covers the debt payment: money in, less bills, usual spending and the payment.
+  const usualSpend = planGroups.reduce((s2, g) => s2 + Math.max(g.usualCents, g.spentCents), 0);
+  const debtShort = !closed && debtCents > 0 && balance ? Math.max(0, debtCents + billsCents + usualSpend - incomeCents) : 0;
 
   const viewGroups: PlanGroup[] = planGroups.map((g) => {
     const o = outById.get(g.id)!;
@@ -406,7 +416,8 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
       dueOn: debtDue,
       balanceCents: balance,
       endsOn,
-      targetCents: balance !== null && monthsToEnd ? Math.ceil(balance / monthsToEnd) : null,
+      targetCents,
+      shortCents: debtShort,
       doneIn,
     },
     ...out,

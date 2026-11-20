@@ -21,6 +21,8 @@ export interface RecordedEntry {
   dueDay: number | null;
   /** The bill's name, so a charge that names it can match a different amount. */
   name?: string;
+  /** Merchant keys already tied to the bill. */
+  knownKeys?: string[];
 }
 
 const day = (iso: string) => Math.round(Date.parse(`${iso}T00:00:00Z`) / 86_400_000);
@@ -31,42 +33,76 @@ function dueIso(year: number, month: number, dueDay: number | null): string {
 }
 
 /**
- * Pairs hand-recorded payments with the bank charge that was them: the right
- * direction, a date that fits (within 5 days of the paid date given, or near
- * that month's due day), and either the same amount (within $1) or a charge
- * that shares a word with the bill's name at a similar amount (60–140%), since
- * bills like utilities vary. Only pairs where neither side has another
- * candidate are returned.
+ * Pairs hand-recorded payments with the bank charge that was them, across all history.
+ *
+ * A charge is a candidate when it goes the right way, its date fits, and either it names the bill
+ * (shares a word with the bill's name, or comes from a merchant already tied to the bill) at a
+ * similar amount (60–140%, since bills like utilities vary), or it is the same amount within $1.
+ * A same-amount-only match needs at least $100 or an amount with cents, because round small
+ * amounts ($35.00) turn up at any store. Dates fit within 5 days of the paid date given;
+ * otherwise near that month's due day (12 days, 20 with no due day, 25 for a charge that names
+ * the bill).
+ *
+ * Charges that name the bill beat ones that only share the amount. Then pairs are made one to one,
+ * closest first, only when the choice is clear: the entry's only candidate left, or its only one in
+ * the entry's own month, and likewise from the charge's side. That settles a monthly chain (a
+ * deposit at the end of one month and another at the end of the next) without guessing.
  */
 export function pairRecorded(entries: RecordedEntry[], txns: MatchTxn[]): Array<{ actualId: string; lineItemId: string; txnId: string }> {
-  const candidates = new Map<string, Set<string>>();
-  const byTxn = new Map<string, Set<string>>();
+  type Cand = { e: RecordedEntry; t: MatchTxn; named: boolean; dist: number; sameMonth: boolean };
+  const byEntry = new Map<string, Cand[]>();
+  const words = new Map(txns.map((t) => [t.id, tokens(`${t.merchant} ${t.description}`)]));
   for (const e of entries) {
     if (e.amountCents <= 0) continue;
+    const nameWords = e.name !== undefined ? [...tokens(e.name)] : [];
+    const known = new Set(e.knownKeys ?? []);
+    const ym = `${e.year}-${String(e.month).padStart(2, "0")}`;
+    const list: Cand[] = [];
     for (const t of txns) {
       if (e.income ? t.amountCents <= 0 : t.amountCents >= 0) continue;
       const amount = Math.abs(t.amountCents);
       const exact = Math.abs(amount - e.amountCents) <= 100;
-      const named =
-        !exact && e.name !== undefined && amount >= e.amountCents * 0.6 && amount <= e.amountCents * 1.4 &&
-        [...tokens(e.name)].some((w) => tokens(`${t.merchant} ${t.description}`).has(w));
-      if (!exact && !named) continue;
+      const similar = amount >= e.amountCents * 0.6 && amount <= e.amountCents * 1.4;
+      const named = similar && ((t.merchantKey !== "" && known.has(t.merchantKey)) || (nameWords.length > 0 && nameWords.some((w) => words.get(t.id)!.has(w))));
+      const amountOnly = exact && (e.amountCents >= 10_000 || e.amountCents % 100 !== 0);
+      if (!named && !amountOnly) continue;
       const posted = day(t.postedOn);
-      const fits = e.paidOn
-        ? Math.abs(posted - day(e.paidOn)) <= 5
-        : Math.abs(posted - day(dueIso(e.year, e.month, e.dueDay))) <= (e.dueDay ? 12 : 20);
-      if (!fits) continue;
-      candidates.set(e.actualId, new Set([...(candidates.get(e.actualId) ?? []), t.id]));
-      byTxn.set(t.id, new Set([...(byTxn.get(t.id) ?? []), e.actualId]));
+      const dist = e.paidOn ? Math.abs(posted - day(e.paidOn)) : Math.abs(posted - day(dueIso(e.year, e.month, e.dueDay)));
+      const limit = e.paidOn ? 5 : named ? 25 : e.dueDay ? 12 : 20;
+      if (dist > limit) continue;
+      list.push({ e, t, named, dist, sameMonth: t.postedOn.slice(0, 7) === ym });
     }
+    // A charge that names the bill outranks one that only shares the amount.
+    const best = list.some((c) => c.named) ? list.filter((c) => c.named) : list;
+    if (best.length) byEntry.set(e.actualId, best);
   }
+  const byTxn = new Map<string, Cand[]>();
+  for (const list of byEntry.values()) for (const c of list) byTxn.set(c.t.id, [...(byTxn.get(c.t.id) ?? []), c]);
+
+  const usedEntry = new Set<string>();
+  const usedTxn = new Set<string>();
   const out: Array<{ actualId: string; lineItemId: string; txnId: string }> = [];
-  for (const e of entries) {
-    const mine = candidates.get(e.actualId);
-    if (!mine || mine.size !== 1) continue;
-    const [txnId] = [...mine];
-    if (byTxn.get(txnId)?.size !== 1) continue;
-    out.push({ actualId: e.actualId, lineItemId: e.lineItemId, txnId });
+  /** The one clear choice in a list, or null: the only one left, or the only one in its own month. */
+  const clear = (list: Cand[], free: (c: Cand) => boolean): Cand | null => {
+    const left = list.filter(free);
+    if (left.length === 1) return left[0];
+    const inMonth = left.filter((c) => c.sameMonth);
+    return inMonth.length === 1 ? inMonth[0] : null;
+  };
+  for (let changed = true; changed; ) {
+    changed = false;
+    const ordered = [...byEntry.values()].flat().sort((a, b) => Number(b.named) - Number(a.named) || Number(b.sameMonth) - Number(a.sameMonth) || a.dist - b.dist);
+    for (const c of ordered) {
+      if (usedEntry.has(c.e.actualId) || usedTxn.has(c.t.id)) continue;
+      const fromEntry = clear(byEntry.get(c.e.actualId)!, (x) => !usedTxn.has(x.t.id));
+      if (fromEntry !== c) continue;
+      const fromTxn = clear(byTxn.get(c.t.id)!, (x) => !usedEntry.has(x.e.actualId));
+      if (fromTxn !== c) continue;
+      usedEntry.add(c.e.actualId);
+      usedTxn.add(c.t.id);
+      out.push({ actualId: c.e.actualId, lineItemId: c.e.lineItemId, txnId: c.t.id });
+      changed = true;
+    }
   }
   return out;
 }

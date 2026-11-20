@@ -39,29 +39,31 @@ export interface AutomationResult {
   cardPayments: number;
 }
 
-/** 1. Hand-recorded payments meet their bank charges. */
+/** 1. Hand-recorded payments meet their bank charges, across all history (imported years too). */
 export async function linkRecordedPayments(): Promise<number> {
-  const since = new Date(Date.now() - 800 * DAY);
   const entries = (await prisma.actualEntry.findMany({
-    where: { bankTransactionId: null, year: { gte: since.getUTCFullYear() } },
+    where: { bankTransactionId: null },
     select: { id: true, lineItemId: true, year: true, month: true, amount: true, paidOn: true, lineItem: { select: { kind: true, dueDay: true, name: true } } },
   })) as Array<{ id: string; lineItemId: string; year: number; month: number; amount: { toString(): string }; paidOn: Date | null; lineItem: { kind: string; dueDay: number | null; name: string } }>;
   if (!entries.length) return 0;
 
   const txns = (await prisma.bankTransaction.findMany({
-    where: { postedOn: { gte: since }, pending: false, kind: { not: "IGNORED" }, actual: { is: null }, account: { hidden: false } },
+    where: { pending: false, kind: { not: "IGNORED" }, actual: { is: null }, account: { hidden: false } },
     select: { id: true, postedOn: true, amount: true, merchant: true, description: true, account: { select: { type: true } } },
   })) as Array<{ id: string; postedOn: Date; amount: { toString(): string }; merchant: string; description: string; account: { type: AccountType } }>;
   const merchantOf = new Map(txns.map((t) => [t.id, t.merchant]));
   const usable: MatchTxn[] = txns
     .map((t) => ({ t, cents: toCents(t.amount) }))
     .filter(({ t, cents }) => SPENDING_TYPES.includes(t.account.type) || (cents > 0 && t.account.type === "SAVINGS"))
-    .map(({ t, cents }) => ({ id: t.id, postedOn: iso(t.postedOn), amountCents: cents, merchant: t.merchant, description: t.description, merchantKey: "" }));
+    .map(({ t, cents }) => ({ id: t.id, postedOn: iso(t.postedOn), amountCents: cents, merchant: t.merchant, description: t.description, merchantKey: merchantKey(t.merchant) }));
+  const rules = (await prisma.billRule.findMany({ select: { lineItemId: true, merchantKey: true } })) as Array<{ lineItemId: string; merchantKey: string }>;
+  const knownKeys = new Map<string, string[]>();
+  for (const r of rules) knownKeys.set(r.lineItemId, [...(knownKeys.get(r.lineItemId) ?? []), r.merchantKey]);
 
   const pairs = pairRecorded(
     entries.map((e) => ({
       actualId: e.id, lineItemId: e.lineItemId, year: e.year, month: e.month, income: e.lineItem.kind === "INCOME",
-      amountCents: toCents(e.amount), paidOn: e.paidOn ? iso(e.paidOn) : null, dueDay: e.lineItem.dueDay, name: e.lineItem.name,
+      amountCents: toCents(e.amount), paidOn: e.paidOn ? iso(e.paidOn) : null, dueDay: e.lineItem.dueDay, name: e.lineItem.name, knownKeys: knownKeys.get(e.lineItemId),
     })),
     usable,
   );

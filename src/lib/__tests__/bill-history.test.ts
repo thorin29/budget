@@ -31,6 +31,28 @@ describe("pairRecorded", () => {
   });
 });
 
+describe("pairRecorded across history", () => {
+  it("settles a monthly chain by month", () => {
+    const va = (month: number) => entry({ actualId: `v${month}`, lineItemId: "va", month, amountCents: 155_000, income: true, dueDay: null, name: "Pension" });
+    const dep = (id: string, postedOn: string) => txn({ id, postedOn, amountCents: 155_000, merchant: "Pension Deposit" });
+    const pairs = pairRecorded([va(1), va(2), va(3)], [dep("d0", "2025-12-30"), dep("d1", "2026-01-29"), dep("d2", "2026-02-26"), dep("d3", "2026-03-31")].map((t) => ({ ...t, postedOn: t.postedOn })));
+    // Entries are 2026 by default via entry(): year 2026.
+    expect(pairs.map((p) => `${p.actualId}:${p.txnId}`).sort()).toEqual(["v1:d1", "v2:d2", "v3:d3"]);
+  });
+
+  it("needs the bill's name or merchant for round small amounts", () => {
+    const crypto = entry({ lineItemId: "crypto", name: "Crypto", amountCents: 3_500, dueDay: 23 });
+    expect(pairRecorded([crypto], [txn({ amountCents: -3_500, merchant: "Dollar Tree", postedOn: "2026-10-22" })])).toEqual([]);
+    expect(pairRecorded([{ ...crypto, knownKeys: ["cb"] }], [txn({ amountCents: -3_500, merchant: "Transfer to Exchange", merchantKey: "cb", postedOn: "2026-10-22" })])).toHaveLength(1);
+  });
+
+  it("prefers the charge that names the bill", () => {
+    const pest = entry({ lineItemId: "pest", name: "Pest Control", amountCents: 16_000, dueDay: 28 });
+    const pairs = pairRecorded([pest], [txn({ id: "h", amountCents: -16_000, merchant: "Example Pest Co", postedOn: "2026-10-08" }), txn({ id: "x", amountCents: -16_000, merchant: "Sports Shop", postedOn: "2026-10-27" })]);
+    expect(pairs.map((p) => p.txnId)).toEqual(["h"]);
+  });
+});
+
 describe("due days", () => {
   it("learns the posting day from three or more steady months", () => {
     expect(learnedDueDay(["2026-08-18", "2026-09-17", "2026-10-19"])).toBe(18);
