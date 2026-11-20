@@ -3,6 +3,14 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.97.1]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Changes File:** a bill can be named instead of given by id, when only one bill has that name
+  (for a bill an import just created).
+
 ## [0.97.0]
 
 No migration. The phone app is unchanged. On first start, payments on record for every year are

@@ -1,7 +1,7 @@
 /**
  * A changes file: a list of corrections to existing data (rename or merge categories, set a bill's
  * category, recategorize transactions, tie a loan account to its bill…), checked first and then
- * applied in order. For bringing history from somewhere else into shape in one go instead of
+ * applied in order (bills by id, or by name when only one bill has it). For bringing history from somewhere else into shape in one go instead of
  * clicking through each fix. Things are named by id (as the audit file shows them); categories and
  * budgets can also be named by name, so a file can create one and use it in the same run.
  *
@@ -87,6 +87,24 @@ export function parseChanges(text: string): z.infer<typeof File> {
   return parsed.data;
 }
 
+/**
+ * Bills can be named instead of given by id (handy for a bill an import just made): a value that
+ * isn't an id and matches exactly one bill's name becomes that bill's id.
+ */
+async function resolveBills(file: z.infer<typeof File>): Promise<z.infer<typeof File>> {
+  const items = (await prisma.lineItem.findMany({ select: { id: true, name: true } })) as Array<{ id: string; name: string }>;
+  const ids = new Set(items.map((i) => i.id));
+  const byName = new Map<string, string[]>();
+  for (const i of items) byName.set(i.name, [...(byName.get(i.name) ?? []), i.id]);
+  const fix = (v: string) => (ids.has(v) ? v : byName.get(v)?.length === 1 ? byName.get(v)![0] : v);
+  const ops = file.ops.map((op) => {
+    if (op.op === "mergeBill") return { ...op, fromId: fix(op.fromId), intoId: fix(op.intoId) };
+    if ("lineItemId" in op) return { ...op, lineItemId: fix(op.lineItemId) };
+    return op;
+  });
+  return { ...file, ops };
+}
+
 /** What the names and ids in the file point at, as the steps run (a created category counts from then on). */
 class World {
   categories = new Map<string, { id: string; name: string }>(); // by id
@@ -112,7 +130,7 @@ const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
 
 /** Describes each step and checks it can be done, without changing anything. */
 export async function previewChanges(text: string): Promise<{ note: string | null; steps: ChangeStep[] }> {
-  const file = parseChanges(text);
+  const file = await resolveBills(parseChanges(text));
   const world = await new World().load();
   const [items, accounts, banks, schedules] = (await Promise.all([
     prisma.lineItem.findMany({ select: { id: true, name: true, dueDay: true, paydayNumber: true, active: true } }),
@@ -274,7 +292,7 @@ export async function previewChanges(text: string): Promise<{ note: string | nul
  * pairs recorded payments with charges again and reapplies category rules.
  */
 export async function applyChanges(text: string, choices: Record<string, string>): Promise<{ applied: number; skipped: Array<{ n: number; problem: string }> }> {
-  const file = parseChanges(text);
+  const file = await resolveBills(parseChanges(text));
   const world = await new World().load();
   const skipped: Array<{ n: number; problem: string }> = [];
   let applied = 0;
