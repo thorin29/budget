@@ -32,6 +32,19 @@ export async function register(): Promise<void> {
       })
       .catch((error) => console.error("Accounts:", error instanceof Error ? error.message : error));
   }, 15_000).unref?.();
+  // Checking's forecast and this month's net worth, saved every hour (the last run each day
+  // stands), so forecasts can be checked against what happened and net worth has a trend.
+  const snapshot = () =>
+    void (async () => {
+      const { recordForecast } = await import("./server/cash-cases");
+      await recordForecast();
+      const { getMonthPlan } = await import("./server/month-plan");
+      const { getNetWorth } = await import("./server/net-worth");
+      const plan = await getMonthPlan().catch(() => null);
+      await getNetWorth(plan?.debt.cents ?? 0);
+    })().catch((error) => console.error("Snapshots:", error instanceof Error ? error.message : error));
+  setTimeout(snapshot, 90_000).unref?.();
+  setInterval(snapshot, 60 * 60_000).unref?.();
   if (process.env.BANK_SYNC_SCHEDULER === "off") return;
   const { startBankScheduler } = await import("./server/bank/scheduler");
   startBankScheduler();

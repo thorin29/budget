@@ -9,6 +9,8 @@ import { PayoffSwitcher } from "./payoff-switcher";
 import { payoffSchedule } from "@/lib/payoff";
 import { TabHeading } from "../shared";
 import { LoanForm } from "./loan-form";
+import { AssetsForm } from "./assets-form";
+import { getNetWorth, ownedAssets } from "@/server/net-worth";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +23,15 @@ const pct = (bps: number) => `${(bps / 100).toFixed(bps % 100 ? 2 : 0)}%`;
 export default async function DebtPage() {
   const plan = await getMonthPlan().catch(() => null);
   const debtCents = plan?.debt.cents ?? 0;
-  const [debt, chart] = await Promise.all([getDebt(debtCents), plan ? debtChart(plan.today, debtCents, plan.debt.targetCents).catch(() => null) : null]);
+  const [debt, chart, worth, assets] = await Promise.all([
+    getDebt(debtCents),
+    plan ? debtChart(plan.today, debtCents, plan.debt.targetCents).catch(() => null) : null,
+    getNetWorth(debtCents),
+    ownedAssets(),
+  ]);
+  const prev = worth.history.length > 1 ? worth.history[worth.history.length - 2] : null;
+  const prevMonth = prev?.month ?? null;
+  const change = prev ? worth.netCents - prev.netCents : null;
   const fees = debt.revolving.reduce((t, c) => t + c.interestFeesCents, 0);
   const firstWord = (n: string) => n.toLowerCase().match(/[a-z0-9]+/)?.[0] ?? n;
   const bills = debt.installment.filter((d) => d.kind === "bill");
@@ -41,26 +51,69 @@ export default async function DebtPage() {
   return (
     <div className="space-y-4">
       <InsightsTabs />
-      <TabHeading title="Debt" />
+      <TabHeading title="Debt & net worth" />
 
-      <Card>
-        <dl className="grid gap-x-6 gap-y-2 sm:grid-cols-3">
-          <div>
-            <dt className="text-xs font-semibold text-muted">Total owed</dt>
-            <dd className="tnum text-2xl font-bold">{money(debt.totalCents)}</dd>
+      <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-3">
+        <Card>
+          <p className="text-sm font-semibold text-muted">Net worth</p>
+          <p className={`tnum text-3xl font-bold ${worth.netCents < 0 ? "text-danger" : "text-ok"}`}>{money(worth.netCents)}</p>
+          <p className="tnum text-xs text-muted">
+            {money(worth.ownCents)} owned − {money(worth.oweCents)} owed
+            {change !== null ? ` · ${change >= 0 ? "up" : "down"} ${money(Math.abs(change))} since ${monthYear(prevMonth!).split(" ")[0]}` : ""}
+          </p>
+          {worth.history.length > 1 ? (
+            <div className="mt-3 flex h-16 items-end gap-1" role="img" aria-label="Net worth by month">
+              {worth.history.map((h, i) => {
+                const lo = Math.min(0, ...worth.history.map((x) => x.netCents));
+                const hi = Math.max(1, ...worth.history.map((x) => x.netCents));
+                return (
+                  <span key={h.month} className="flex h-full flex-1 flex-col items-center justify-end gap-0.5" title={`${monthYear(h.month)}: ${money(h.netCents)}`}>
+                    <span className="w-full max-w-5 rounded-t" style={{ height: `${Math.max(4, ((h.netCents - lo) / Math.max(1, hi - lo)) * 100)}%`, background: h.netCents < 0 ? "var(--danger)" : "var(--ok)", opacity: i === worth.history.length - 1 ? 1 : 0.55 }} />
+                    <span className="text-[10px] text-muted">{monthYear(h.month).split(" ")[0]}</span>
+                  </span>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-muted">The trend builds month by month from here.</p>
+          )}
+        </Card>
+        <Card>
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-base font-bold">Own</h2>
+            <span className="tnum font-bold">{money(worth.ownCents)}</span>
           </div>
-          <div>
-            <dt className="text-xs font-semibold text-muted">Loans (installment)</dt>
-            <dd className="tnum text-2xl font-bold">{money(debt.installmentCents)}</dd>
+          <ul className="mt-1 divide-y divide-line text-sm">
+            {worth.own.map((a, i) => (
+              <li key={`${a.name}:${i}`} className="flex items-baseline justify-between gap-3 py-1.5">
+                <span className="min-w-0 truncate">
+                  {a.name}
+                  {a.entered ? <span className="text-xs text-muted"> · you set</span> : null}
+                </span>
+                <span className="tnum font-semibold">{money(a.cents)}</span>
+              </li>
+            ))}
+          </ul>
+          <AssetsForm assets={assets} />
+        </Card>
+        <Card>
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-base font-bold">Owe</h2>
+            <span className="tnum font-bold">{money(worth.oweCents)}</span>
           </div>
-          <div>
-            <dt className="text-xs font-semibold text-muted">Cards (revolving)</dt>
-            <dd className="tnum text-2xl font-bold">
-              {money(debt.revolvingCents)} <span className={`text-xs font-semibold ${fees ? "text-danger" : "text-muted"}`}>{fees ? `${exact(fees)} interest and fees this year` : "no interest or fees this year"}</span>
-            </dd>
-          </div>
-        </dl>
-      </Card>
+          <ul className="mt-1 divide-y divide-line text-sm">
+            {worth.owe.map((d, i) => (
+              <li key={`${d.name}:${i}`} className="flex items-baseline justify-between gap-3 py-1.5">
+                <span className="min-w-0 truncate">{d.name}</span>
+                <span className="tnum font-semibold text-danger">{money(d.cents)}</span>
+              </li>
+            ))}
+          </ul>
+          <p className={`mt-1 text-xs ${fees ? "text-danger" : "text-muted"}`}>
+            {money(debt.installmentCents)} in loans · {money(debt.revolvingCents)} on cards · {fees ? `${exact(fees)} card interest and fees this year` : "no card interest or fees this year"}
+          </p>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]">
       <div className="space-y-4">

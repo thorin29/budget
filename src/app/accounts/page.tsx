@@ -66,8 +66,6 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
   const active = live.filter((a) => !a.dormant);
   const dormant = live.filter((a) => a.dormant);
   const hidden = accounts.filter((a) => a.hidden);
-  const owned = sum(live.filter((a) => (a.balanceCents ?? 0) > 0));
-  const owed = sum(live.filter((a) => (a.balanceCents ?? 0) < 0));
 
   return (
     <div className="space-y-6">
@@ -82,22 +80,20 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
       />
 
       <div className="flex flex-wrap gap-4">
-        <section className="flex min-w-[260px] flex-[2] flex-col gap-1 rounded-[20px] bg-hero p-6 text-hero-text">
-          <span className="text-sm font-semibold text-hero-muted">Net worth</span>
-          <span className="tnum font-heading text-4xl font-bold tracking-tight">{money(owned + owed)}</span>
-          <span className="text-sm text-hero-muted">
-            Own {money(owned)} · owe {money(-owed)}
-          </span>
-        </section>
         <Card className="flex min-w-[240px] flex-1 flex-col gap-1 p-5">
           <span className="text-sm font-bold">{connection ? "Bank feed connected" : "Bank feed not connected"}</span>
           <span className="text-sm text-muted">
             {connection?.lastSuccessAt ? `Synced ${stamp.format(connection.lastSuccessAt)}` : "No sync yet"} · {active.length} in use
           </span>
           <span className="text-xs text-muted">Read-only. Names and descriptions are stored encrypted.</span>
-          <Link href="/settings/bank" className="mt-1 text-sm font-semibold text-accent-text hover:underline">
-            Bank sync settings
-          </Link>
+          <span className="mt-1 flex flex-wrap gap-x-4 text-sm font-semibold">
+            <Link href="/settings/bank" className="text-accent-text hover:underline">
+              Bank sync settings
+            </Link>
+            <Link href="/insights/debt" className="text-accent-text hover:underline">
+              Net worth ›
+            </Link>
+          </span>
         </Card>
       </div>
 

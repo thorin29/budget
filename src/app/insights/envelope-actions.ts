@@ -105,3 +105,8 @@ export async function matchChargeToBillAction(transactionId: string, lineItemId:
     return failure(error);
   }
 }
+
+export async function saveOwnedAssetsAction(list: Array<{ id: string; name: string; cents: number }>): Promise<EnvelopeState> {
+  const { saveOwnedAssets } = await import("@/server/net-worth");
+  return run(() => saveOwnedAssets(list), "Saved.");
+}

@@ -698,3 +698,25 @@ model TransactionSplit {
   @@index([transactionId])
   @@index([importId])
 }
+
+/// Checking's forecast as it stood on a day (the last run that day wins): for each day ahead, the
+/// balance in the best and worst case. Kept about four months, so a forecast can be checked
+/// against what checking actually held.
+model ForecastPoint {
+  takenOn    DateTime @db.Date
+  forDate    DateTime @db.Date
+  bestCents  Int
+  worstCents Int
+
+  @@id([takenOn, forDate])
+  @@index([forDate])
+}
+
+/// Net worth at the end of each month (the current month is updated as it goes).
+model NetWorthSnapshot {
+  /// YYYY-MM
+  month     String   @id
+  ownCents  BigInt
+  oweCents  BigInt
+  updatedAt DateTime @updatedAt
+}

@@ -3,7 +3,10 @@
  * a chart with both cases, then what each paycheck pays, or the same as one running list.
  */
 
+import Link from "next/link";
 import { InsightsTabs } from "@/components/insights-tabs";
+import { checkingHistory, type PastDay } from "@/server/checking-history";
+import { pastForecasts, type PastForecast } from "@/server/cash-cases";
 import { Card } from "@/components/ui";
 import type { CashTimingView } from "@/server/cash-timing";
 import type { CashStep } from "@/lib/cash-timing";
@@ -20,11 +23,17 @@ function niceStep(span: number) {
   return ([1, 2, 5, 10].find((m) => m * p >= raw) ?? 10) * p;
 }
 
-/** Both cases as step lines: flat between events, a drop or jump on each one's date. */
-function Chart({ best, worst, mode }: { best: CashTimingView; worst: CashTimingView; mode: Case }) {
-  const W = 1200, H = 290, L = 56, R = 12, T = 14, B = 28;
-  const t0 = at(best.today), t1 = at(best.until);
-  const all = [best.startCents, ...best.steps.map((s) => s.balanceCents), ...worst.steps.map((s) => s.balanceCents)];
+/**
+ * Checking over the window: what it actually held before today (solid, dark), the forecast made a
+ * week before each of those days (dotted), then both cases ahead (best solid, worst dashed).
+ */
+function Chart({ from, end, best, worst, mode, past, then }: { from: string; end: string; best: CashTimingView; worst: CashTimingView; mode: Case; past: PastDay[]; then: Map<string, PastForecast> }) {
+  const W = 1200, H = 290, L = 60, R = 12, T = 14, B = 28;
+  const t0 = at(from), t1 = at(end);
+  const ahead = (c: CashTimingView) => c.steps.filter((s) => s.date <= end);
+  const thenVals = past.map((d) => then.get(d.date)).filter((f): f is PastForecast => !!f).map((f) => (mode === "worst" ? f.worstCents : f.bestCents));
+  const showAhead = best.today <= end;
+  const all = [...past.map((d) => d.balanceCents), ...thenVals, ...(showAhead ? [best.startCents, ...ahead(best).map((s) => s.balanceCents), ...ahead(worst).map((s) => s.balanceCents)] : [])];
   const step = niceStep((Math.max(0, ...all) - Math.min(0, ...all)) / 100) * 100;
   const hi = Math.ceil(Math.max(0, ...all) / step) * step || step;
   const lo = Math.floor(Math.min(0, ...all) / step) * step;
@@ -32,47 +41,70 @@ function Chart({ best, worst, mode }: { best: CashTimingView; worst: CashTimingV
   const y = (c: number) => T + ((hi - c) / Math.max(1, hi - lo)) * (H - T - B);
   const path = (c: CashTimingView) => {
     let d = `M${x(c.today)} ${y(c.startCents)}`;
-    for (const s of c.steps) d += `H${x(s.date)}V${y(s.balanceCents)}`;
-    return `${d}H${x(c.until)}`;
+    for (const s of ahead(c)) d += `H${x(s.date)}V${y(s.balanceCents)}`;
+    return `${d}H${x(end)}`;
   };
+  // Past days: a step at the start of each day to its closing balance.
+  const pastPath = past.length ? past.reduce((d, p, i) => `${d}${i ? `H${x(p.date)}` : ""}V${y(p.balanceCents)}`, `M${x(past[0].date)} ${y(past[0].balanceCents)}`) + `H${x(best.today)}` : "";
+  const thenPts = past.map((d) => [d.date, then.get(d.date)] as const).filter((p): p is readonly [string, PastForecast] => !!p[1]);
+  const thenPath = thenPts.length ? thenPts.map(([d, f], i) => `${i ? "L" : "M"}${x(d)} ${y(mode === "worst" ? f.worstCents : f.bestCents)}`).join("") : "";
   const sel = mode === "worst" ? worst : best;
   const grid: number[] = [];
   for (let v = lo; v <= hi; v += step) grid.push(v);
   const weeks: string[] = [];
   for (let t = t0; t <= t1; t += 7 * 86_400_000) weeks.push(new Date(t).toISOString().slice(0, 10));
-  const firsts: string[] = [];
-  for (let d = new Date(t0); d.getTime() <= t1; d = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1))) {
-    const f = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() + 1, 1));
-    if (f.getTime() <= t1) firsts.push(f.toISOString().slice(0, 10));
-  }
-  const lowX = x(sel.lowOn), lowY = y(sel.lowCents);
+  const lowOn = sel.lowOn <= end ? sel.lowOn : null;
+  const pastLow = past.length ? past.reduce((l, d) => (d.balanceCents < l.balanceCents ? d : l)) : null;
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" role="img" aria-label={`Checking to ${day(best.until)}; lowest ${money(sel.lowCents)} on ${day(sel.lowOn)}`}>
+    <svg viewBox={`0 0 ${W} ${H}`} className="mt-2 w-full" role="img" aria-label={`Checking from ${day(from)} to ${day(end)}`}>
       {grid.map((v) => (
         <g key={v}>
           <line x1={L} x2={W - R} y1={y(v)} y2={y(v)} stroke={v === 0 ? "var(--border-strong)" : "var(--border)"} strokeDasharray={v === 0 ? "4 4" : undefined} />
           <text x={L - 8} y={y(v) + 4} fontSize="12" textAnchor="end" className="fill-muted">
-            {money(v).replace(/,000$/, "k").replace(/\$(\d+),(\d)00$/, "$$$1.$2k")}
+            {money(v)}
           </text>
         </g>
       ))}
-      {firsts.map((f) => (
-        <line key={f} x1={x(f)} x2={x(f)} y1={T} y2={H - B} stroke="var(--border-strong)" strokeDasharray="3 3" />
-      ))}
-      <path d={`${path(best)}V${y(Math.max(lo, 0))}H${x(best.today)}Z`} fill="var(--series-1)" fillOpacity="0.08" />
-      <path d={path(best)} fill="none" stroke="var(--series-1)" strokeWidth={mode === "best" ? 3 : 2} />
-      {worst !== best ? <path d={path(worst)} fill="none" stroke="var(--series-2)" strokeWidth={mode === "worst" ? 2.5 : 1.75} strokeDasharray="7 5" /> : null}
-      {sel.steps
-        .filter((s) => s.kind === "pay")
-        .map((s) => (
-          <circle key={`${s.date}${s.label}`} cx={x(s.date)} cy={y(s.balanceCents)} r="4.5" fill="var(--ok)">
-            <title>{`${s.label} ${day(s.date)}: ${signed(s.cents)}`}</title>
-          </circle>
-        ))}
-      <circle cx={lowX} cy={lowY} r="5.5" fill={sel.lowCents < 0 ? "var(--danger)" : "var(--foreground)"} stroke="var(--surface)" strokeWidth="2" />
-      <text x={Math.min(W - 190, lowX + 10)} y={Math.min(H - B - 6, lowY + 18)} fontSize="13" fontWeight="700" className={sel.lowCents < 0 ? "fill-danger" : "fill-foreground"}>
-        Lowest {money(sel.lowCents)} · {day(sel.lowOn)}
-      </text>
+      {showAhead && best.today >= from ? (
+        <g>
+          <line x1={x(best.today)} x2={x(best.today)} y1={T} y2={H - B} stroke="var(--foreground)" strokeOpacity="0.35" />
+          <text x={x(best.today) + 4} y={T + 10} fontSize="11" className="fill-muted">
+            Today
+          </text>
+        </g>
+      ) : null}
+      {thenPath ? <path d={thenPath} fill="none" stroke="var(--muted)" strokeWidth="1.5" strokeDasharray="2 4" /> : null}
+      {pastPath ? <path d={pastPath} fill="none" stroke="var(--foreground)" strokeWidth="2.5" /> : null}
+      {showAhead ? (
+        <>
+          <path d={`${path(best)}V${y(Math.max(lo, 0))}H${x(best.today)}Z`} fill="var(--series-1)" fillOpacity="0.08" />
+          <path d={path(best)} fill="none" stroke="var(--series-1)" strokeWidth={mode === "best" ? 3 : 2} />
+          {worst !== best ? <path d={path(worst)} fill="none" stroke="var(--series-2)" strokeWidth={mode === "worst" ? 2.5 : 1.75} strokeDasharray="7 5" /> : null}
+          {ahead(sel)
+            .filter((s) => s.kind === "pay")
+            .map((s) => (
+              <circle key={`${s.date}${s.label}`} cx={x(s.date)} cy={y(s.balanceCents)} r="4.5" fill="var(--ok)">
+                <title>{`${s.label} ${day(s.date)}: ${signed(s.cents)}`}</title>
+              </circle>
+            ))}
+        </>
+      ) : null}
+      {pastLow ? (
+        <g>
+          <circle cx={x(pastLow.date)} cy={y(pastLow.balanceCents)} r="4.5" fill={pastLow.balanceCents < 0 ? "var(--danger)" : "var(--foreground)"} />
+          <text x={Math.min(W - 230, x(pastLow.date) + 8)} y={Math.min(H - B - 6, y(pastLow.balanceCents) + 16)} fontSize="12" className="fill-muted">
+            Actual low {money(pastLow.balanceCents)} · {day(pastLow.date)}
+          </text>
+        </g>
+      ) : null}
+      {showAhead && lowOn ? (
+        <g>
+          <circle cx={x(lowOn)} cy={y(sel.lowCents)} r="5.5" fill={sel.lowCents < 0 ? "var(--danger)" : "var(--foreground)"} stroke="var(--surface)" strokeWidth="2" />
+          <text x={Math.min(W - 200, x(lowOn) + 10)} y={Math.min(H - B - 6, y(sel.lowCents) + 18)} fontSize="13" fontWeight="700" className={sel.lowCents < 0 ? "fill-danger" : "fill-foreground"}>
+            Lowest ahead {money(sel.lowCents)} · {day(lowOn)}
+          </text>
+        </g>
+      ) : null}
       {weeks.map((w) => (
         <text key={w} x={x(w)} y={H - 8} fontSize="12" textAnchor="middle" className="fill-muted">
           {day(w)}
@@ -161,16 +193,25 @@ function Register({ cash }: { cash: CashTimingView }) {
   );
 }
 
-export default async function CashPage({ searchParams }: { searchParams: Promise<{ case?: string; show?: string }> }) {
+export default async function CashPage({ searchParams }: { searchParams: Promise<{ case?: string; show?: string; from?: string }> }) {
   const q = await searchParams;
   const mode: Case = q.case === "best" ? "best" : "worst";
   const show = q.show === "list" ? "list" : "chart";
   const data = await loadCash();
-  const href = (next: { case?: string; show?: string }) => {
-    const c = next.case ?? mode, s = next.show ?? show;
-    const p = [c === "best" ? "case=best" : "", s === "list" ? "show=list" : ""].filter(Boolean).join("&");
+  // The chart's 60-day window: two weeks back by default, moved a month at a time.
+  const today = data?.best.today ?? new Date().toISOString().slice(0, 10);
+  const shift = (d: string, days: number) => new Date(at(d) + days * 86_400_000).toISOString().slice(0, 10);
+  const defaultFrom = shift(today, -14);
+  const from = q.from && /^\d{4}-\d{2}-\d{2}$/.test(q.from) && q.from <= today ? q.from : defaultFrom;
+  const until = data?.best.until ?? today;
+  const end = shift(from, 59) < until ? shift(from, 59) : until;
+  const [past, then] = data && !data.best.missing && from < today ? await Promise.all([checkingHistory(from, today), pastForecasts(from, shift(today, -1))]) : [null, new Map<string, PastForecast>()];
+  const href = (next: { case?: string; show?: string; from?: string }) => {
+    const c = next.case ?? mode, s = next.show ?? show, f = next.from ?? from;
+    const p = [c === "best" ? "case=best" : "", s === "list" ? "show=list" : "", f !== defaultFrom ? `from=${f}` : ""].filter(Boolean).join("&");
     return `/insights/cash${p ? `?${p}` : ""}`;
   };
+  const later = shift(from, 30) <= today ? shift(from, 30) : end < until ? today : null;
   const cash = data ? (mode === "worst" ? data.worst : data.best) : null;
   const nextPay = cash?.steps.find((s) => s.kind === "pay");
   const tiles: Array<[string, string, string]> = cash
@@ -239,7 +280,41 @@ export default async function CashPage({ searchParams }: { searchParams: Promise
                 />
               </div>
             </div>
-            <Chart best={data.best} worst={data.worst} mode={mode} />
+            <Chart from={from} end={end} best={data.best} worst={data.worst} mode={mode} past={past?.days ?? []} then={then} />
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-2 text-xs">
+              <span className="flex items-center gap-3 text-muted">
+                {past?.days.length ? (
+                  <span className="flex items-center gap-1.5">
+                    <span aria-hidden className="inline-block h-0.5 w-4 bg-foreground" />
+                    Actual
+                  </span>
+                ) : null}
+                {then.size ? (
+                  <span className="flex items-center gap-1.5">
+                    <span aria-hidden className="inline-block w-4 border-t-2 border-dotted border-muted" />
+                    Forecast a week before
+                  </span>
+                ) : past?.days.length ? (
+                  <span>Forecasts are saved from now on, to compare with what happened.</span>
+                ) : null}
+                {past === null && from < today ? <span>No bank history for checking.</span> : null}
+              </span>
+              <span className="flex items-center gap-1 font-semibold">
+                <Link href={href({ from: shift(from, -30) })} className="rounded-lg px-2 py-1 text-accent-text hover:bg-neutral-soft">
+                  ‹ Earlier
+                </Link>
+                {from !== defaultFrom ? (
+                  <Link href={href({ from: defaultFrom })} className="rounded-lg px-2 py-1 text-accent-text hover:bg-neutral-soft">
+                    Now
+                  </Link>
+                ) : null}
+                {later && later !== from ? (
+                  <Link href={href({ from: later })} className="rounded-lg px-2 py-1 text-accent-text hover:bg-neutral-soft">
+                    Later ›
+                  </Link>
+                ) : null}
+              </span>
+            </div>
             {cash.cardsWithoutDays > 0 ? (
               <p className="mt-1 text-xs text-warn">
                 {cash.cardsWithoutDays} card{cash.cardsWithoutDays === 1 ? " has" : "s have"} no statement and due days, so {cash.cardsWithoutDays === 1 ? "its payment isn't" : "their payments aren't"} here: set them on Accounts.

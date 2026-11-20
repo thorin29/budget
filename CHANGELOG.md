@@ -3,6 +3,36 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.83.0]
+
+**Migration 0025** (runs on start): two new tables, `ForecastPoint` (checking's forecast as it
+stood each day) and `NetWorthSnapshot` (net worth each month). The phone app is unchanged.
+
+### Added
+- **Cash tab, history:** the chart now shows what checking actually held before today (worked
+  back from the bank's balance and checking's transactions), and the forecast made a week before
+  each of those days. "‹ Earlier", "Later ›" and "Now" move the 60-day window.
+- **Calendar, past days:** days before today show what actually happened: checking's bank rows
+  and its closing balance, and under it the forecast made a week before and the difference.
+  Scroll back a month at a time. A line on top says how close the week-ahead forecasts were over
+  the last 30 days (average miss, which way they lean, the biggest miss).
+- **Forecasts are saved** every hour (the last run each day stands) and kept about four months,
+  so the history and accuracy fill in from the day this version is installed.
+- **Net worth** on the Debt tab, now **Debt & net worth**: what you own (bank balances that
+  aren't debt, plus values you enter, like a home or a car) less everything owed on loans and
+  cards. Saved each month, so a trend builds from here. The loans table, credit cards and payoff
+  chart stay below.
+
+### Changed
+- **Year plan:** no title or line under it. The table is split the same way as the other tabs
+  (Income, Bills, Debt payment, Card payments, Paid from what's left), each cell tinted paid, over
+  plan, not paid or planned, with a small trend per row and the current month marked. The bottom
+  row is income − bills & debt. A summary beside it (below it on a laptop): income received, bills
+  paid of planned, debt payments, income − bills & debt, bills by category, and bills against the
+  same months last year. The bars-by-month chart is gone (it repeated the table).
+- **Accounts:** the net worth box is gone (it was checking minus cards only, leaving out loans
+  and anything owned); a link points to the new one.
+
 ## [0.82.1]
 
 No migration. The phone app is unchanged.
