@@ -204,7 +204,7 @@ export default async function MonthPage({
               ? `${view.periods.filter((p) => p.payday).length} paychecks this month`
               : view.wholeMonth
                 ? "Whole month"
-                : `Second half starts ${MONTH_NAMES[month - 1].slice(0, 3)} ${view.splitDay + 1}${view.splitPayday ? `, after the ${ordinal(view.splitDay)} payday` : ""}`}{" "}
+                : `Second half starts ${MONTH_NAMES[month - 1].slice(0, 3)} ${view.splitDay + 1}${view.splitPayday ? `, after the ${["first", "second", "third", "fourth", "fifth"][(view.splitPaydayNumber ?? 0) - 1] ?? "next"} payday` : ""}`}{" "}
             ·{" "}
             {unpaidBills.length === 0
               ? "every bill settled"

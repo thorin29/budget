@@ -99,6 +99,8 @@ export interface MonthView {
   splitDay: number;
   /** The payday the month divides at, when it follows the pay calendar. */
   splitPayday: string | null;
+  /** Which of the month's paydays that is (1 = the first), for "after the second payday". */
+  splitPaydayNumber: number | null;
   /** The month isn't divided (Pay Settings): one period, shown as "This Month". */
   wholeMonth: boolean;
   /** One period per paycheck, when Pay Settings asks for it (null otherwise). */
@@ -477,6 +479,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     month,
     splitDay,
     splitPayday: split.payday,
+    splitPaydayNumber: split.payday ? paydaysIn(year, month).findIndex((d) => d.toISOString().slice(0, 10) === split.payday) + 1 || null : null,
     wholeMonth: settings.splitMode === "none",
     periods,
     halves,

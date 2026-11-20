@@ -3,6 +3,14 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.95.1]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- Tracker: the line under the month reads "Second half starts Nov 21, after the second payday" (which
+  of the month's paydays splits it), not "after the 20th payday".
+
 ## [0.95.0]
 
 No migration. The phone app is unchanged.
