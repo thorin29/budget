@@ -14,6 +14,7 @@ const TABS: Array<{ href: string; label: string; month: boolean }> = [
   { href: "/insights/money", label: "Money", month: true },
   { href: "/insights/budget", label: "Budget", month: true },
   { href: "/insights/cash", label: "Cash", month: false },
+  { href: "/insights/calendar", label: "Calendar", month: false },
   { href: "/insights/debt", label: "Debt", month: false },
   { href: "/insights/trends", label: "Trends", month: true },
   { href: "/insights/settings", label: "Settings", month: false },

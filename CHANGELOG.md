@@ -3,6 +3,25 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.82.0]
+
+No migration. The phone app is unchanged. **Delete `src/app/insights/cash-timing.tsx`**: the new
+Cash tab replaces it.
+
+### Added
+- **Calendar tab** (Insights, after Cash): checking's money in and out on each day through the
+  end of next month, with the balance after each day that has something on it. Amber below the
+  checking cushion, red below $0, a ring on the lowest day. Worst or best case.
+
+### Changed
+- **Cash tab, redone:** a Worst case / Best case switch (worst = this month's Essentials and
+  Extras budgets get spent on the cards and leave checking with the first card payment next
+  month, as on the Overview's Outlook). Four figures on top (checking now, lowest, next payday,
+  the last day), a chart with both cases, dollar amounts on the side, payday dots and the low
+  point, then what each paycheck pays, or switch to **List** for one running register.
+- The Overview's **Projected bank balance** follows its worst/best switch, so it matches the Cash
+  tab. What's left of the budgets now comes from one place for every tab.
+
 ## [0.81.0]
 
 No migration. The phone app is unchanged.

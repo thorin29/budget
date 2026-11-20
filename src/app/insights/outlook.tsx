@@ -199,7 +199,7 @@ export interface BankPath {
   endOn: string;
 }
 
-export function OutlookCards({ outlook, carry, thisMonth, bank, cushionCents = 0 }: { outlook: OutlookView; carry: CarryOver; thisMonth: string; bank: BankPath | null; cushionCents?: number }) {
+export function OutlookCards({ outlook, carry, thisMonth, bank, cushionCents = 0 }: { outlook: OutlookView; carry: CarryOver; thisMonth: string; bank: Record<Case, BankPath> | null; cushionCents?: number }) {
   const { nowCents, budgetsCents } = carry;
   const [mode, setMode] = useState<Case>("worst");
   const start = mode === "worst" ? budgetsCents : nowCents;
@@ -264,7 +264,7 @@ export function OutlookCards({ outlook, carry, thisMonth, bank, cushionCents = 0
           ) : null}
         </div>
       </Card>
-      <AvailableCard a={a} mode={mode} stretches={parts} carry={carry} thisMonth={thisMonth} bank={bank} cushionCents={cushionCents} className="flex-1" />
+      <AvailableCard a={a} mode={mode} stretches={parts} carry={carry} thisMonth={thisMonth} bank={bank ? bank[mode] : null} cushionCents={cushionCents} className="flex-1" />
     </>
   );
 }

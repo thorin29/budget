@@ -122,3 +122,19 @@ export async function getCashTiming(debtCents: number): Promise<CashTimingView> 
         };
   return { ...t, today, until, missing: start === null, balanceAsOf: now.billsBankDataAt ?? now.billsBalanceAsOf, cardsWithoutDays: allCards.length - cards.length, check };
 }
+
+/**
+ * The worst case: what's left of this month's Essentials and Extras budgets gets spent on the
+ * cards, so it leaves checking with the first card payment after this month (or on the 1st, with
+ * no card payment in the window). The best case is the timing as it is: what's charged so far.
+ */
+export function worstCase(cash: CashTimingView, budgetLeftCents: number): CashTimingView {
+  if (cash.missing || budgetLeftCents <= 0) return cash;
+  const nextMonth = new Date(Date.UTC(Number(cash.today.slice(0, 4)), Number(cash.today.slice(5, 7)), 1)).toISOString().slice(0, 10);
+  const date = cash.steps.find((s) => s.kind === "card" && s.date >= nextMonth)?.date ?? nextMonth;
+  const events: CashEvent[] = [
+    ...cash.steps.map(({ balanceCents: _b, ...e }) => e),
+    { date, label: "Budgets left, on cards", cents: -budgetLeftCents, kind: "card", estimate: true },
+  ];
+  return { ...cash, ...cashTiming({ today: cash.today, until: cash.until, startCents: cash.startCents, events }) };
+}

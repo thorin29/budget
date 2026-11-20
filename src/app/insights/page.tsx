@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { InsightsTabs } from "@/components/insights-tabs";
 import { getMonthPlan, type MonthPlanView } from "@/server/month-plan";
-import { getCashTiming } from "@/server/cash-timing";
+import { getCashTiming, worstCase } from "@/server/cash-timing";
+import { budgetLeftOf } from "@/server/plan-charts";
 import { getDebt, type DebtView } from "@/server/debt";
 import { Card } from "@/components/ui";
 import { PlanHero } from "./month-plan";
@@ -100,12 +101,16 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
   const carry = plan && cash?.check ? carryOver(plan, cash.check) : null;
   const cushion = await cushionSetting();
   // The bank balance as things stand: card payments leave on their due dates, nothing set aside.
+  // Worst case: this month's budgets get used on the cards too (as on the Cash tab).
   const bank =
-    cash && outlook
+    cash && outlook && plan
       ? (() => {
-          const upTo = cash.steps.filter((st) => st.date <= outlook.to);
-          const low = upTo.reduce((l, st) => (st.balanceCents < l.cents ? { cents: st.balanceCents, on: st.date } : l), { cents: cash.startCents, on: cash.today });
-          return { lowCents: low.cents, lowOn: low.on, endCents: upTo.length ? upTo[upTo.length - 1].balanceCents : cash.startCents, endOn: outlook.to };
+          const path = (c: typeof cash) => {
+            const upTo = c.steps.filter((st) => st.date <= outlook.to);
+            const low = upTo.reduce((l, st) => (st.balanceCents < l.cents ? { cents: st.balanceCents, on: st.date } : l), { cents: c.startCents, on: c.today });
+            return { lowCents: low.cents, lowOn: low.on, endCents: upTo.length ? upTo[upTo.length - 1].balanceCents : c.startCents, endOn: outlook.to };
+          };
+          return { best: path(cash), worst: path(worstCase(cash, budgetLeftOf(plan))) };
         })()
       : null;
   const thisMonth = plan ? monthLabel(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), "long").split(" ")[0] : "";

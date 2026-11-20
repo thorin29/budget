@@ -10,6 +10,7 @@
 import type { ReactNode } from "react";
 import type { MonthPlanView } from "@/server/month-plan";
 import type { BankCheckParts } from "@/server/cash-timing";
+import { budgetLeftOf } from "@/server/plan-charts";
 import Link from "next/link";
 import { IncomeRing } from "./ring";
 import type { DebtChart, MonthHistory } from "@/server/plan-charts";
@@ -41,9 +42,7 @@ function ticks(lo: number, hi: number, count = 4): number[] {
  */
 export function carryOver(plan: MonthPlanView, check: BankCheckParts) {
   const debtDue = plan.debt.source === "paid" ? 0 : plan.debt.cents;
-  const budgetLeftCents = plan.groups
-    .filter((g) => (g.tier === "ESSENTIAL" || g.tier === "FLEXIBLE") && g.limitCents !== null)
-    .reduce((a, g) => a + Math.max(0, g.leftCents ?? 0), 0);
+  const budgetLeftCents = budgetLeftOf(plan);
   const nowCents = check.checkingCents + check.incomeCents - check.cardsCents - check.billsCents - debtDue;
   return {
     nowCents,

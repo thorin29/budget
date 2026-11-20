@@ -9,6 +9,17 @@ import { getMonthPlan, type MonthPlanView } from "./month-plan";
 import { payoffTrackers } from "./card-payments";
 import { forecastGroups, forecastTotals } from "@/lib/budget-forecast";
 
+/**
+ * What's left of this month's Essentials and Extras budgets: the worst case assumes it all gets
+ * spent (on the cards). The one source for that figure on every tab.
+ */
+export function budgetLeftOf(plan: MonthPlanView): number {
+  if (plan.closed) return 0;
+  return plan.groups
+    .filter((g) => (g.tier === "ESSENTIAL" || g.tier === "FLEXIBLE") && g.limitCents !== null)
+    .reduce((a, g) => a + Math.max(0, g.leftCents ?? 0), 0);
+}
+
 /** The Budget tab's projection rows for a month: the one source for "projected spend" anywhere. */
 export function planForecastRows(plan: MonthPlanView) {
   return forecastGroups(
