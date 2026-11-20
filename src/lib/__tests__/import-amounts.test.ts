@@ -33,8 +33,8 @@ describe("import amounts", () => {
 
   it("keeps a repeated fractional amount exact across a year", () => {
     // Twelve months of a value with a fractional cent problem in floating point.
-    const year = Array.from({ length: 12 }, () => toCents("1050.00"));
-    assert.equal(year.reduce((a, b) => a + b, 0), 1212120);
-    assert.equal(toDecimalString(1212120), "12121.20");
+    const year = Array.from({ length: 12 }, () => toCents("1017.30"));
+    assert.equal(year.reduce((a, b) => a + b, 0), 1220760);
+    assert.equal(toDecimalString(1220760), "12207.60");
   });
 });

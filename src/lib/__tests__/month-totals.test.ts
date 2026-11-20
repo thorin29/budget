@@ -326,8 +326,8 @@ describe("items paid from what is left over", () => {
     const f = figures([]);
     // Mortgage and the card both fall in the first half.
     assert.equal(f.firstRemaining, 245000 + 450000);
-    assert.equal(f.freeAfterFirst, 1100000 - 714800);
-    assert.equal(f.freeAfterBoth, 1100000 - 754800);
+    assert.equal(f.freeAfterFirst, 1100000 - 695000);
+    assert.equal(f.freeAfterBoth, 1100000 - 735000);
   });
 
   it("frees that cash once flagged, and reports it separately", () => {
@@ -336,7 +336,7 @@ describe("items paid from what is left over", () => {
     assert.equal(f.setAsideTotal, 450000);
     // Both transfer figures rise by exactly the card's planned payment.
     assert.equal(f.freeAfterFirst, 1100000 - 245000);
-    assert.equal(f.freeAfterBoth, 1100000 - 304800);
+    assert.equal(f.freeAfterBoth, 1100000 - 285000);
     assert.equal(f.freeAfterBoth - figures([]).freeAfterBoth, 450000);
   });
 

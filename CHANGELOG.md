@@ -3,6 +3,10 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.97.2]
+
+No migration. No app changes: test data replaced with invented names and amounts.
+
 ## [0.97.1]
 
 No migration. The phone app is unchanged.

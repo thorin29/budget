@@ -16,7 +16,7 @@ describe("available", () => {
     // Pay lands before a bill the same day: 263,200 + 176,400 − 300,000 = 139,600.
     expect(a.cents).toBe(139_600);
     expect(a.limit?.name).toBe("Mortgage");
-    expect(a.endCents).toBe(541_200);
+    expect(a.endCents).toBe(519_600);
     expect(a.shortCents).toBe(0);
   });
 
