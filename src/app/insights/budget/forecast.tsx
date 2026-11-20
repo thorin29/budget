@@ -108,7 +108,7 @@ export function ForecastCards({
           </dl>
           <p className="mt-2 text-xs text-muted">
             Planned checking cushion {money(minimumCents)}.{" "}
-            <Link href="/insights/settings" className="text-accent-text hover:underline">
+            <Link href="/settings/budgets" className="text-accent-text hover:underline">
               Change
             </Link>
           </p>

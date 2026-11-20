@@ -3,6 +3,32 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.92.0]
+
+No migration. The phone app is unchanged. Every setting now has one home in Settings; Insights only
+shows figures, with a "change in Settings" link on the tabs whose figures are set there.
+
+### Changed
+- **Settings menu in three groups:** Plan (Bills & income, Budgets & categories, Pay calendar,
+  Planning), Money (Accounts, Home & net worth, Bank connection), App (Import & export, Sign-in &
+  people, Appearance, About). Settings opens on Bills & income, which now sits inside it.
+- **Insights › Setup is gone:** budgets and categories moved to Settings › Budgets & categories, the
+  home value to Settings › Home & net worth, the 0% debt payment and the cushion to Planning.
+- **Categories in one place:** Budgets & categories → All categories adds, renames, marks "for
+  others" (and back) and removes categories. Settings › Categories is gone.
+- **One checking cushion:** Planning's "Keep a floor of" and Insights' "Checking cushion" were two
+  numbers for the same thing; now one, in Planning, used by Cash, Budget and the projection.
+- **Accounts moved into Settings** (out of the main menu): the editor stays open beside the list and
+  shows the account clicked; name, type, card days, 0% end, color and "Holds the bills money" save
+  together with Save (Undo changes resets; leaving with unsaved changes asks). Accounts typed by hand
+  are the "By hand" group. Settings › Accounts for bills is gone, and so is Planning's "Bills balance
+  from your bank" (it's "Holds the bills money" on the account now).
+- **Loans:** the interest rate and the escrow part of the payment are set in the bill's form under
+  "Pays off a balance", with its balance. The Debt tab shows them and links there.
+- **Exports** (transactions, accounts, each year's plan) are only in Import & export.
+- Old addresses (/accounts, /insights/settings, /insights/envelopes, /setup/*, /import,
+  /settings/categories) open their new pages.
+
 ## [0.91.0]
 
 No migration. The phone app is unchanged.

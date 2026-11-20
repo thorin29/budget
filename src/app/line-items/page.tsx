@@ -90,6 +90,8 @@ async function loadEditing(edit: string | undefined): Promise<LineItemDefaults |
       payoffBalance: item.payoffBalanceCents !== null ? toDecimalString(item.payoffBalanceCents) : "",
       payoffAsOf: item.payoffAsOf ?? "",
       payoffAccountId: item.payoffAccountId,
+      payoffApr: item.payoffAprBps !== null ? String(item.payoffAprBps / 100) : "",
+      payoffEscrow: item.payoffEscrowCents !== null ? toDecimalString(item.payoffEscrowCents) : "",
       payoffSummary: null,
       paydayNumber: item.paydayNumber,
       periodAssignment: item.periodAssignment,
@@ -151,10 +153,7 @@ export default async function LineItemsPage({
     .filter((g) => g.items.length > 0);
 
   return (
-    <div className="mx-auto max-w-[1000px]">
-      <Link href="/settings" className="mb-2 inline-block text-sm text-muted hover:text-foreground">
-        ← Settings
-      </Link>
+    <div>
       <PageHeading
         title="Bills & income"
         description="The recurring things that make up a month. The usual amount lives here; a single month that differs is changed on the month view."

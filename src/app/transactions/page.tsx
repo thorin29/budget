@@ -88,7 +88,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         <EmptyState>
           Nothing yet. Connect bank sync in{" "}
           <Link href="/settings/bank" className="font-semibold text-accent-text hover:underline">
-            Settings → Bank sync
+            Settings › Bank connection
           </Link>
           .
         </EmptyState>
@@ -229,7 +229,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                   Download CSV
                 </a>
                 <Link href="/settings/bank" className="text-accent-text hover:underline">
-                  Bank sync settings
+                  Bank connection
                 </Link>
               </div>
             </Card>

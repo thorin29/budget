@@ -90,7 +90,7 @@ export async function setAccountTypeAction(id: string, type: string): Promise<Ba
   try {
     await requireUser();
     await setBankAccountType(String(id), String(type));
-    revalidatePath("/accounts");
+    revalidatePath("/settings/accounts");
     return { ok: true };
   } catch (error) {
     return failure(error);
@@ -101,7 +101,7 @@ export async function setAccountHiddenAction(id: string, hidden: boolean): Promi
   try {
     await requireUser();
     await setBankAccountHidden(String(id), Boolean(hidden));
-    revalidatePath("/accounts");
+    revalidatePath("/settings/accounts");
     return { ok: true };
   } catch (error) {
     return failure(error);
@@ -253,6 +253,56 @@ export async function rawFeedAction(bankAccountId: string): Promise<BankResult<i
     if (!rawChecks.hit(`raw:${user.id}`)) return { ok: false, message: "That's enough feed checks for today; the bank feed limits requests." };
     const { rawFeedSample } = await import("@/server/bank/raw-feed");
     return { ok: true, data: await rawFeedSample(String(bankAccountId)) };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+// ---------------------------------------------------------------- one account, one Save
+
+export interface AccountEdit {
+  nickname: string;
+  type: string;
+  closeDay: string;
+  dueDay: string;
+  promoEndsOn: string;
+  color: string;
+  /** Checking or savings only: this account holds the bills money. */
+  billsSource: boolean;
+}
+
+/** Everything in the Accounts editor saved together: name, type, card details, and the bills money. */
+export async function saveAccountAction(id: string, edit: AccountEdit): Promise<BankActionState> {
+  try {
+    await requireUser();
+    const { prisma } = await import("@/lib/prisma");
+    const { setCardTerms } = await import("@/server/card-payments");
+    const accountId = String(id);
+    const before = (await prisma.bankAccount.findUnique({ where: { id: accountId }, select: { type: true, linkedAccountId: true } })) as { type: string; linkedAccountId: string | null } | null;
+    if (!before) return { ok: false, message: "That account is gone." };
+    const type = String(edit.type);
+    if (type !== before.type) await setBankAccountType(accountId, type);
+    const num = (v: string) => (String(v ?? "").trim() ? Number(v) : null);
+    if (type === "CREDIT_CARD") {
+      await setCardTerms(accountId, {
+        closeDay: num(edit.closeDay),
+        dueDay: num(edit.dueDay),
+        promoEndsOn: String(edit.promoEndsOn ?? "").trim() || null,
+        color: String(edit.color ?? "") || null,
+        nickname: String(edit.nickname ?? ""),
+      });
+    } else {
+      await prisma.bankAccount.update({ where: { id: accountId }, data: { nickname: String(edit.nickname ?? "").trim().slice(0, 60) || null } });
+    }
+    if (type === "CHECKING" || type === "SAVINGS") {
+      const { getSettings } = await import("@/server/settings");
+      const { billsAccountId } = await getSettings();
+      const isSource = !!billsAccountId && before.linkedAccountId === billsAccountId;
+      if (edit.billsSource && !isSource) await setBillsSource(accountId);
+      if (!edit.billsSource && isSource) await setBillsSource(null);
+    }
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Saved." };
   } catch (error) {
     return failure(error);
   }

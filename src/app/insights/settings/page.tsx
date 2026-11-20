@@ -1,31 +1,7 @@
-import { InsightsTabs } from "@/components/insights-tabs";
-import { allCategories, categoryUsage, cushionSetting, getEnvelopeSetup } from "@/server/envelopes";
-import { getMonthPlan } from "@/server/month-plan";
-import { homeValue } from "@/server/home-value";
-import { TabHeading } from "../shared";
-import { SetupPanel, type SetupBudget } from "./setup-panel";
+import { redirect } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
-export default async function InsightsSettingsPage({ searchParams }: { searchParams: Promise<{ item?: string }> }) {
+/** Setup moved to Settings: budgets and categories, and the home value, each have their own page. */
+export default async function OldSetup({ searchParams }: { searchParams: Promise<{ item?: string }> }) {
   const { item } = await searchParams;
-  const [setup, plan, cushion, home, everyCategory] = await Promise.all([getEnvelopeSetup(), getMonthPlan(), cushionSetting(), homeValue().catch(() => null), allCategories()]);
-  const usage = await categoryUsage(setup.ungrouped.map((c) => c.id)).catch(() => ({}));
-  const byId = new Map(plan.groups.map((g) => [g.id, g]));
-  const budgets: SetupBudget[] = setup.groups.map((g) => ({
-    id: g.id,
-    name: g.name,
-    tier: g.tier as SetupBudget["tier"],
-    limitCents: g.limitCents,
-    usualCents: byId.get(g.id)?.usualCents ?? null,
-    spentCents: byId.get(g.id)?.spentCents ?? null,
-    categories: g.categories,
-  }));
-  return (
-    <div className="space-y-4">
-      <InsightsTabs />
-      <TabHeading title="Setup" />
-      <SetupPanel budgets={budgets} ungrouped={setup.ungrouped} usage={usage} debt={{ cents: plan.debt.cents, automatic: plan.debt.source !== "set", targetCents: plan.debt.targetCents }} cushionCents={cushion} home={home} initial={item} categories={everyCategory} />
-    </div>
-  );
+  redirect(item === "home" ? "/settings/home" : item ? `/settings/budgets?item=${encodeURIComponent(item)}` : "/settings/budgets");
 }

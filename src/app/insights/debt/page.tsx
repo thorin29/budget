@@ -8,7 +8,7 @@ import { LoanPanel, ZeroPanel } from "../plan-charts";
 import { PayoffSwitcher } from "./payoff-switcher";
 import { payoffSchedule } from "@/lib/payoff";
 import { TabHeading } from "../shared";
-import { LoanForm } from "./loan-form";
+import { LoanPrompt } from "./loan-form";
 import { getNetWorth } from "@/server/net-worth";
 
 export const dynamic = "force-dynamic";
@@ -114,7 +114,7 @@ export default async function DebtPage() {
                       {g.entered ? g.name : g.items.length === 1 ? `${g.name} · ${g.items[0].name}` : g.name}
                       {g.entered ? (
                         // The home's value comes from the estimates in Setup, not typed in here.
-                        <Link href="/insights/settings?item=home" className="text-xs text-muted hover:underline">
+                        <Link href="/settings/home" className="text-xs text-muted hover:underline">
                           {" "}
                           · {/^(home|house)\b/i.test(g.name) ? "estimate" : "you set"}
                         </Link>
@@ -169,11 +169,12 @@ export default async function DebtPage() {
                         {d.interestLeftCents ? ` · about ${money(d.interestLeftCents)} interest to go` : ""}
                       </span>
                       {d.kind === "bill" ? (
-                        d.aprBps === null || (d.escrowCents == null && /mortgage|home loan/i.test(d.name)) ? (
-                          <LoanForm id={d.id} balance={false} initialApr={d.aprBps} escrow />
-                        ) : d.escrowCents ? (
-                          <span className="block text-xs text-muted">{money(d.escrowCents)} of the payment is escrow, left out of the payoff</span>
-                        ) : null
+                        <span className="block text-xs text-muted">
+                          {d.escrowCents ? `${money(d.escrowCents)} of the payment is escrow, left out of the payoff · ` : ""}
+                          <Link href={`/line-items?edit=${encodeURIComponent(d.id)}`} className="font-semibold text-accent-text hover:underline">
+                            {d.aprBps === null ? "Add its rate" : "Change"} in Bills &amp; income
+                          </Link>
+                        </span>
                       ) : null}
                     </td>
                     <td className="tnum py-2 pr-3 text-right font-semibold">{money(d.balanceCents)}</td>
@@ -203,9 +204,8 @@ export default async function DebtPage() {
         <Card>
           <h2 className="text-base font-bold">Loans missing a balance</h2>
           <p className="mt-0.5 text-xs text-muted">
-            These bills look like loans. Enter what&rsquo;s left to pay and the interest rate (APR) from the lender&rsquo;s statement or website, and the payoff date is
-            worked out. A loan account linked from the bank keeps its own balance: set that on the bill in{" "}
-            <Link href="/line-items" className="font-semibold text-accent-text hover:underline">Bills &amp; income</Link>.
+            These bills look like loans. In each one&rsquo;s form, under &ldquo;Pays off a balance&rdquo;, enter what&rsquo;s left (or pick its loan account from the bank) and the
+            interest rate from the lender&rsquo;s statement, and the payoff date is worked out.
           </p>
           <ul className="mt-2 divide-y divide-line">
             {debt.needsDetails.map((l) => (
@@ -214,7 +214,7 @@ export default async function DebtPage() {
                   <span className="font-semibold">{l.name}</span>
                   <span className="tnum text-muted">{money(l.paymentCents)}/mo{l.category ? ` · ${l.category}` : ""}</span>
                 </span>
-                <LoanForm id={l.lineItemId} askNotLoan />
+                <LoanPrompt id={l.lineItemId} />
               </li>
             ))}
           </ul>

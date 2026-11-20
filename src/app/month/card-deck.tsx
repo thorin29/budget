@@ -228,7 +228,7 @@ export function CardTable({ cards }: { cards: DeckCard[] }) {
     <section id="cards" className="scroll-mt-6 rounded-2xl border border-line bg-surface shadow-card">
       <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-5">
         <h2 className="text-base font-bold">Cards</h2>
-        <a href="/accounts" className="text-xs font-semibold text-accent-text hover:underline">
+        <a href="/settings/accounts" className="text-xs font-semibold text-accent-text hover:underline">
           Days and colors
         </a>
       </div>

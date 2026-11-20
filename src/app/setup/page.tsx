@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-/** Moved into Settings in 0.11.0; kept so old bookmarks still land. */
+/** An older page: its settings live in Settings now. */
 export default function Moved() {
-  redirect("/settings/accounts");
+  redirect("/line-items");
 }

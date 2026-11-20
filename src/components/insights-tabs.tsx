@@ -18,8 +18,17 @@ const TABS: Array<{ href: string; label: string; month: boolean }> = [
   { href: "/insights/debt", label: "Debt & net worth", month: false },
   { href: "/insights/trends", label: "Trends", month: true },
   { href: "/year", label: "Year plan", month: false },
-  { href: "/insights/settings", label: "Setup", month: false },
 ];
+
+/** Where each tab's figures are set: Insights only shows them. */
+const SET_IN: Record<string, { href: string; label: string }> = {
+  "/insights/budget": { href: "/settings/budgets", label: "Budgets" },
+  "/insights/money": { href: "/settings/budgets", label: "Budgets" },
+  "/insights/cash": { href: "/settings/planning", label: "Cushion" },
+  "/insights/calendar": { href: "/line-items", label: "Bills" },
+  "/insights/debt": { href: "/line-items", label: "Loans" },
+  "/year": { href: "/line-items", label: "Bills" },
+};
 
 function Tabs({ active }: { active?: "spending" | "year" }) {
   const pathname = usePathname() ?? "";
@@ -43,6 +52,11 @@ function Tabs({ active }: { active?: "spending" | "year" }) {
           );
         })}
       </div>
+      {SET_IN[current] ? (
+        <Link href={SET_IN[current].href} className="ml-2 whitespace-nowrap text-xs font-semibold text-accent-text hover:underline">
+          {SET_IN[current].label}: change in Settings →
+        </Link>
+      ) : null}
     </nav>
   );
 }

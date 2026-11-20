@@ -10,6 +10,7 @@ import { isIncomeCategory } from "@/lib/category-guess";
 import type { GroupTier } from "@/lib/month-plan";
 import { DEFAULT_GROUPS, OTHER_GROUP, defaultGroupFor } from "@/lib/envelope-defaults";
 import { NotFoundError, ValidationError } from "./errors";
+import { SETTING_KEYS } from "@/lib/settings";
 
 const KEY_DEBT = "debtMonthlyCents";
 const KEY_CUSHION = "cushionCents";
@@ -90,13 +91,20 @@ export async function resetLimits(): Promise<void> {
 
 /** What goes to the 0% debt each month; null for automatic (the bill for that card). */
 /** The least checking should keep once every card and bill is paid; 0 when not set. */
+/**
+ * The checking cushion: one amount, used by Cash, Budget and the projection's floor. It used to be
+ * two settings ("Checking cushion" and Planning's "Keep a floor of"); the older floor stands in
+ * until a cushion is saved.
+ */
 export async function cushionSetting(): Promise<number> {
-  return (await setting<number>(KEY_CUSHION)) ?? 0;
+  return (await setting<number>(KEY_CUSHION)) ?? (await setting<number>(SETTING_KEYS.buffer)) ?? 0;
 }
 
 export async function setCushion(value: number | null): Promise<void> {
   if (value !== null && !cents.safeParse(value).success) throw new ValidationError({ cushion: ["Enter an amount"] });
-  await saveSetting(KEY_CUSHION, value);
+  await saveSetting(KEY_CUSHION, value ?? 0);
+  // The projection reads the floor from Planning's settings: kept the same.
+  await saveSetting(SETTING_KEYS.buffer, value ?? 0);
 }
 
 export async function setDebtPayment(value: number | null): Promise<void> {

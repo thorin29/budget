@@ -80,13 +80,8 @@ export function PreferencesForm({
           />
         </Field>
 
-        <Field
-          label="Keep a floor of"
-          hint="Leave at 0 if you move money as needed"
-          error={state.issues?.bufferCents}
-        >
-          <TextInput name="buffer" defaultValue={settings.buffer} inputMode="decimal" />
-        </Field>
+        {/* The floor is the checking cushion, set beside this form (one amount for the whole app). */}
+        <input type="hidden" name="buffer" value={settings.buffer} />
 
         <Field
           label="Carry unpaid bills forward for"

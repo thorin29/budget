@@ -45,6 +45,14 @@ function readForm(form: FormData) {
           ? { payoffAccountId: null, payoffBalanceCents: parseCents(str(form, "payoffBalance")), payoffAsOf: str(form, "payoffAsOf") || null }
           : { payoffAccountId: null, payoffBalanceCents: null }
       : {}),
+    ...(form.has("payoffMode")
+      ? str(form, "payoffMode") === "none"
+        ? { payoffAprBps: null, payoffEscrowCents: null }
+        : {
+            payoffAprBps: str(form, "payoffApr") ? Math.round(Number(str(form, "payoffApr").replace(/[%\s]/g, "")) * 100) : null,
+            payoffEscrowCents: str(form, "payoffEscrow") ? parseCents(str(form, "payoffEscrow")) : null,
+          }
+      : {}),
     ...(form.has("paydayNumber") ? { paydayNumber: Number(str(form, "paydayNumber") || 0) } : {}),
     scheduleKind: (str(form, "scheduleKind") || "MONTHLY") as never,
     anchorMonth: num(form, "anchorMonth") ?? 1,

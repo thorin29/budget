@@ -40,19 +40,13 @@ const MAIN: NavItem[] = [
     match: ["/insights", "/year"],
     icon: "chart-pie-slice",
   },
-  {
-    href: "/accounts",
-    label: "Accounts",
-    match: ["/accounts"],
-    icon: "bank",
-  },
 ];
 
 const SETTINGS: NavItem = {
   href: "/settings",
   label: "Settings",
   // Bills & income (line items) lives under Settings.
-  match: ["/settings", "/setup", "/import", "/line-items"],
+  match: ["/settings", "/setup", "/import", "/line-items", "/accounts"],
   icon: "gear-six",
 };
 

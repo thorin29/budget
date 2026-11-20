@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { cookies } from "next/headers";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { listAccounts, ACCOUNT_KINDS } from "@/server/accounts";
 import { listCategories } from "@/server/categories";
 import { listPaySchedules, previewPayDates, PAY_FREQUENCIES } from "@/server/pay-schedule";
@@ -24,6 +24,9 @@ import { AccountsForm, AccountRow } from "../../setup/accounts/form";
 import { CategoryForm, CategoryRow } from "../../setup/categories/form";
 import { PayScheduleForm, PayScheduleRow } from "../../setup/pay/form";
 import { PreferencesForm } from "../../setup/preferences/form";
+import { PlanningExtras } from "../../insights/settings/setup-panel";
+import { cushionSetting } from "@/server/envelopes";
+import { getMonthPlan } from "@/server/month-plan";
 import { Importer } from "../../import/importer";
 import { setAppearanceAction } from "../actions";
 import { SECTIONS, type SectionSlug } from "../sections";
@@ -56,6 +59,8 @@ export default async function SettingsSection({
   params: Promise<{ section: string }>;
 }) {
   const { section } = await params;
+  // Pages that moved: categories live with budgets now.
+  if (section === "categories") redirect("/settings/budgets?item=categories");
   if (!SECTIONS.some((s) => s.slug === section)) notFound();
 
   switch (section as SectionSlug) {
@@ -65,10 +70,6 @@ export default async function SettingsSection({
       return <Appearance />;
     case "planning":
       return <Planning />;
-    case "accounts":
-      return <Accounts />;
-    case "categories":
-      return <Categories />;
     case "pay":
       return <Pay />;
     case "bank":
@@ -277,7 +278,7 @@ async function Appearance() {
 // ---------------------------------------------------------------- planning
 
 async function Planning() {
-  const [accounts, settings, feed] = await Promise.all([listAccounts(), getSettings(), listBankAccounts()]);
+  const [accounts, settings, feed, cushion, plan] = await Promise.all([listAccounts(), getSettings(), listBankAccounts(), cushionSetting(), getMonthPlan().catch(() => null)]);
   const bankAccounts = accounts.filter((a) => a.kind === "BANK");
   const sources = feed.filter((a) => !a.hidden && (a.type === "CHECKING" || a.type === "SAVINGS"));
   const current = feed.find((a) => a.isBillsSource)?.id ?? "";
@@ -286,8 +287,11 @@ async function Planning() {
     <div>
       <SectionHeading
         title="Planning"
-        description="Which balance the figures start from, where the month divides, and how far ahead the projection looks."
+        description="Where the month divides, how far ahead the projection looks, the cushion kept in checking and the 0% debt payment."
       />
+      <Card className="mb-6 p-5">
+        <PlanningExtras debt={{ cents: plan?.debt.cents ?? 0, automatic: (plan?.debt.source ?? "auto") !== "set", targetCents: plan?.debt.targetCents ?? null }} cushionCents={cushion} />
+      </Card>
       {bankAccounts.length === 0 ? (
         <Card>
           <p className="text-sm">
@@ -304,139 +308,19 @@ async function Planning() {
             splitDay: settings.splitDay,
             splitMode: settings.splitMode,
             horizonDays: settings.horizonDays,
-            buffer: toDecimalString(settings.bufferCents),
+            buffer: toDecimalString(cushion),
             carryMonths: settings.carryMonths,
             billsAccountId: settings.billsAccountId,
           }}
         />
       )}
-      {settings.billsAccountId && sources.length ? (
-        <Card className="mt-6 p-6">
-          <h3 className="font-sans text-base font-bold">Bills balance from your bank</h3>
-          <p className="mb-4 mt-1 max-w-prose text-sm text-muted">
-            The bills balance every figure starts from. With a bank account chosen, it updates every morning after
-            the sync and you never type it.
-          </p>
-          <BillsSource
-            current={current}
-            options={sources.map((a) => ({ id: a.id, label: a.institution ? `${a.institution} · ${a.displayName}` : a.displayName }))}
-          />
-        </Card>
-      ) : null}
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------- accounts
-
-const ACCOUNT_LABELS: Record<string, string> = {
-  BANK: "Bank account",
-  CREDIT_CARD: "Credit card",
-  CASH: "Cash",
-  OTHER: "Other",
-};
-
-async function Accounts() {
-  const [accounts, feed] = await Promise.all([listAccounts({ includeInactive: true }), listBankAccounts()]);
-  const bankAccounts = accounts.filter((a) => a.kind === "BANK" && a.active);
-  const options = feed
-    .filter((b) => !b.hidden && (b.type === "CHECKING" || b.type === "SAVINGS" || b.type === "CREDIT_CARD"))
-    .map((b) => ({ id: b.id, label: b.institution ? `${b.displayName} · ${b.institution}` : b.displayName, type: b.type }));
-  const fromBank = accounts.filter((a) => a.origin === "bank" && a.active);
-  const typed = accounts.filter((a) => a.origin !== "bank");
-
-  return (
-    <div>
-      <SectionHeading
-        title="Accounts for bills"
-        description="Where bills are paid from. Your bank feed's checking, savings and card accounts show up here on their own, and their balances update after every sync. An account you typed by hand can be connected to its bank account, so it's one account, not two."
-      />
-      {typed.length ? (
-        <div className="space-y-2">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-muted">Typed by hand</h3>
-          {typed.map((account) => (
-            <div key={account.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-line bg-surface px-4 py-3">
-              <div className="min-w-0">
-                <span className={account.active ? "font-semibold" : "text-muted line-through"}>{account.name}</span>
-                <span className="ml-2 text-xs text-muted">
-                  {ACCOUNT_LABELS[account.kind]}
-                  {account.settledById ? ` · settled by ${accounts.find((a) => a.id === account.settledById)?.name ?? "another account"}` : ""}
-                  {account.active ? "" : " · inactive"}
-                </span>
-              </div>
-              <span className="flex flex-wrap items-start gap-2">
-                {account.kind === "BANK" || account.kind === "CREDIT_CARD" ? (
-                  <LinkAccountToBank
-                    accountId={account.id}
-                    current={account.bankAccountId ?? ""}
-                    options={options.filter((o) => (account.kind === "CREDIT_CARD" ? o.type === "CREDIT_CARD" : o.type !== "CREDIT_CARD"))}
-                  />
-                ) : null}
-                <AccountRow account={account} kindLabel={ACCOUNT_LABELS[account.kind]} settledByName={null} removeOnly />
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
-      {fromBank.length ? (
-        <div className="mt-6 space-y-2">
-          <h3 className="text-sm font-bold uppercase tracking-wide text-muted">From your bank</h3>
-          <ul className="divide-y divide-line rounded-xl border border-line bg-surface">
-            {fromBank.map((a) => {
-              const b = feed.find((x) => x.id === a.bankAccountId);
-              return (
-                <li key={a.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                  <span>
-                    <span className="font-semibold">{a.name}</span>
-                    <span className="ml-2 text-xs text-muted">
-                      {ACCOUNT_LABELS[a.kind]}
-                      {b?.institution ? ` · ${b.institution}` : ""}
-                    </span>
-                  </span>
-                  <span className="tnum text-muted">{b?.balanceCents == null ? "—" : formatCents(b.balanceCents)}</span>
-                </li>
-              );
-            })}
-          </ul>
-          <p className="text-xs text-muted">
-            To drop one from this list, hide it or correct its type on the{" "}
-            <Link href="/accounts" className="font-semibold text-accent-text hover:underline">
-              Accounts
-            </Link>{" "}
-            page.
-          </p>
-        </div>
-      ) : null}
-      <details className="mt-6">
-        <summary className="cursor-pointer text-sm font-semibold text-accent-text">Add an account by hand</summary>
-        <p className="my-2 text-xs text-muted">For money the bank feed doesn't see, like cash.</p>
-        <AccountsForm
-          kinds={ACCOUNT_KINDS.map((k) => ({ value: k, label: ACCOUNT_LABELS[k] }))}
-          bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: a.name }))}
-        />
-      </details>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------- categories
-
-async function Categories() {
-  const categories = await listCategories({ includeInactive: true });
-  return (
-    <div>
-      <SectionHeading
-        title="Categories"
-        description="Used by bills, transactions and Insights. Mark a category as managed for others when it holds money that isn't yours, like league fees you collect and pass on: it stays out of spending and income and gets its own running balance."
-      />
-      <CategoryForm />
-      <div className="mt-6 space-y-2">
-        {categories.length === 0 ? (
-          <p className="text-sm text-muted">Nothing added yet.</p>
-        ) : (
-          categories.map((category) => <CategoryRow key={category.id} category={category} />)
-        )}
-      </div>
+      <p className="mt-4 text-xs text-muted">
+        Which account holds the bills money is set on that account in{" "}
+        <Link href="/settings/accounts" className="font-semibold text-accent-text hover:underline">
+          Accounts
+        </Link>
+        .
+      </p>
     </div>
   );
 }
@@ -531,8 +415,16 @@ async function Data() {
       <Card>
         <h3 className="font-sans text-base font-bold">Export</h3>
         <p className="mt-1 text-sm text-muted">
-          Every item by every month for a year, as CSV — budgeted and paid side by side.
+          As CSV, downloaded from your server to this browser: everything the bank feed and your files delivered, and each year&rsquo;s plan (every item by every month, budgeted and paid side by side).
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <a href="/transactions/export?what=transactions" className="rounded-[10px] border border-line-strong px-3 py-1.5 text-sm font-semibold transition hover:bg-neutral-soft">
+            Transactions.csv
+          </a>
+          <a href="/transactions/export?what=accounts" className="rounded-[10px] border border-line-strong px-3 py-1.5 text-sm font-semibold transition hover:bg-neutral-soft">
+            Accounts.csv
+          </a>
+        </div>
         {years.length === 0 ? (
           <p className="mt-3 text-sm text-subtle">Nothing recorded yet.</p>
         ) : (
@@ -565,7 +457,7 @@ async function Bank() {
   return (
     <div className="space-y-6">
       <SectionHeading
-        title="Bank sync"
+        title="Bank connection"
         description="Optional. Reads balances and transactions every few hours through a SimpleFIN bridge. Read-only: nothing here can move money."
       />
 
@@ -656,7 +548,7 @@ async function Bank() {
                 {accounts.length} received, {shown} in use. They sort themselves by type; nothing to set up here.
               </p>
             </div>
-            <Link href="/accounts" className="text-sm font-semibold text-accent-text hover:underline">
+            <Link href="/settings/accounts" className="text-sm font-semibold text-accent-text hover:underline">
               Open Accounts
             </Link>
           </div>
@@ -678,23 +570,6 @@ async function Bank() {
         </Card>
       ) : null}
 
-      {accounts.length ? (
-        <Card className="p-6">
-          <h3 className="font-sans text-base font-bold">Export</h3>
-          <p className="mt-1 max-w-prose text-sm text-muted">
-            Everything the feed and your files have delivered, as CSV, for your own analysis or a backup. It downloads
-            from your server to this browser.
-          </p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <a href="/transactions/export?what=transactions" className="rounded-[10px] border border-line-strong px-3 py-1.5 text-sm font-semibold transition hover:bg-neutral-soft">
-              Transactions.csv
-            </a>
-            <a href="/transactions/export?what=accounts" className="rounded-[10px] border border-line-strong px-3 py-1.5 text-sm font-semibold transition hover:bg-neutral-soft">
-              Accounts.csv
-            </a>
-          </div>
-        </Card>
-      ) : null}
 
       {accounts.length ? (
         <Card className="p-6">

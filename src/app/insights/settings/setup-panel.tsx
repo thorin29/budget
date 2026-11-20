@@ -1,10 +1,11 @@
 "use client";
 
 /**
- * Setup, as a list and a detail: budgets down the left by kind, the chosen one on the right (its
- * kind, limit, usual spending and categories). A bar on top holds the 0% debt payment, the
- * checking cushion, and an alert for categories without a budget. The home value from RentCast
- * is set up from the same list.
+ * Settings pieces that came from the old Insights › Setup tab:
+ *  - BudgetsPanel (Settings › Budgets & categories): budgets down the left by kind, the chosen one on
+ *    the right (kind, limit, usual spending, categories), categories without a budget, every category.
+ *  - HomePanel (Settings › Home & net worth): the home value.
+ *  - PlanningExtras (Settings › Planning): the 0% debt payment and the checking cushion.
  */
 
 import { useState, useTransition } from "react";
@@ -26,6 +27,7 @@ import {
   setCushionAction,
   setDebtPaymentAction,
   setLimitsAction,
+  createCategoryAction,
   type EnvelopeState,
 } from "../envelope-actions";
 
@@ -83,30 +85,53 @@ function Note({ state }: { state: EnvelopeState | null }) {
 
 export type Usage = Record<string, { count: number; cents: number; latest: Array<{ date: string; merchant: string; cents: number }> }>;
 
-export function SetupPanel({
+/** Pending flag, last message and a runner that refreshes the page after a save. */
+function useAct() {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const [state, setState] = useState<EnvelopeState | null>(null);
+  const act: Act = (work) =>
+    start(async () => {
+      const r = await work();
+      setState(r);
+      if (r.ok) router.refresh();
+    });
+  return { pending, state, setState, act };
+}
+
+/** Settings › Home & net worth. */
+export function HomePanel({ home }: { home: SetupHome | null }) {
+  const { pending, state, act } = useAct();
+  return (
+    <section className="rounded-2xl border border-line bg-surface p-5 shadow-card">
+      <HomeValue home={home} pending={pending} act={act} state={state} />
+    </section>
+  );
+}
+
+/** Settings › Planning: the 0% debt payment and the one checking cushion. */
+export function PlanningExtras({ debt, cushionCents }: { debt: { cents: number; automatic: boolean; targetCents: number | null }; cushionCents: number }) {
+  return <TopBar debt={debt} cushionCents={cushionCents} ungrouped={0} onUnsorted={() => undefined} />;
+}
+
+export function BudgetsPanel({
   budgets,
   ungrouped,
   usage,
-  debt,
-  cushionCents,
-  home,
   initial,
   categories = [],
 }: {
   budgets: SetupBudget[];
   ungrouped: Array<{ id: string; name: string }>;
   usage: Usage;
-  debt: { cents: number; automatic: boolean; targetCents: number | null };
-  cushionCents: number;
-  home: SetupHome | null;
-  /** The item to open first (?item=home from the net worth card). */
+  /** The item to open first (?item=categories). */
   initial?: string;
-  /** Every category, for the Categories list (rename, money for others). */
+  /** Every category, for the list (add, rename, money for others, remove). */
   categories?: AnyCategory[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
-  const [sel, choose] = useState<string>(initial === "home" || initial === "categories" ? initial : ungrouped.length ? "unsorted" : (budgets[0]?.id ?? "new"));
+  const [sel, choose] = useState<string>(initial === "categories" || initial === "unsorted" ? initial : ungrouped.length ? "unsorted" : (budgets[0]?.id ?? "new"));
   const [state, setState] = useState<EnvelopeState | null>(null);
   // A new pick starts without the last one's message.
   const setSel = (id: string) => {
@@ -123,7 +148,6 @@ export function SetupPanel({
   const current = budgets.find((b) => b.id === sel) ?? null;
   return (
     <div className="space-y-4">
-      <TopBar debt={debt} cushionCents={cushionCents} ungrouped={ungrouped.length} onUnsorted={() => setSel("unsorted")} />
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[20rem_minmax(0,1fr)]">
         <nav className="rounded-2xl border border-line bg-surface p-3 shadow-card" aria-label="Budgets">
           {KINDS.map(([tier, label, color]) => {
@@ -160,10 +184,12 @@ export function SetupPanel({
               <span>All categories</span>
               <span className="tnum text-xs text-muted">{categories.length}</span>
             </button>
-            <button type="button" onClick={() => setSel("home")} className={`flex w-full justify-between rounded-lg px-2.5 py-1.5 text-left text-sm ${sel === "home" ? "bg-accent-soft font-bold" : "hover:bg-neutral-soft"}`}>
-              <span>Home value</span>
-              <span className="tnum text-xs text-muted">{home?.usedCents ? money(home.usedCents) : home?.averageCents ? money(home.averageCents) : ""}</span>
-            </button>
+            {ungrouped.length ? (
+              <button type="button" onClick={() => setSel("unsorted")} className={`flex w-full justify-between rounded-lg px-2.5 py-1.5 text-left text-sm ${sel === "unsorted" ? "bg-accent-soft font-bold" : "hover:bg-neutral-soft"}`}>
+                <span>Without a budget</span>
+                <span className="rounded-full bg-warn-soft px-2 text-xs font-bold text-warn">{ungrouped.length}</span>
+              </button>
+            ) : null}
           </div>
         </nav>
 
@@ -174,8 +200,6 @@ export function SetupPanel({
             <Unsorted ungrouped={ungrouped} usage={usage} budgets={budgets} pending={pending} act={act} state={state} />
           ) : sel === "categories" ? (
             <AllCategories list={categories} pending={pending} act={act} state={state} />
-          ) : sel === "home" ? (
-            <HomeValue home={home} pending={pending} act={act} state={state} />
           ) : (
             <NewBudget pending={pending} act={act} state={state} />
           )}
@@ -198,7 +222,7 @@ function TopBar({ debt, cushionCents, ungrouped, onUnsorted }: { debt: { cents: 
       if (r.ok) router.refresh();
     });
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-line bg-surface px-5 py-3 text-sm shadow-card">
+    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
       <label className="flex items-center gap-2">
         <b>0% debt payment</b>
         <input aria-label="0% debt payment each month" className={`${INPUT} w-24`} placeholder="auto" value={d} onChange={(e) => setD(e.target.value)} onBlur={() => d !== (debt.automatic ? "" : String(Math.round(debt.cents / 100))) && save(() => setDebtPaymentAction(toCents(d)))} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
@@ -206,6 +230,7 @@ function TopBar({ debt, cushionCents, ungrouped, onUnsorted }: { debt: { cents: 
       </label>
       <label className="flex items-center gap-2">
         <b>Checking cushion</b>
+        <span className="text-xs text-muted">kept in checking, never planned away</span>
         <input aria-label="Checking cushion" className={`${INPUT} w-24`} placeholder="$0" value={c} onChange={(e) => setC(e.target.value)} onBlur={() => c !== (cushionCents ? String(Math.round(cushionCents / 100)) : "") && save(() => setCushionAction(toCents(c)))} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
       </label>
       {pending ? <span className="text-xs text-muted">Saving…</span> : <Note state={state} />}
@@ -433,28 +458,47 @@ type AnyCategory = { id: string; name: string; budget: string | null; forOthers:
 /** Every category in one list: rename any of them, and see which budget (if any) it's in. */
 function AllCategories({ list, pending, act, state }: { list: AnyCategory[]; pending: boolean; act: Act; state: EnvelopeState | null }) {
   const [q, setQ] = useState("");
+  const [fresh, setFresh] = useState("");
   const shown = list.filter((c) => !q.trim() || c.name.toLowerCase().includes(q.trim().toLowerCase()));
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-baseline justify-between gap-3">
         <div>
           <h2 className="text-xl font-bold">All categories</h2>
-          <p className="mt-1 text-sm text-muted">Click a name to rename it. Everything using it follows.</p>
+          <p className="mt-1 text-sm text-muted">Click a name to rename it; everything using it follows. “For others” keeps money you collect and pass on (a league, a group trip) out of your spending.</p>
         </div>
         <Note state={state} />
       </div>
-      <input aria-label="Find a category" placeholder="Find a category" value={q} onChange={(e) => setQ(e.target.value)} className="w-full max-w-xs rounded-lg border border-line bg-surface px-2 py-1.5 text-sm" />
+      <div className="flex flex-wrap items-center gap-2">
+        <input aria-label="Find a category" placeholder="Find a category" value={q} onChange={(e) => setQ(e.target.value)} className="w-full max-w-xs rounded-lg border border-line bg-surface px-2 py-1.5 text-sm" />
+        <input aria-label="New category" placeholder="New category" value={fresh} onChange={(e) => setFresh(e.target.value)} className="w-44 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm" />
+        <button type="button" disabled={pending || !fresh.trim()} className={QUIET} onClick={() => act(async () => { const r = await createCategoryAction(fresh); if (r.ok) setFresh(""); return r; })}>
+          Add
+        </button>
+      </div>
       <ul className="grid gap-x-6 text-sm sm:grid-cols-2">
         {shown.map((c) => (
-          <li key={c.id} className="flex items-center justify-between gap-3 border-b border-line py-1.5">
-            <CategoryName id={c.id} name={c.name} pending={pending} act={act} />
-            <span className="flex shrink-0 items-center gap-2 text-xs text-muted">
-              {!c.active ? <span>turned off</span> : c.forOthers ? <span>money for others</span> : c.budget ? <span>{c.budget}</span> : <span className="text-warn">no budget</span>}
-              {c.forOthers ? (
-                <button type="button" disabled={pending} title="Count it as your own spending again" className="font-semibold text-accent-text hover:underline" onClick={() => act(() => setForOthersAction(c.id, false))}>
-                  Count as mine
-                </button>
-              ) : null}
+          <li key={c.id} className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-line py-1.5">
+            <span className="min-w-0">
+              <CategoryName id={c.id} name={c.name} pending={pending} act={act} />
+              <span className="block text-xs text-muted">
+                {!c.active ? "turned off" : c.forOthers ? "money for others" : c.budget ? c.budget : <span className="text-warn">no budget</span>}
+              </span>
+            </span>
+            {/* Actions show on hover or focus (and always for a money-for-others one) to keep the list calm. */}
+            <span className={`flex shrink-0 items-center gap-2 text-xs text-muted transition-opacity ${c.forOthers ? "" : "opacity-0 focus-within:opacity-100 group-hover:opacity-100"}`}>
+              <button
+                type="button"
+                disabled={pending}
+                title={c.forOthers ? "Count it as your own spending again" : "Money you collect and pass on for others: kept out of your spending and income"}
+                className="font-semibold text-accent-text hover:underline"
+                onClick={() => act(() => setForOthersAction(c.id, !c.forOthers))}
+              >
+                {c.forOthers ? "Count as mine" : "For others"}
+              </button>
+              <button type="button" disabled={pending} aria-label={`Remove ${c.name}`} title="Remove (turned off instead when a bill uses it)" className="hover:text-danger" onClick={() => act(() => deleteCategoryAction(c.id))}>
+                ✕
+              </button>
             </span>
           </li>
         ))}

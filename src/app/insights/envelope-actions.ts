@@ -183,3 +183,8 @@ export async function setForOthersAction(id: string, forOthers: boolean): Promis
   const { setManagedForOthers } = await import("@/server/categories");
   return run(() => setManagedForOthers(String(id), Boolean(forOthers)), forOthers ? "Now kept out of your spending." : "Now counted as your spending.");
 }
+
+export async function createCategoryAction(name: string): Promise<EnvelopeState> {
+  const { createCategory } = await import("@/server/categories");
+  return run(() => createCategory({ name: String(name) }), "Category added.");
+}

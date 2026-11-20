@@ -202,7 +202,7 @@ export function HowItAddsUp({ plan }: { plan: MonthPlanView }) {
                 </li>
               ) : null}
             </ul>
-            <Link href="/insights/settings" className="mt-2 inline-block text-xs font-semibold text-accent-text hover:underline">
+            <Link href="/settings/budgets" className="mt-2 inline-block text-xs font-semibold text-accent-text hover:underline">
               Change the debt payment
             </Link>
           </Step>
@@ -390,7 +390,7 @@ function GroupRow({ g, share, safeCents }: { g: PlanGroup; share: number; safeCe
             <p className="text-xs text-muted">Nothing spent this month.</p>
           )}
           {g.tier === "SORT" ? (
-            <Link href={g.id === "uncategorized" ? "/insights/uncategorized" : "/insights/settings"} className="inline-block text-xs font-semibold text-accent-text hover:underline">
+            <Link href={g.id === "uncategorized" ? "/insights/uncategorized" : "/settings/budgets"} className="inline-block text-xs font-semibold text-accent-text hover:underline">
               {g.id === "uncategorized" ? "Sort them by merchant" : "Place these categories in a budget"}
             </Link>
           ) : null}

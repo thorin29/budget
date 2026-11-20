@@ -46,6 +46,9 @@ export interface LineItem {
   payoffBalanceCents: Cents | null;
   payoffAsOf: string | null;
   payoffAccountId: string | null;
+  /** A loan's interest rate in hundredths of a percent (6.25% = 625), and the escrow part of each payment. */
+  payoffAprBps: number | null;
+  payoffEscrowCents: number | null;
   /** INCOME: which payday of the month (1st, 2nd…); 0 or null for its due day. */
   paydayNumber: number | null;
   scheduleKind: ScheduleKind;
@@ -81,6 +84,8 @@ const lineItemInput = z
     payoffBalanceCents: z.number().int().min(0).nullish(),
     payoffAsOf: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Use a date").nullish(),
     payoffAccountId: z.string().trim().min(1).nullish(),
+    payoffAprBps: z.number().int().min(0, "Enter the rate as a percent, like 6.5").max(10_000, "Enter the rate as a percent, like 6.5").nullish(),
+    payoffEscrowCents: z.number().int().min(0, "Cannot be negative").max(100_000_000).nullish(),
     paydayNumber: z.number().int().min(0).max(5).nullish(),
     scheduleKind: z.enum(SCHEDULE_KINDS).default("MONTHLY"),
     /** The month a non-monthly schedule is anchored to. */
@@ -154,6 +159,8 @@ type Row = {
   payoffBalance?: { toString(): string } | null;
   payoffAsOf?: Date | null;
   payoffAccountId?: string | null;
+  payoffAprBps?: number | null;
+  payoffEscrowCents?: number | null;
   paydayNumber?: number | null;
   scheduleKind: string;
   months: number[];
@@ -189,6 +196,8 @@ function toLineItem(row: Row): LineItem {
     payoffBalanceCents: row.payoffBalance ? toCents(row.payoffBalance) : null,
     payoffAsOf: row.payoffAsOf ? row.payoffAsOf.toISOString().slice(0, 10) : null,
     payoffAccountId: row.payoffAccountId ?? null,
+    payoffAprBps: row.payoffAprBps ?? null,
+    payoffEscrowCents: row.payoffEscrowCents ?? null,
     paydayNumber: row.paydayNumber ?? null,
     scheduleKind: row.scheduleKind as ScheduleKind,
     months: row.months,
@@ -247,6 +256,9 @@ async function toRowData(data: ReturnType<typeof parse>) {
             payoffBalance: data.payoffAccountId || data.payoffBalanceCents == null ? null : toDecimalString(data.payoffBalanceCents),
             payoffAsOf: data.payoffAccountId || data.payoffBalanceCents == null ? null : new Date(`${data.payoffAsOf ?? new Date().toISOString().slice(0, 10)}T00:00:00Z`),
           }),
+    // A loan's rate and escrow: only when the form sends them (cleared with the balance it pays off).
+    ...(data.payoffAprBps === undefined ? {} : { payoffAprBps: data.kind === "INCOME" ? null : data.payoffAprBps }),
+    ...(data.payoffEscrowCents === undefined ? {} : { payoffEscrowCents: data.kind === "INCOME" ? null : data.payoffEscrowCents }),
     ...(data.paydayNumber === undefined ? {} : { paydayNumber: data.kind === "INCOME" ? data.paydayNumber : null }),
     scheduleKind: data.scheduleKind,
     months: monthsForSchedule(data.scheduleKind, data.anchorMonth, data.months ?? []),

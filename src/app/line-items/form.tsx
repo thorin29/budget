@@ -37,6 +37,9 @@ export interface LineItemDefaults {
   payoffBalance: string;
   payoffAsOf: string;
   payoffAccountId: string | null;
+  /** The loan's rate as a percent ("6.25") and the escrow part of each payment ("600.00"), or "". */
+  payoffApr?: string;
+  payoffEscrow?: string;
   /** What's left now and when it ends, when it pays off a balance. */
   payoffSummary: string | null;
   paydayNumber: number | null;
@@ -523,6 +526,16 @@ export function LineItemForm({
                   </Field>
                   <Field label="As of" hint="Update both now and then for a loan with interest">
                     <TextInput name="payoffAsOf" type="date" defaultValue={defaults.payoffAsOf} />
+                  </Field>
+                </>
+              ) : null}
+              {payoffMode !== "none" ? (
+                <>
+                  <Field label="Interest rate (APR)" hint="For the payoff date" error={state.issues?.payoffAprBps}>
+                    <TextInput name="payoffApr" inputMode="decimal" defaultValue={defaults.payoffApr ?? ""} placeholder="6.25 %" />
+                  </Field>
+                  <Field label="Escrow each month" hint="Taxes and insurance in the payment: left out of the payoff" error={state.issues?.payoffEscrowCents}>
+                    <TextInput name="payoffEscrow" inputMode="decimal" defaultValue={defaults.payoffEscrow ?? ""} placeholder="0.00" />
                   </Field>
                 </>
               ) : null}
