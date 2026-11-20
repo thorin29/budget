@@ -193,6 +193,8 @@ model LineItem {
   payoffAccount   BankAccount? @relation("PayoffAccount", fields: [payoffAccountId], references: [id], onDelete: SetNull)
   /// The loan's interest rate (APR) in hundredths of a percent (6.25% = 625), for the payoff date.
   payoffAprBps    Int?
+  /// The part of each payment that goes to escrow (taxes, insurance), not the loan: left out of the payoff.
+  payoffEscrowCents Int?
 
   /// INCOME only: the pay calendar this arrives on. When set, the projection
   /// places one payment on every payday the schedule generates, instead of a

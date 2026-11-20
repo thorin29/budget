@@ -3,6 +3,26 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.85.0]
+
+**Migration 0026** (runs on start): `LineItem.payoffEscrowCents`. The phone app is unchanged.
+
+### Added
+- **Escrow on a mortgage:** the Debt tab asks how much of the payment is escrow (taxes,
+  insurance). The payoff date, interest to go and payoff chart then use principal and interest
+  only. A typed balance is now walked forward through each payment since with interest added and
+  escrow left out, instead of taking whole payments off.
+
+### Changed
+- **Insights tabs:** Settings is now **Setup**, at the end.
+- **Calendar:** a past row matched to a bill or paycheck shows its name (not the bank's text). Days
+  are taller (up to four lines) and fill the screen height.
+- **Debt & net worth:** Own is **Assets**, Owe is **Debt**; the net worth line reads "assets −
+  debt".
+- **Year plan:** a payment that came a month early or late (a miss beside a payment in a month
+  with no plan of its own) shows "in Apr" instead of "Not paid", and the payment counts as paid.
+  Rows with the same name in a part (two paychecks both named "Acme Pay") show as one row.
+
 ## [0.84.0]
 
 No migration. The phone app is unchanged.

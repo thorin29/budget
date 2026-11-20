@@ -14,7 +14,7 @@ export default async function InsightsSettingsPage() {
   return (
     <div className="space-y-6">
       <InsightsTabs />
-      <TabHeading title="Settings" />
+      <TabHeading title="Setup" />
       <Limits plan={plan} />
       <EnvelopeSetupForm setup={setup} debt={{ cents: plan.debt.cents, automatic: plan.debt.source !== "set", targetCents: plan.debt.targetCents }} cushionCents={cushion} />
       <Card>

@@ -37,14 +37,15 @@ export async function checkingHistory(from: string, today: string): Promise<Chec
   if (!bank || bank.balance === null) return null;
   const rows = (await prisma.bankTransaction.findMany({
     where: { accountId: bank.id, pending: false, postedOn: { gte: new Date(`${from}T00:00:00Z`) } },
-    select: { postedOn: true, amount: true, merchant: true, description: true },
+    select: { postedOn: true, amount: true, merchant: true, description: true, actual: { select: { lineItem: { select: { name: true } } } } },
     orderBy: { postedOn: "asc" },
-  })) as Array<{ postedOn: Date; amount: { toString(): string }; merchant: string | null; description: string }>;
+  })) as Array<{ postedOn: Date; amount: { toString(): string }; merchant: string | null; description: string; actual: { lineItem: { name: string } } | null }>;
 
   const byDay = new Map<string, Array<{ label: string; cents: number }>>();
   for (const r of rows) {
     const d = iso(r.postedOn);
-    byDay.set(d, [...(byDay.get(d) ?? []), { label: r.merchant || r.description, cents: toCents(r.amount) }]);
+    // A row matched to a bill or paycheck shows that name ("Acme Pay"), not the bank's text.
+    byDay.set(d, [...(byDay.get(d) ?? []), { label: r.actual?.lineItem.name || r.merchant || r.description, cents: toCents(r.amount) }]);
   }
   // The balance now, less everything since `from`, is what it held before `from`.
   const since = rows.reduce((t, r) => t + toCents(r.amount), 0);

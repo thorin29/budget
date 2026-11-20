@@ -43,7 +43,7 @@ export default async function DebtPage() {
     return [{
       key: d.id,
       label: short(d.name),
-      panel: <LoanPanel name={d.name} balanceCents={d.balanceCents} paymentCents={d.paymentCents} aprBps={d.aprBps} interestLeftCents={d.interestLeftCents} schedule={payoffSchedule(d.balanceCents, d.paymentCents, d.aprBps, today)} />,
+      panel: <LoanPanel name={d.name} balanceCents={d.balanceCents} paymentCents={d.paymentCents - (d.escrowCents ?? 0)} aprBps={d.aprBps} interestLeftCents={d.interestLeftCents} schedule={payoffSchedule(d.balanceCents, d.paymentCents - (d.escrowCents ?? 0), d.aprBps, today)} />,
     }];
   });
   // The 0% balance first: it's the one with a deadline.
@@ -58,7 +58,7 @@ export default async function DebtPage() {
           <p className="text-sm font-semibold text-muted">Net worth</p>
           <p className={`tnum text-3xl font-bold ${worth.netCents < 0 ? "text-danger" : "text-ok"}`}>{money(worth.netCents)}</p>
           <p className="tnum text-xs text-muted">
-            {money(worth.ownCents)} owned − {money(worth.oweCents)} owed
+            {money(worth.ownCents)} assets − {money(worth.oweCents)} debt
             {change !== null ? ` · ${change >= 0 ? "up" : "down"} ${money(Math.abs(change))} since ${monthYear(prevMonth!).split(" ")[0]}` : ""}
           </p>
           {worth.history.length > 1 ? (
@@ -86,7 +86,7 @@ export default async function DebtPage() {
         </Card>
         <Card>
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-base font-bold">Own</h2>
+            <h2 className="text-base font-bold">Assets</h2>
             <span className="tnum font-bold">{money(worth.ownCents)}</span>
           </div>
           <ul className="mt-1 divide-y divide-line text-sm">
@@ -126,7 +126,7 @@ export default async function DebtPage() {
         </Card>
         <Card>
           <div className="flex items-baseline justify-between gap-3">
-            <h2 className="text-base font-bold">Owe</h2>
+            <h2 className="text-base font-bold">Debt</h2>
             <span className="tnum font-bold">{money(worth.oweCents)}</span>
           </div>
           <ul className="mt-1 divide-y divide-line text-sm">
@@ -165,7 +165,13 @@ export default async function DebtPage() {
                         {d.kind === "zero" ? `0% until ${day(d.endsOn!)}, ${d.endsOn!.slice(0, 4)}` : d.source === "bank" ? "Balance from the bank" : d.asOf ? `Balance as of ${day(d.asOf)}, less payments since` : ""}
                         {d.interestLeftCents ? ` · about ${money(d.interestLeftCents)} interest to go` : ""}
                       </span>
-                      {d.kind === "bill" && d.aprBps === null ? <LoanForm id={d.id} balance={false} /> : null}
+                      {d.kind === "bill" ? (
+                        d.aprBps === null || (d.escrowCents == null && /mortgage|home loan/i.test(d.name)) ? (
+                          <LoanForm id={d.id} balance={false} initialApr={d.aprBps} escrow />
+                        ) : d.escrowCents ? (
+                          <span className="block text-xs text-muted">{money(d.escrowCents)} of the payment is escrow, left out of the payoff</span>
+                        ) : null
+                      ) : null}
                     </td>
                     <td className="tnum py-2 pr-3 text-right font-semibold">{money(d.balanceCents)}</td>
                     <td className="tnum py-2 pr-3 text-right">{money(d.paymentCents)}/mo</td>

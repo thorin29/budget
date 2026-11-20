@@ -24,6 +24,8 @@ export interface PayoffInput {
   today: string;
   /** The interest rate (APR) in hundredths of a percent (6.25% = 625); null or 0 for none known. */
   aprBps?: number | null;
+  /** The part of each payment that goes to escrow, not the loan. */
+  escrowCents?: number | null;
 }
 
 export interface PayoffStatus {
@@ -70,10 +72,15 @@ export function payoffStatus(input: PayoffInput): PayoffStatus | null {
   if (input.accountBalanceCents === null && input.balanceCents === null) return null;
   const source = input.accountBalanceCents !== null ? "bank" : "balance";
   const since = input.asOf ?? "0000-00-00";
-  const paidSince = input.payments.filter((p) => p.paidOn > since).reduce((s, p) => s + p.cents, 0);
-  const remainingCents = Math.max(0, source === "bank" ? input.accountBalanceCents! : input.balanceCents! - paidSince);
+  const escrow = Math.max(0, input.escrowCents ?? 0);
+  // A typed balance, walked forward through each payment since: interest added, then the payment
+  // less escrow taken off (not the whole payment, which would count interest and escrow as paid down).
+  const r = input.aprBps && input.aprBps > 0 ? input.aprBps / 10_000 / 12 : 0;
+  let walked = input.balanceCents ?? 0;
+  for (const p of input.payments.filter((p) => p.paidOn > since).sort((a, b) => a.paidOn.localeCompare(b.paidOn))) walked = Math.max(0, walked + Math.round(walked * r) - Math.max(0, p.cents - escrow));
+  const remainingCents = Math.max(0, source === "bank" ? input.accountBalanceCents! : walked);
   const latest = [...input.payments].sort((a, b) => b.year * 12 + b.month - (a.year * 12 + a.month))[0] ?? null;
-  const { paymentsLeft, neverEnds, interestLeftCents } = paymentsFor(remainingCents, input.plannedCents, input.aprBps ?? null);
+  const { paymentsLeft, neverEnds, interestLeftCents } = paymentsFor(remainingCents, Math.max(0, input.plannedCents - escrow), input.aprBps ?? null);
 
   // Count due months from this one (or next, when this one is paid).
   let lastYear: number | null = null;

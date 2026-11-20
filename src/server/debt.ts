@@ -39,6 +39,8 @@ export interface InstallmentDebt {
   name: string;
   balanceCents: number;
   paymentCents: number;
+  /** The escrow part of the payment (not paying down the loan). */
+  escrowCents?: number | null;
   aprBps: number | null;
   paymentsLeft: number | null;
   /** YYYY-MM of the last payment. */
@@ -110,7 +112,7 @@ export async function getDebt(debtPaymentCents: number): Promise<DebtView> {
   const installment: InstallmentDebt[] = payoffs
     .filter((p) => !p.paidOff && !ended(p.endYear, p.endMonth))
     .map((p) => ({
-      kind: "bill" as const, id: p.lineItemId, name: p.name, balanceCents: p.remainingCents, paymentCents: p.plannedCents, aprBps: p.aprBps,
+      kind: "bill" as const, id: p.lineItemId, name: p.name, balanceCents: p.remainingCents, paymentCents: p.plannedCents, escrowCents: p.escrowCents, aprBps: p.aprBps,
       paymentsLeft: p.paymentsLeft, lastMonth: ym(p.lastYear, p.lastMonth), neverEnds: p.neverEnds, interestLeftCents: p.interestLeftCents,
       source: p.source, asOf: p.asOf, endsOn: null, startCents: null,
     }));
@@ -166,14 +168,16 @@ export async function getDebt(debtPaymentCents: number): Promise<DebtView> {
 }
 
 /** A loan's balance (as of today) and interest rate, so its payoff date can be worked out. */
-export async function saveLoanDetails(lineItemId: string, balanceCents: number | null, aprBps: number | null): Promise<void> {
+export async function saveLoanDetails(lineItemId: string, balanceCents: number | null, aprBps: number | null, escrowCents: number | null = null): Promise<void> {
   const item = await prisma.lineItem.findUnique({ where: { id: lineItemId }, select: { id: true, payoffAccountId: true } });
   if (!item) throw new NotFoundError("Bill");
   if (balanceCents !== null && (!Number.isInteger(balanceCents) || balanceCents < 0 || balanceCents > 10_000_000_000)) throw new ValidationError({ balance: ["Enter the amount left to pay"] });
   if (aprBps !== null && (!Number.isInteger(aprBps) || aprBps < 0 || aprBps > 10_000)) throw new ValidationError({ apr: ["Enter the rate as a percent, like 6.5"] });
+  if (escrowCents !== null && (!Number.isInteger(escrowCents) || escrowCents < 0 || escrowCents > 100_000_000)) throw new ValidationError({ escrow: ["Enter the escrow part of the payment"] });
   await prisma.lineItem.update({
     where: { id: lineItemId },
     data: {
+      ...(escrowCents !== null ? { payoffEscrowCents: escrowCents } : {}),
       ...(balanceCents !== null && !item.payoffAccountId ? { payoffBalance: (balanceCents / 100).toFixed(2), payoffAsOf: new Date(`${localToday()}T00:00:00Z`) } : {}),
       payoffAprBps: aprBps,
     },

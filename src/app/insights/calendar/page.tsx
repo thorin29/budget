@@ -173,7 +173,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                 <span key={w}>{w}</span>
               ))}
             </div>
-            <div className="grid auto-rows-[6.5rem] grid-cols-7 gap-1.5">
+            <div className="grid grid-cols-7 gap-1.5" style={{ gridAutoRows: `clamp(6.25rem, calc((100vh - ${avgMiss !== null ? 18.5 : 16.5}rem) / ${days.length / 7}), 9rem)` }}>
               {days.map((d) => {
                 const inMonth = d >= from && d <= to;
                 const isPast = d < today;
@@ -196,7 +196,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                       {inMonth && balance !== undefined ? <span className={`tnum font-semibold ${balance < 0 ? "text-danger" : isPast ? "" : "text-muted"}`}>{money(balance)}</span> : null}
                     </div>
                     {inMonth
-                      ? items.slice(0, 3).map((s, i) => (
+                      ? items.slice(0, 4).map((s, i) => (
                           <div key={`${s.label}:${i}`} className={`flex justify-between gap-1 text-[11px] leading-4 ${s.pay ? "font-semibold text-ok" : ""}`} title={`${s.label}${s.count > 1 ? ` ×${s.count}` : ""}: ${signed(s.cents)}`}>
                             <span className="min-w-0 truncate">
                               {s.label}
@@ -206,7 +206,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
                           </div>
                         ))
                       : null}
-                    {inMonth && items.length > 3 ? <div className="text-[11px] leading-4 text-muted">+{items.length - 3} more</div> : null}
+                    {inMonth && items.length > 4 ? <div className="text-[11px] leading-4 text-muted">+{items.length - 4} more</div> : null}
                     {isPast && inMonth && fc !== undefined && p ? (
                       <div className="mt-auto text-[10px] text-muted" title={`Forecast made ${day(f!.takenOn)}`}>
                         forecast {money(fc)} · {p.balanceCents - fc >= 0 ? "+" : "−"}

@@ -48,3 +48,17 @@ describe("paymentsFor", () => {
     expect(paymentsFor(1_000_000, 4_000, 600).neverEnds).toBe(true);
   });
 });
+
+describe("escrow", () => {
+  it("leaves escrow out of the payoff and of the paydown", async () => {
+    const { payoffStatus } = await import("../payoff");
+    const every = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+    const base = { accountBalanceCents: null, balanceCents: 30_000_000, asOf: "2026-10-01", months: every, today: "2026-11-16", aprBps: 625 };
+    const pay = [{ paidOn: "2026-10-02", cents: 264_700, year: 2026, month: 10 }];
+    const withEscrow = payoffStatus({ ...base, payments: pay, plannedCents: 264_700, escrowCents: 80_000 })!;
+    const without = payoffStatus({ ...base, payments: pay, plannedCents: 264_700 })!;
+    // Interest is added before the payment, and only principal + interest pays the loan.
+    expect(withEscrow.remainingCents).toBe(30_000_000 + Math.round(30_000_000 * 0.0625 / 12) - 184_700);
+    expect((withEscrow.paymentsLeft ?? 0) > (without.paymentsLeft ?? 0)).toBe(true);
+  });
+});

@@ -69,9 +69,9 @@ export async function addChargeAsBillAction(transactionId: string, name?: string
   return state.ok ? { ok: true, message: `Added ${made} as a monthly bill. Change it on Bills & income if anything's off.` } : state;
 }
 
-export async function saveLoanDetailsAction(lineItemId: string, balanceCents: number | null, aprBps: number | null): Promise<EnvelopeState> {
+export async function saveLoanDetailsAction(lineItemId: string, balanceCents: number | null, aprBps: number | null, escrowCents: number | null = null): Promise<EnvelopeState> {
   const { saveLoanDetails } = await import("@/server/debt");
-  return run(() => saveLoanDetails(String(lineItemId), balanceCents, aprBps), "Saved.");
+  return run(() => saveLoanDetails(String(lineItemId), balanceCents, aprBps, escrowCents), "Saved.");
 }
 
 export async function notALoanAction(lineItemId: string): Promise<EnvelopeState> {

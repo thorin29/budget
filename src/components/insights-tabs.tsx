@@ -17,8 +17,8 @@ const TABS: Array<{ href: string; label: string; month: boolean }> = [
   { href: "/insights/calendar", label: "Calendar", month: false },
   { href: "/insights/debt", label: "Debt & net worth", month: false },
   { href: "/insights/trends", label: "Trends", month: true },
-  { href: "/insights/settings", label: "Settings", month: false },
   { href: "/year", label: "Year plan", month: false },
+  { href: "/insights/settings", label: "Setup", month: false },
 ];
 
 function Tabs({ active }: { active?: "spending" | "year" }) {

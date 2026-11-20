@@ -19,6 +19,7 @@ export interface Payoff extends PayoffStatus {
   endYear: number | null;
   endMonth: number | null;
   aprBps: number | null;
+  escrowCents: number | null;
   /** When the balance was entered (a balance from the bank has none). */
   asOf: string | null;
 }
@@ -27,13 +28,13 @@ export async function listPayoffs(today = localToday()): Promise<Payoff[]> {
   const items = (await prisma.lineItem.findMany({
     where: { active: true, OR: [{ payoffBalance: { not: null } }, { payoffAccountId: { not: null } }] },
     select: {
-      id: true, name: true, plannedAmount: true, months: true, endYear: true, endMonth: true, payoffBalance: true, payoffAsOf: true, payoffAprBps: true, categoryId: true,
+      id: true, name: true, plannedAmount: true, months: true, endYear: true, endMonth: true, payoffBalance: true, payoffAsOf: true, payoffAprBps: true, payoffEscrowCents: true, categoryId: true,
       payoffAccount: { select: { balance: true } },
       actuals: { select: { year: true, month: true, amount: true, paidOn: true } },
     },
   })) as Array<{
     id: string; name: string; plannedAmount: { toString(): string }; months: number[]; endYear: number | null; endMonth: number | null;
-    payoffBalance: { toString(): string } | null; payoffAsOf: Date | null; payoffAprBps: number | null; categoryId: string | null;
+    payoffBalance: { toString(): string } | null; payoffAsOf: Date | null; payoffAprBps: number | null; payoffEscrowCents: number | null; categoryId: string | null;
     payoffAccount: { balance: { toString(): string } | null } | null;
     actuals: Array<{ year: number; month: number; amount: { toString(): string }; paidOn: Date | null }>;
   }>;
@@ -53,8 +54,9 @@ export async function listPayoffs(today = localToday()): Promise<Payoff[]> {
       months: i.months,
       today,
       aprBps: i.payoffAprBps,
+      escrowCents: i.payoffEscrowCents,
     });
-    if (status) out.push({ ...status, lineItemId: i.id, name: i.name, plannedCents: toCents(i.plannedAmount), endYear: i.endYear, endMonth: i.endMonth, aprBps: i.payoffAprBps, asOf: i.payoffAsOf ? iso(i.payoffAsOf) : null });
+    if (status) out.push({ ...status, lineItemId: i.id, name: i.name, plannedCents: toCents(i.plannedAmount), endYear: i.endYear, endMonth: i.endMonth, aprBps: i.payoffAprBps, escrowCents: i.payoffEscrowCents, asOf: i.payoffAsOf ? iso(i.payoffAsOf) : null });
   }
   return out.sort((a, b) => (a.lastYear ?? 9999) * 12 + (a.lastMonth ?? 0) - ((b.lastYear ?? 9999) * 12 + (b.lastMonth ?? 0)));
 }

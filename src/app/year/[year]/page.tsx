@@ -17,7 +17,7 @@ export const dynamic = "force-dynamic";
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const whole = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(Math.round(cents / 100)).toLocaleString("en-US")}`;
 
-type State = "paid" | "over" | "missed" | "planned" | "none";
+type State = "paid" | "over" | "missed" | "planned" | "none" | "moved";
 /**
  * A $0 plan isn't owed, and before a row's first recorded payment an empty month isn't a miss (the
  * bill likely didn't exist yet).
@@ -28,6 +28,53 @@ function stateOf(c: YearCell, beforeFirst = false): State {
   if (c.future) return "planned";
   return beforeFirst ? "none" : "missed";
 }
+/**
+ * Each month's state for a row. A miss with a payment in the month next to it that had no plan of
+ * its own is a payment that came a month early or late: the miss shows where it went instead of
+ * "Not paid", and the payment counts as paid.
+ */
+function rowStates(cells: YearCell[], first: number): { states: State[]; movedTo: Array<number | null> } {
+  const states = cells.map((c, i) => stateOf(c, i < first));
+  const movedTo: Array<number | null> = cells.map(() => null);
+  const taken = new Set<number>();
+  for (let i = 0; i < cells.length; i++) {
+    if (states[i] !== "missed") continue;
+    for (const j of [i + 1, i - 1]) {
+      const c = cells[j];
+      if (!c || taken.has(j) || c.actualCents === null || (c.budgetedCents !== null && c.budgetedCents !== 0)) continue;
+      states[i] = "moved";
+      movedTo[i] = j;
+      states[j] = "paid";
+      taken.add(j);
+      break;
+    }
+  }
+  return { states, movedTo };
+}
+
+/** Rows with the same name in one part (two paychecks both called "Acme Pay") as one row. */
+function mergeByName(rows: YearRow[]): YearRow[] {
+  const by = new Map<string, YearRow>();
+  const add = (a: number | null, b: number | null) => (a === null && b === null ? null : (a ?? 0) + (b ?? 0));
+  for (const r of rows) {
+    const k = r.name.trim().toLowerCase();
+    const had = by.get(k);
+    if (!had) {
+      by.set(k, { ...r, cells: r.cells.map((c) => ({ ...c })) });
+      continue;
+    }
+    had.cells = had.cells.map((c, i) => {
+      const o = r.cells[i];
+      const budgetedCents = add(c.budgetedCents, o.budgetedCents);
+      const actualCents = add(c.actualCents, o.actualCents);
+      return { budgetedCents, actualCents, future: c.future, over: actualCents !== null && budgetedCents !== null && actualCents > budgetedCents };
+    });
+    had.paidCents += r.paidCents;
+    had.budgetedCents += r.budgetedCents;
+  }
+  return [...by.values()];
+}
+
 const tip = (i: number, c: YearCell) =>
   `${MONTHS[i]}: ${c.actualCents !== null ? `${whole(c.actualCents)} paid` : "nothing paid"}${c.budgetedCents !== null ? ` · ${whole(c.budgetedCents)} planned` : ""}`;
 const TINT: Record<State, string> = {
@@ -36,6 +83,7 @@ const TINT: Record<State, string> = {
   missed: "bg-danger-soft",
   planned: "",
   none: "",
+  moved: "",
 };
 const BAR: Record<State, string> = {
   paid: "var(--series-1)",
@@ -43,6 +91,7 @@ const BAR: Record<State, string> = {
   missed: "var(--danger)",
   planned: "var(--border-strong)",
   none: "transparent",
+  moved: "transparent",
 };
 
 const SECTIONS: Array<[YearSection, string]> = [
@@ -55,15 +104,15 @@ const SECTIONS: Array<[YearSection, string]> = [
 /** What a cell counts as: paid if paid, otherwise the plan. */
 const amount = (c: YearCell) => c.actualCents ?? c.budgetedCents ?? 0;
 
-function Trend({ cells, first }: { cells: YearCell[]; first: number }) {
+function Trend({ cells, states }: { cells: YearCell[]; states: State[] }) {
   const max = Math.max(1, ...cells.map(amount));
   return (
     <span className="flex h-[18px] items-end gap-[2px]">
       {cells.map((c, i) => {
-        const s = stateOf(c, i < first);
+        const s = states[i];
         return (
           <span key={i} title={tip(i, c)} className="flex h-full w-[5px] items-end">
-            <span className="block w-full rounded-[1px]" style={{ height: `${s === "none" && !c.actualCents ? 0 : Math.max(2, (amount(c) / max) * 18)}px`, background: BAR[s] }} />
+            <span className="block w-full rounded-[1px]" style={{ height: `${(s === "none" || s === "moved") && !c.actualCents ? 0 : Math.max(2, (amount(c) / max) * 18)}px`, background: BAR[s] }} />
           </span>
         );
       })}
@@ -71,7 +120,8 @@ function Trend({ cells, first }: { cells: YearCell[]; first: number }) {
   );
 }
 
-function CellText({ c, s }: { c: YearCell; s: State }) {
+function CellText({ c, s, movedTo }: { c: YearCell; s: State; movedTo: number | null }) {
+  if (s === "moved") return <span className="text-xs italic text-muted">{movedTo !== null ? `in ${MONTHS[movedTo]}` : ""}</span>;
   if (s === "none") return <span className="text-line-strong">{c.budgetedCents === 0 && !c.future ? "" : "·"}</span>;
   if (s === "planned") return <span className="italic text-subtle">{whole(c.budgetedCents!)}</span>;
   if (s === "missed") return <span className="font-bold text-danger">{whole(c.budgetedCents!)} !</span>;
@@ -98,8 +148,13 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
   };
   // Paid amounts, or the plan where it's still owed; nothing for months that don't count (a $0
   // plan, or before the row's first payment).
-  const monthTotal = (rows: YearRow[], i: number) => rows.reduce((t, r) => t + (stateOf(r.cells[i], i < firstIdx(r.lineItemId)) === "none" ? (r.cells[i].actualCents ?? 0) : amount(r.cells[i])), 0);
-  const parts = SECTIONS.map(([key, title]) => ({ key, title, rows: view.rows.filter((r) => (view.sectionOf[r.lineItemId] ?? "bills") === key) })).filter((p) => p.rows.length);
+  const monthTotal = (rows: YearRow[], i: number) =>
+    rows.reduce((t, r) => {
+      const s = statesOf.get(r.lineItemId)?.states[i] ?? "none";
+      return t + (s === "none" || s === "moved" ? (r.cells[i].actualCents ?? 0) : amount(r.cells[i]));
+    }, 0);
+  const parts = SECTIONS.map(([key, title]) => ({ key, title, rows: mergeByName(view.rows.filter((r) => (view.sectionOf[r.lineItemId] ?? "bills") === key)) })).filter((p) => p.rows.length);
+  const statesOf = new Map(parts.flatMap((p) => p.rows).map((r) => [r.lineItemId, rowStates(r.cells, firstIdx(r.lineItemId))]));
   const rowsOf = (key: YearSection) => parts.find((p) => p.key === key)?.rows ?? [];
   const paid = (rows: YearRow[]) => rows.reduce((t, r) => t + r.paidCents, 0);
   const planned = (rows: YearRow[]) => rows.reduce((t, r) => t + r.budgetedCents, 0);
@@ -194,7 +249,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
                 </thead>
                 <tbody>
                   {parts.map((p) => (
-                    <SectionRows key={p.key} title={p.title} rows={p.rows} nowMonth={nowMonth} monthTotal={(i) => monthTotal(p.rows, i)} paid={paid(p.rows)} firstIdx={firstIdx} />
+                    <SectionRows key={p.key} title={p.title} rows={p.rows} nowMonth={nowMonth} monthTotal={(i) => monthTotal(p.rows, i)} paid={paid(p.rows)} states={statesOf} />
                   ))}
                 </tbody>
                 <tfoot>
@@ -281,7 +336,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
   );
 }
 
-function SectionRows({ title, rows, nowMonth, monthTotal, paid, firstIdx }: { title: string; rows: YearRow[]; nowMonth: number; monthTotal: (i: number) => number; paid: number; firstIdx: (id: string) => number }) {
+function SectionRows({ title, rows, nowMonth, monthTotal, paid, states }: { title: string; rows: YearRow[]; nowMonth: number; monthTotal: (i: number) => number; paid: number; states: Map<string, { states: State[]; movedTo: Array<number | null> }> }) {
   return (
     <>
       <tr className="bg-neutral-soft">
@@ -302,13 +357,14 @@ function SectionRows({ title, rows, nowMonth, monthTotal, paid, firstIdx }: { ti
             {row.name}
           </th>
           <td className="px-2 py-1.5">
-            <Trend cells={row.cells} first={firstIdx(row.lineItemId)} />
+            <Trend cells={row.cells} states={states.get(row.lineItemId)!.states} />
           </td>
           {row.cells.map((cell, i) => {
-            const s = stateOf(cell, i < firstIdx(row.lineItemId));
+            const s = states.get(row.lineItemId)!.states[i];
+            const to = states.get(row.lineItemId)!.movedTo[i];
             return (
-              <td key={i} title={tip(i, cell)} className={`px-1 py-1.5 text-right ${TINT[s]} ${i === nowMonth ? "outline outline-1 -outline-offset-1 outline-accent/40" : ""}`}>
-                <CellText c={cell} s={s} />
+              <td key={i} title={s === "moved" && to !== null ? `${tip(i, cell)} · came in ${MONTHS[to]} instead` : tip(i, cell)} className={`px-1 py-1.5 text-right ${TINT[s]} ${i === nowMonth ? "outline outline-1 -outline-offset-1 outline-accent/40" : ""}`}>
+                <CellText c={cell} s={s} movedTo={to} />
               </td>
             );
           })}
