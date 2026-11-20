@@ -10,6 +10,9 @@ import { Card, EmptyState, Pill, SectionHeading } from "@/components/ui";
 import { AccountsForm, AccountRow } from "../../setup/accounts/form";
 import { LinkAccountToBank } from "../bank";
 import { AccountEditor, RowLink } from "./editor";
+import { PlanningExtras } from "../../insights/settings/setup-panel";
+import { cushionSetting } from "@/server/envelopes";
+import { getMonthPlan } from "@/server/month-plan";
 
 export const dynamic = "force-dynamic";
 
@@ -30,7 +33,8 @@ const BY_HAND = "By hand";
 export default async function AccountsSettings({ searchParams }: { searchParams: Promise<{ g?: string; edit?: string }> }) {
   const { g, edit } = await searchParams;
   if (configuredKey()) await applyTypeGuesses();
-  const [accounts, connection, ledger] = await Promise.all([listBankAccounts(), getConnection(), listAccounts({ includeInactive: true })]);
+  const [accounts, connection, ledger, cushion, plan] = await Promise.all([listBankAccounts(), getConnection(), listAccounts({ includeInactive: true }), cushionSetting(), getMonthPlan().catch(() => null)]);
+  const debt = { cents: plan?.debt.cents ?? 0, automatic: (plan?.debt.source ?? "auto") !== "set", targetCents: plan?.debt.targetCents ?? null };
   const typed = ledger.filter((a) => a.origin !== "bank");
 
   const live = accounts.filter((a) => !a.hidden);
@@ -57,7 +61,7 @@ export default async function AccountsSettings({ searchParams }: { searchParams:
         <p className="text-xs text-muted">
           {connection ? "Bank feed connected" : "Bank feed not connected"} · {connection?.lastSuccessAt ? `synced ${stamp.format(connection.lastSuccessAt)}` : "no sync yet"} ·{" "}
           <Link href="/settings/bank" className="font-semibold text-accent-text hover:underline">
-            Bank connection
+            Bridge Connectivity
           </Link>
         </p>
       </div>
@@ -66,7 +70,7 @@ export default async function AccountsSettings({ searchParams }: { searchParams:
         <EmptyState>
           No accounts yet. Connect your bank feed in{" "}
           <Link href="/settings/bank" className="font-semibold text-accent-text hover:underline">
-            Bank connection
+            Bridge Connectivity
           </Link>{" "}
           and they appear here on their own.
         </EmptyState>
@@ -94,6 +98,16 @@ export default async function AccountsSettings({ searchParams }: { searchParams:
       {current && editing ? (
         <div className="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_26rem]">
           <Card className="p-2">
+            {/* Settings for the whole group: the cushion kept in checking, the monthly payment on 0% cards. */}
+            {current.rows.some((a) => a.type === "CHECKING") ? (
+              <div className="mx-1 mb-1 rounded-xl bg-neutral-soft px-3 py-2">
+                <PlanningExtras debt={debt} cushionCents={cushion} only="cushion" />
+              </div>
+            ) : current.rows.some((a) => a.type === "CREDIT_CARD") && current.key !== "Hidden" ? (
+              <div className="mx-1 mb-1 rounded-xl bg-neutral-soft px-3 py-2">
+                <PlanningExtras debt={debt} cushionCents={cushion} only="debt" />
+              </div>
+            ) : null}
             <p className="px-3 pb-1 pt-2 text-xs text-muted">
               {current.key === "Empty" ? "No money or activity in 60 days" : current.key === "Hidden" ? "Ignored everywhere" : "Click to edit"}
             </p>

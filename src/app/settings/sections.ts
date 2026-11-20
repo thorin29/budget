@@ -27,21 +27,21 @@ export const GROUPS: Array<{ title: string; items: NavEntry[] }> = [
     items: [
       { href: "/line-items", label: "Bills & Income", detail: "Create/edit bill and income details" },
       { href: "/settings/budgets", label: "Budgets", detail: "Set limits and categories" },
-      { href: "/settings/pay", label: "Pay Settings", detail: "" },
+      { href: "/settings/pay", label: "Pay Settings", detail: "Employer, pay schedules" },
     ],
   },
   {
     title: "Money",
     items: [
-      { href: "/settings/accounts", label: "Accounts", detail: "Names, cards, which holds the bills money" },
+      { href: "/settings/accounts", label: "Accounts", detail: "Banking, credit cards, & investments" },
       { href: "/settings/home", label: "Property Management", detail: "Home value" },
       { href: "/settings/bank", label: "Bridge Connectivity", detail: "Sync, raw feed, history files" },
     ],
   },
   {
-    title: "App",
+    title: "System",
     items: [
-      { href: "/settings/data", label: "Import & Export", detail: "" },
+      { href: "/settings/data", label: "Import & Export", detail: "JSON & CSV files" },
       { href: "/settings/security", label: "User Accounts", detail: "Passwords, devices, sessions" },
       { href: "/settings/appearance", label: "Appearance", detail: "Color themes, light/dark mode" },
       { href: "/settings/about", label: "About", detail: "" },

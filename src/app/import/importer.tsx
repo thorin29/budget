@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Button, Card, ErrorBanner, Select } from "@/components/ui";
 import type { ImportBatchSummary, ImportPlan } from "@/server/import";
 import { applyImportAction, previewImportAction, revertImportAction } from "./actions";
+import { YEAR_CSV_TEMPLATE, yearCsvToDocument } from "@/lib/year-csv-import";
 
 type AccountKind = "BANK" | "CREDIT_CARD" | "CASH" | "OTHER";
 type ItemKind = "BILL" | "SETTLEMENT" | "INCOME";
@@ -49,7 +50,9 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
     setDone(undefined);
     setBusy(true);
     try {
-      const parsed = JSON.parse(await file.text());
+      const text = await file.text();
+      // A CSV is a year plan (the Year Plan download or the template); JSON is the converted-workbook document.
+      const parsed = /\.csv$/i.test(file.name) || file.type === "text/csv" ? yearCsvToDocument(text, Number(/(?:19|20)\d{2}/.exec(file.name)?.[0] ?? csvYear), file.name) : JSON.parse(text);
       setDocument(parsed);
 
       const body = unwrap(await previewImportAction(parsed));
@@ -102,6 +105,8 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
     }
   }
 
+  const [csvYear, setCsvYear] = useState(new Date().getFullYear());
+
   async function revert(batchId: string) {
     setBusy(true);
     try {
@@ -128,10 +133,10 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
       {!plan ? (
         <Card>
           <label className="block">
-            <span className="mb-1 block text-sm font-medium">Import document</span>
+            <span className="mb-1 block text-sm font-medium">Year plan file (CSV or JSON)</span>
             <input
               type="file"
-              accept="application/json,.json"
+              accept=".csv,text/csv,application/json,.json"
               disabled={busy}
               onChange={(e) => {
                 const file = e.target.files?.[0];
@@ -139,10 +144,31 @@ export function Importer({ batches }: { batches: ImportBatchSummary[] }) {
               }}
               className="block w-full text-sm file:mr-3 file:rounded-md file:border file:border-line file:bg-field file:px-3 file:py-1.5 file:text-sm"
             />
-            <span className="mt-2 block text-xs text-muted">
-              A JSON file converted from a workbook. Reading it writes nothing.
-            </span>
           </label>
+          <div className="mt-3 flex flex-wrap items-center gap-3 text-sm">
+            <label className="flex items-center gap-2">
+              <span className="text-muted">Year (when the file name has none)</span>
+              <input type="number" min={1990} max={2999} value={csvYear} onChange={(e) => setCsvYear(Number(e.target.value) || csvYear)} className="w-24 rounded-lg border border-line bg-surface px-2 py-1" />
+            </label>
+            <button
+              type="button"
+              className="font-semibold text-accent-text hover:underline"
+              onClick={() => {
+                const url = URL.createObjectURL(new Blob([YEAR_CSV_TEMPLATE], { type: "text/csv" }));
+                const a = Object.assign(window.document.createElement("a"), { href: url, download: "budget-template.csv" });
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+            >
+              Download template
+            </button>
+          </div>
+          <ol className="mt-3 list-decimal space-y-0.5 pl-5 text-xs text-muted">
+            <li>Download the template, or a year from Year Plan → Download CSV.</li>
+            <li>Fill it in with Excel or Google Sheets: one row per bill or paycheck, a budget and a paid amount per month.</li>
+            <li>Save as CSV (Excel: File → Save As → CSV UTF-8), choose the year above, and pick the file.</li>
+            <li>You review everything before it&rsquo;s saved, and an import can be undone.</li>
+          </ol>
         </Card>
       ) : (
         <div className="space-y-6">

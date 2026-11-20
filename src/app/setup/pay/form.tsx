@@ -24,7 +24,7 @@ export function PayScheduleForm({
     <Card>
       <ErrorBanner message={state.ok ? undefined : state.message} />
       <form action={action} className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name" error={state.issues?.name}>
+        <Field label="Employer" error={state.issues?.name}>
           <TextInput name="name" required maxLength={60} autoComplete="off" />
         </Field>
 
@@ -67,7 +67,7 @@ export function PayScheduleForm({
 
         <div className="sm:col-span-2">
           <Button type="submit" disabled={pending}>
-            {pending ? "Adding…" : "Add schedule"}
+            {pending ? "Adding…" : "Add employer"}
           </Button>
         </div>
       </form>

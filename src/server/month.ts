@@ -79,6 +79,8 @@ export interface MonthView {
   splitDay: number;
   /** The payday the month divides at, when it follows the pay calendar. */
   splitPayday: string | null;
+  /** The month isn't divided (Pay Settings): one period, shown as "This Month". */
+  wholeMonth: boolean;
   halves: [HalfSummary, HalfSummary];
   /**
    * Paid from whatever is left after the bills. Excluded from the halves, the
@@ -430,6 +432,7 @@ export async function getMonthView(year: number, month: number): Promise<MonthVi
     month,
     splitDay,
     splitPayday: split.payday,
+    wholeMonth: settings.splitMode === "none",
     halves,
     surplusItems: surplus,
     surplusBudgetedCents: surplus.reduce((sum, e) => sum + e.budgetedCents, 0),

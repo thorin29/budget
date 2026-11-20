@@ -20,7 +20,8 @@ export interface Settings {
   /** Day of the month the planning split falls on, when it isn't taken from paydays. */
   splitDay: number;
   /** "payday": the month divides at the payday nearest the 15th; "day": at splitDay. */
-  splitMode: "payday" | "day";
+  /** payday: halves at the payday nearest the 15th; day: halves at a fixed day; none: the whole month as one. */
+  splitMode: "payday" | "day" | "none";
   /** Days the cash projection looks ahead. */
   horizonDays: number;
   /** Floor to keep in the bills account, in cents. Zero by default. */
@@ -34,7 +35,7 @@ export interface Settings {
 
 const settingsInput = z.object({
   splitDay: z.number().int().min(1).max(28),
-  splitMode: z.enum(["payday", "day"]).optional(),
+  splitMode: z.enum(["payday", "day", "none"]).optional(),
   horizonDays: z.number().int().min(7).max(365),
   bufferCents: z.number().int().min(0),
   carryMonths: z.number().int().min(0).max(12),
@@ -57,7 +58,7 @@ export async function getSettings(): Promise<Settings> {
 
   return {
     splitDay: read(SETTING_KEYS.splitDay, DEFAULT_SPLIT_DAY),
-    splitMode: read<"payday" | "day">(SETTING_KEYS.splitMode, "payday"),
+    splitMode: read<"payday" | "day" | "none">(SETTING_KEYS.splitMode, "payday"),
     horizonDays: read(SETTING_KEYS.horizonDays, DEFAULT_HORIZON_DAYS),
     bufferCents: read(SETTING_KEYS.buffer, DEFAULT_BUFFER),
     carryMonths: read(SETTING_KEYS.carryMonths, DEFAULT_CARRY_MONTHS),

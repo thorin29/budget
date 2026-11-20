@@ -135,10 +135,16 @@ export default async function MonthPage({
       tone: "danger",
       note: `Counted in the first half. If one cost nothing, record zero or choose “Nothing due this month” under More options. Only the last ${
         view.carryMonths === 1 ? "month is" : `${view.carryMonths} months are`
-      } carried — change that in Settings → Planning.`,
+      } carried — change that in Settings › Bills & Income › Options.`,
     });
   }
-  view.halves.forEach((half, i) => {
+  if (view.wholeMonth) {
+    // Not divided (Pay Settings): one period for the month.
+    const paid = view.halves[0].paidCents + view.halves[1].paidCents;
+    const left = view.halves[0].remainingCents + view.halves[1].remainingCents;
+    const budgeted = view.halves[0].budgetedCents + view.halves[1].budgetedCents;
+    sections.push({ key: "half-0", title: "This Month", summary: `${formatCents(paid)} paid · ${formatCents(left)} left`, rows: [...halves[0], ...halves[1]], progress: { value: budgeted - left, max: budgeted } });
+  } else view.halves.forEach((half, i) => {
     sections.push({
       key: `half-${i}`,
       title: half.half.label,
@@ -180,7 +186,7 @@ export default async function MonthPage({
             {MONTH_NAMES[month - 1]} {year}
           </h1>
           <p className="tnum mt-1 text-sm text-muted">
-            {view.splitPayday ? `Split at the ${ordinal(view.splitDay)} payday` : `Split on the ${ordinal(view.splitDay)}`} ·{" "}
+            {view.wholeMonth ? "Whole month" : view.splitPayday ? `Split at the ${ordinal(view.splitDay)} payday` : `Split on the ${ordinal(view.splitDay)}`} ·{" "}
             {unpaidBills.length === 0
               ? "every bill settled"
               : `${unpaidBills.length} ${unpaidBills.length === 1 ? "bill" : "bills"} left · ${formatCents(
@@ -257,15 +263,15 @@ export default async function MonthPage({
           />
         )}
 
-        <StatCard
+        {view.wholeMonth ? null : <StatCard
           label="First half remaining"
           value={view.transferAfterFirstCents === null ? "—" : formatCents(view.transferAfterFirstCents)}
           tone={view.transferAfterFirstCents !== null && view.transferAfterFirstCents < 0 ? "danger" : "default"}
           detail={`${formatCents(view.halves[0].remainingCents + view.carriedCents)} still owed before the ${ordinal(view.splitDay)}${view.splitPayday ? " payday" : ""}`}
-        />
+        />}
 
         <StatCard
-          label="Second half remaining"
+          label={view.wholeMonth ? "Left this month" : "Second half remaining"}
           value={free === null ? "—" : formatCents(free)}
           tone={free !== null && free < 0 ? "danger" : "default"}
           detail={`${formatCents(view.totalRemainingCents)} still owed this month`}

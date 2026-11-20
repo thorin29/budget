@@ -3,6 +3,30 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.94.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Import a year from CSV:** the Year Plan download (or the new template) filled in with Excel or
+  Google Sheets and saved as CSV. The year comes from the file name or the box beside it; everything
+  is reviewed before it's saved, as with JSON.
+- **Pay Settings › Employers & Pay Schedules:** link paychecks to a schedule right there, and end a
+  schedule (an employer you left) on a date: past paydays stay, and ended ones move to "Ended". Reopen
+  undoes it.
+- **Tracker Periods:** whole month (no split), two halves at the payday nearest the 15th (choose the
+  schedule when there are several), or two halves on a fixed day. Whole month shows one "This Month"
+  list on the Tracker.
+
+### Changed
+- The cushion moved to Accounts (with the checking account) and the 0% debt payment to Accounts
+  (with the cards). The bills account, look-ahead and carry moved to Bills & Income › Options. Pay
+  Settings is only about pay now.
+- The Settings heading stays pinned with the menu; menu groups are boxed with a line between pages;
+  "App" is now "System". New subtitles for Pay Settings, Accounts and Import & Export; User Accounts
+  wording.
+- Tracker: the "Record payment" button is gone (record on any row; ⌘K / Ctrl+K still opens quick entry).
+
 ## [0.93.0]
 
 No migration. The phone app is unchanged.

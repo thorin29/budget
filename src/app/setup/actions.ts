@@ -163,3 +163,51 @@ export async function usePayFromDepositsAction(): Promise<void> {
   await usePayFromDeposits();
   revalidatePath("/", "layout");
 }
+
+/** Pay Settings › Tracker periods: whole month, halves at a payday, or halves at a fixed day. */
+export async function savePeriodsAction(mode: string, splitDay: number, scheduleId: string | null): Promise<FormState> {
+  return run("/settings/pay", async () => {
+    await requireUser();
+    const { getSettings } = await import("@/server/settings");
+    const { prisma } = await import("@/lib/prisma");
+    const { SETTING_KEYS } = await import("@/lib/settings");
+    const s = await getSettings();
+    const m = mode === "none" || mode === "day" ? mode : "payday";
+    await prisma.setting.upsert({ where: { key: SETTING_KEYS.splitSchedule }, create: { key: SETTING_KEYS.splitSchedule, value: (m === "payday" ? scheduleId : null) as never }, update: { value: (m === "payday" ? scheduleId : null) as never } });
+    await updateSettings({ splitDay: m === "day" ? Number(splitDay) : s.splitDay, splitMode: m, horizonDays: s.horizonDays, bufferCents: s.bufferCents, carryMonths: s.carryMonths, billsAccountId: s.billsAccountId });
+  });
+}
+
+/** Bills & Income options: the bills account, how far ahead to look, how long unpaid bills carry. */
+export async function saveBillOptionsAction(billsAccountId: string | null, horizonDays: number, carryMonths: number): Promise<FormState> {
+  return run("/line-items", async () => {
+    await requireUser();
+    const { getSettings } = await import("@/server/settings");
+    const s = await getSettings();
+    await updateSettings({ splitDay: s.splitDay, splitMode: s.splitMode, horizonDays: Number(horizonDays), bufferCents: s.bufferCents, carryMonths: Number(carryMonths), billsAccountId: billsAccountId || null });
+  });
+}
+
+export async function endPayScheduleAction(id: string, endOn: string): Promise<FormState> {
+  return run("/settings/pay", async () => {
+    await requireUser();
+    const { endPaySchedule } = await import("@/server/pay-schedule");
+    await endPaySchedule(String(id), String(endOn));
+  });
+}
+
+export async function reopenPayScheduleAction(id: string): Promise<FormState> {
+  return run("/settings/pay", async () => {
+    await requireUser();
+    const { reopenPaySchedule } = await import("@/server/pay-schedule");
+    await reopenPaySchedule(String(id));
+  });
+}
+
+export async function linkPaycheckAction(lineItemId: string, scheduleId: string | null): Promise<FormState> {
+  return run("/settings/pay", async () => {
+    await requireUser();
+    const { linkPaycheck } = await import("@/server/pay-schedule");
+    await linkPaycheck(String(lineItemId), scheduleId ? String(scheduleId) : null);
+  });
+}

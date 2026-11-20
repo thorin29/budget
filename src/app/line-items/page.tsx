@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { displayAccountName } from "@/lib/account-type";
 import { createLineItemAction, updateLineItemAction } from "./actions";
 import { Drawer } from "./drawer";
+import { BillOptions } from "./options";
 import { billAmountHistory } from "@/server/bill-amounts";
 
 export const dynamic = "force-dynamic";
@@ -169,6 +170,8 @@ export default async function LineItemsPage({
           </div>
         }
       />
+
+      <BillOptions accounts={accounts.filter((a) => a.kind === "BANK" && a.active).map((a) => ({ id: a.id, name: a.name }))} billsAccountId={settings.billsAccountId} horizonDays={settings.horizonDays} carryMonths={settings.carryMonths} />
 
       {query.merged ? <p className="mb-3 rounded-xl bg-ok-soft px-4 py-2.5 text-sm text-ok">{query.merged.slice(0, 200)}</p> : null}
 

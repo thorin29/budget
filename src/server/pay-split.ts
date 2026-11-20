@@ -90,6 +90,8 @@ export async function monthSplit(
   paydays?: Awaited<ReturnType<typeof loadPaydays>>,
 ): Promise<MonthSplit> {
   const fixed = { splitDay: settings.splitDay, payday: null };
+  // One period: every day falls in the first "half".
+  if (settings.splitMode === "none") return { splitDay: 31, payday: null };
   if (settings.splitMode === "day") return fixed;
   const p = paydays ?? (await loadPaydays());
   if (p.frequency(year, month) === "MONTHLY") return fixed;

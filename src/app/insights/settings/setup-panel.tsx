@@ -167,8 +167,8 @@ export function HomePanel({ home }: { home: SetupHome | null }) {
 }
 
 /** Settings › Planning: the 0% debt payment and the one checking cushion. */
-export function PlanningExtras({ debt, cushionCents }: { debt: { cents: number; automatic: boolean; targetCents: number | null }; cushionCents: number }) {
-  return <TopBar debt={debt} cushionCents={cushionCents} ungrouped={0} onUnsorted={() => undefined} />;
+export function PlanningExtras({ debt, cushionCents, only }: { debt: { cents: number; automatic: boolean; targetCents: number | null }; cushionCents: number; only?: "debt" | "cushion" }) {
+  return <TopBar debt={debt} cushionCents={cushionCents} ungrouped={0} onUnsorted={() => undefined} only={only} />;
 }
 
 export function BudgetsPanel({
@@ -266,7 +266,7 @@ export function BudgetsPanel({
   );
 }
 
-function TopBar({ debt, cushionCents, ungrouped, onUnsorted }: { debt: { cents: number; automatic: boolean; targetCents: number | null }; cushionCents: number; ungrouped: number; onUnsorted: () => void }) {
+function TopBar({ debt, cushionCents, ungrouped, onUnsorted, only }: { debt: { cents: number; automatic: boolean; targetCents: number | null }; cushionCents: number; ungrouped: number; onUnsorted: () => void; only?: "debt" | "cushion" }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [d, setD] = useState(debt.automatic ? "" : String(Math.round(debt.cents / 100)));
@@ -280,15 +280,19 @@ function TopBar({ debt, cushionCents, ungrouped, onUnsorted }: { debt: { cents: 
     });
   return (
     <div className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+      {only !== "cushion" ? (
       <label className="flex items-center gap-2">
         <b>0% debt payment</b>
         <input aria-label="0% debt payment each month" className={`${INPUT} w-24`} placeholder="auto" value={d} onChange={(e) => setD(e.target.value)} onBlur={() => d !== (debt.automatic ? "" : String(Math.round(debt.cents / 100))) && save(() => setDebtPaymentAction(toCents(d)))} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
         {debt.targetCents ? <span className="text-xs text-muted">{money(debt.targetCents)}/mo clears it in time</span> : null}
       </label>
+      ) : null}
+      {only !== "debt" ? (
       <label className="flex items-center gap-2">
         <b>Checking cushion</b>
         <input aria-label="Checking cushion" className={`${INPUT} w-24`} placeholder="$0" value={c} onChange={(e) => setC(e.target.value)} onBlur={() => c !== (cushionCents ? String(Math.round(cushionCents / 100)) : "") && save(() => setCushionAction(toCents(c)))} onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()} />
       </label>
+      ) : null}
       {pending ? <span className="text-xs text-muted">Saving…</span> : <Note state={state} />}
       {ungrouped ? (
         <button type="button" onClick={onUnsorted} className="ml-auto rounded-full bg-warn-soft px-3 py-1 text-xs font-semibold text-warn underline decoration-dotted underline-offset-2 hover:decoration-solid">

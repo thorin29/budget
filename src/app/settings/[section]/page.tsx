@@ -22,7 +22,8 @@ import {
 import { Card, SectionHeading, buttonClass } from "@/components/ui";
 import { AccountsForm, AccountRow } from "../../setup/accounts/form";
 import { CategoryForm, CategoryRow } from "../../setup/categories/form";
-import { PayScheduleForm, PayScheduleRow } from "../../setup/pay/form";
+import { PayScheduleForm } from "../../setup/pay/form";
+import { PeriodsForm, ScheduleCard } from "../pay-settings";
 import { PreferencesForm } from "../../setup/preferences/form";
 import { PlanningExtras } from "../../insights/settings/setup-panel";
 import { cushionSetting } from "@/server/envelopes";
@@ -92,7 +93,7 @@ async function Security() {
 
   return (
     <div className="space-y-6">
-      <SectionHeading title="User Accounts" description={`Up to ${MAX_USERS} people. Both see and change everything.`} />
+      <SectionHeading title="User Accounts" description={`Up to ${MAX_USERS} users; full edit permissions for both.`} />
 
       <Card className="p-6">
         <h3 className="font-sans text-base font-bold">Your Password</h3>
@@ -161,7 +162,7 @@ async function Security() {
             <InviteSecondPerson />
           </div>
         ) : others.length ? (
-          <p className="mt-3 text-xs text-muted">Both places are taken. Remove an account to invite someone else.</p>
+          <p className="mt-3 text-xs text-muted">Both users are set up. Remove one to invite someone else.</p>
         ) : null}
         <p className="mt-5 text-xs text-muted">
           Forgotten password: <code className="rounded bg-neutral-soft px-1">node scripts/reset-password.mjs &lt;username&gt;</code> in the container.
@@ -271,27 +272,36 @@ const ordinal = (n: number) => `${n}${n % 10 === 1 && n !== 11 ? "st" : n % 10 =
 const FREQUENCY_WORDS: Record<string, string> = { WEEKLY: "every week", BIWEEKLY: "every two weeks", SEMI_MONTHLY: "twice a month", MONTHLY: "once a month" };
 
 async function Pay() {
-  const [schedules, fromBank, accounts, settings, cushion, plan, incomes, splitRow] = await Promise.all([
+  const [schedules, fromBank, settings, incomes, splitRow] = await Promise.all([
     listPaySchedules(),
     payFromDeposits(),
-    listAccounts(),
     getSettings(),
-    cushionSetting(),
-    getMonthPlan().catch(() => null),
-    prisma.lineItem.findMany({ where: { kind: "INCOME", active: true }, select: { name: true, payScheduleId: true } }) as Promise<Array<{ name: string; payScheduleId: string | null }>>,
+    prisma.lineItem.findMany({ where: { kind: "INCOME", active: true }, select: { id: true, name: true, payScheduleId: true }, orderBy: { name: "asc" } }) as Promise<Array<{ id: string; name: string; payScheduleId: string | null }>>,
     prisma.setting.findUnique({ where: { key: SETTING_KEYS.splitSchedule } }) as Promise<{ value: unknown } | null>,
   ]);
   const today = new Date();
   const horizonEnd = new Date(today.getTime() + 120 * 86_400_000);
-  const bankAccounts = accounts.filter((a) => a.kind === "BANK");
   const splitSchedule = typeof splitRow?.value === "string" ? splitRow.value : null;
+  const live = schedules.filter((s) => !s.activeTo);
+  const ended = schedules.filter((s) => s.activeTo);
+  const unlinked = incomes.filter((i) => !i.payScheduleId).map((i) => ({ id: i.id, name: i.name }));
+  const card = (schedule: (typeof schedules)[number]) => (
+    <ScheduleCard
+      key={schedule.id}
+      schedule={schedule}
+      frequencyLabel={FREQUENCY_LABELS[schedule.frequency]}
+      upcoming={previewPayDates(schedule, today, horizonEnd).slice(0, 6)}
+      paychecks={incomes.filter((i) => i.payScheduleId === schedule.id).map((i) => ({ id: i.id, name: i.name }))}
+      unlinked={unlinked}
+    />
+  );
 
   return (
     <div className="space-y-5">
       <SectionHeading title="Pay Settings" />
-      <div className="grid items-start gap-5 xl:grid-cols-2">
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
         <Card className="space-y-3">
-          <h3 className="font-sans text-base font-bold">Paychecks</h3>
+          <h3 className="font-sans text-base font-bold">Employers &amp; Pay Schedules</h3>
           {fromBank && !fromBank.matches ? (
             <form action={usePayFromDepositsAction} className="flex flex-wrap items-center gap-3 rounded-xl bg-warn-soft px-3 py-2 text-sm">
               <span>
@@ -303,52 +313,25 @@ async function Pay() {
               </button>
             </form>
           ) : null}
-          {schedules.length === 0 ? <p className="text-sm text-muted">No pay schedules yet.</p> : null}
-          {schedules.map((schedule) => (
-            <PayScheduleRow
-              key={schedule.id}
-              schedule={schedule}
-              frequencyLabel={FREQUENCY_LABELS[schedule.frequency]}
-              upcoming={previewPayDates(schedule, today, horizonEnd).slice(0, 6)}
-              usedBy={incomes.filter((i) => i.payScheduleId === schedule.id).map((i) => i.name)}
-            />
-          ))}
+          {live.length === 0 ? <p className="text-sm text-muted">No pay schedules yet.</p> : null}
+          {live.map(card)}
           <details>
-            <summary className="cursor-pointer text-sm font-semibold text-accent-text">+ Add a pay schedule</summary>
+            <summary className="cursor-pointer text-sm font-semibold text-accent-text">+ Add an employer</summary>
             <div className="mt-3">
               <PayScheduleForm frequencies={PAY_FREQUENCIES.map((f) => ({ value: f, label: FREQUENCY_LABELS[f] }))} />
             </div>
           </details>
+          {ended.length ? (
+            <details>
+              <summary className="cursor-pointer text-sm font-semibold text-muted">Ended ({ended.length})</summary>
+              <div className="mt-2 space-y-2">{ended.map(card)}</div>
+            </details>
+          ) : null}
         </Card>
-        <div className="space-y-5">
-          <Card>
-            <PlanningExtras debt={{ cents: plan?.debt.cents ?? 0, automatic: (plan?.debt.source ?? "auto") !== "set", targetCents: plan?.debt.targetCents ?? null }} cushionCents={cushion} />
-          </Card>
-          {bankAccounts.length === 0 ? (
-            <Card>
-              <p className="text-sm">
-                Add a bank account first.{" "}
-                <Link href="/settings/accounts" className="font-semibold text-accent-text hover:underline">
-                  Accounts
-                </Link>
-              </p>
-            </Card>
-          ) : (
-            <PreferencesForm
-              bankAccounts={bankAccounts.map((a) => ({ id: a.id, name: a.name }))}
-              schedules={schedules.map((s) => ({ id: s.id, name: s.name }))}
-              splitSchedule={splitSchedule}
-              settings={{
-                splitDay: settings.splitDay,
-                splitMode: settings.splitMode,
-                horizonDays: settings.horizonDays,
-                buffer: toDecimalString(cushion),
-                carryMonths: settings.carryMonths,
-                billsAccountId: settings.billsAccountId,
-              }}
-            />
-          )}
-        </div>
+        <Card className="space-y-3">
+          <h3 className="font-sans text-base font-bold">Tracker Periods</h3>
+          <PeriodsForm mode={settings.splitMode} splitDay={settings.splitDay} scheduleId={splitSchedule} schedules={live.map((s) => ({ id: s.id, name: s.name }))} />
+        </Card>
       </div>
     </div>
   );

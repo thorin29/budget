@@ -177,3 +177,28 @@ export function previewPayDates(
     stripTime(to),
   ).map(asIsoDate);
 }
+
+/**
+ * Ends a pay schedule on a date (an employer you left): paydays before it stay exactly as they
+ * were, none come after. Start a new schedule for the next employer.
+ */
+export async function endPaySchedule(id: string, endOn: string): Promise<void> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(endOn)) throw new ValidationError({ activeTo: ["Pick a date"] });
+  const row = (await prisma.paySchedule.findUnique({ where: { id }, select: { activeFrom: true } })) as { activeFrom: Date } | null;
+  if (!row) throw new NotFoundError("Pay schedule");
+  if (fromIsoDate(endOn) < row.activeFrom) throw new ValidationError({ activeTo: ["Ends before it started"] });
+  await prisma.paySchedule.update({ where: { id }, data: { activeTo: fromIsoDate(endOn) } });
+}
+
+/** Undoes ending a schedule. */
+export async function reopenPaySchedule(id: string): Promise<void> {
+  await prisma.paySchedule.update({ where: { id }, data: { activeTo: null } });
+}
+
+/** Puts a paycheck (an income item) on a pay schedule, or takes it off with null. */
+export async function linkPaycheck(lineItemId: string, scheduleId: string | null): Promise<void> {
+  const item = (await prisma.lineItem.findUnique({ where: { id: lineItemId }, select: { kind: true } })) as { kind: string } | null;
+  if (!item || item.kind !== "INCOME") throw new NotFoundError("Paycheck");
+  if (scheduleId && !(await prisma.paySchedule.findUnique({ where: { id: scheduleId }, select: { id: true } }))) throw new NotFoundError("Pay schedule");
+  await prisma.lineItem.update({ where: { id: lineItemId }, data: { payScheduleId: scheduleId } });
+}

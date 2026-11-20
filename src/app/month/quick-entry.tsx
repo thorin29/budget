@@ -124,12 +124,7 @@ export function QuickEntry({ rows, today }: { rows: RowEntry[]; today: string })
 
   return (
     <>
-      <button type="button" onClick={() => setOpen(true)} className={buttonClass("primary")}>
-        Record payment
-        <kbd className="hidden rounded-md bg-white/20 px-1.5 py-0.5 font-sans text-[11px] font-semibold sm:inline">
-          ⌘K
-        </kbd>
-      </button>
+      {/* No button: rows are recorded in place. ⌘K / Ctrl+K still opens this for keyboard entry. */}
 
       {open ? (
         <div
