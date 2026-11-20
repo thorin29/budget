@@ -1,6 +1,8 @@
 /**
- * The home's value: estimates you type in from Zillow, Redfin and the like (averaged), or one
- * from RentCast by address. Either way it's kept as the "Home" value in net worth.
+ * The home's value: estimates you type in (Zillow, Redfin, the county…) and one from RentCast by
+ * address, blended into the "Home" value in net worth. Only current estimates count: a site's for
+ * six months, the county's for fifteen (it updates yearly), RentCast's for 45 days. With none
+ * current, the newest one stands. Every value entered or looked up is kept with its date.
  * The API key comes from RENTCAST_API_KEY in the server's environment when set (preferred: it
  * never touches the database), otherwise from Setup (sealed with BANK_SYNC_KEY). Lookups are kept
  * far under RentCast's free 50 a month: one automatic lookup a month, a manual one at most once a
@@ -19,6 +21,21 @@ const PURPOSE = "rentcast";
 const DAY = 86_400_000;
 const MAX_PER_MONTH = 5;
 const envKey = () => (process.env.RENTCAST_API_KEY ?? "").trim() || null;
+const MONTH = 30.44 * DAY;
+const yearlySource = (s: string) => /county|apprais|assess|\bcad\b|tax/i.test(s);
+
+/** The Home value from what's current (see the top of the file), and which sources it used. */
+export function blend(s: Pick<Stored, "estimates" | "valueCents" | "fetchedAt">, now = Date.now()): { cents: number | null; used: string[] } {
+  const all = [
+    ...(s.estimates ?? []).map((e) => ({ source: e.source, cents: e.cents, at: Date.parse(`${e.on}T00:00:00Z`), keep: (yearlySource(e.source) ? 15 : 6) * MONTH })),
+    ...(s.valueCents && s.fetchedAt ? [{ source: "RentCast", cents: s.valueCents, at: Date.parse(s.fetchedAt), keep: 45 * DAY }] : []),
+  ];
+  if (!all.length) return { cents: null, used: [] };
+  const current = all.filter((e) => now - e.at <= e.keep);
+  if (current.length) return { cents: Math.round(current.reduce((t, e) => t + e.cents, 0) / current.length), used: current.map((e) => e.source) };
+  const newest = all.reduce((a, b) => (b.at > a.at ? b : a));
+  return { cents: newest.cents, used: [newest.source] };
+}
 
 interface Stored {
   address: string;
@@ -32,6 +49,8 @@ interface Stored {
   calls?: { month: string; count: number };
   /** Estimates typed in, one per source. */
   estimates?: HomeEstimate[];
+  /** Every value entered or looked up, oldest first. */
+  history?: HomeEstimate[];
 }
 
 export interface HomeEstimate {
@@ -44,11 +63,17 @@ export interface HomeEstimate {
 export interface HomeValueView {
   /** The key is set in the server's environment. */
   keyFromEnv: boolean;
+  /** A key is saved in the database (from Setup). */
+  keySaved: boolean;
   callsThisMonth: number;
   callsLimit: number;
   estimates: HomeEstimate[];
   /** The average of the estimates, or null without any. */
   averageCents: number | null;
+  /** The Home value net worth uses, and which estimates went into it. */
+  usedCents: number | null;
+  usedSources: string[];
+  history: HomeEstimate[];
   address: string;
   hasKey: boolean;
   valueCents: number | null;
@@ -72,8 +97,9 @@ export async function homeValue(): Promise<HomeValueView | null> {
   const averageCents = estimates.length ? Math.round(estimates.reduce((t, e) => t + e.cents, 0) / estimates.length) : null;
   const month = new Date().toISOString().slice(0, 7);
   const calls = s?.calls?.month === month ? s.calls.count : 0;
-  if (!s && envKey()) return { keyFromEnv: true, callsThisMonth: 0, callsLimit: MAX_PER_MONTH, estimates: [], averageCents: null, address: "", hasKey: true, valueCents: null, lowCents: null, highCents: null, fetchedAt: null, error: null };
-  return s ? { keyFromEnv: !!envKey(), callsThisMonth: calls, callsLimit: MAX_PER_MONTH, estimates, averageCents, address: s.address, hasKey: !!s.keyEnc || !!envKey(), valueCents: s.valueCents, lowCents: s.lowCents, highCents: s.highCents, fetchedAt: s.fetchedAt, error: s.error } : null;
+  const b = s ? blend(s) : { cents: null, used: [] };
+  if (!s && envKey()) return { keyFromEnv: true, keySaved: false, callsThisMonth: 0, callsLimit: MAX_PER_MONTH, estimates: [], averageCents: null, usedCents: null, usedSources: [], history: [], address: "", hasKey: true, valueCents: null, lowCents: null, highCents: null, fetchedAt: null, error: null };
+  return s ? { keyFromEnv: !!envKey(), keySaved: !!s.keyEnc, callsThisMonth: calls, callsLimit: MAX_PER_MONTH, estimates, averageCents, usedCents: b.cents, usedSources: b.used, history: s.history ?? [], address: s.address, hasKey: !!s.keyEnc || !!envKey(), valueCents: s.valueCents, lowCents: s.lowCents, highCents: s.highCents, fetchedAt: s.fetchedAt, error: s.error } : null;
 }
 
 /** Saves the address and (when given) a new API key, then looks the value up. */
@@ -96,7 +122,10 @@ export async function saveHomeValueSetup(address: string, apiKey: string | null)
 /** Looks the value up when it's a month old (or now, when forced but not twice in a day). */
 export async function refreshHomeValue(force = false): Promise<HomeValueView | null> {
   const s = await load();
-  if (!s?.address || (!s.keyEnc && !envKey())) return null;
+  if (!s) return null;
+  // Estimates age out on their own, so the Home value is re-blended on every run (no lookup).
+  await applyBlend(s);
+  if (!s.address || (!s.keyEnc && !envKey())) return homeValue();
   const age = s.fetchedAt ? Date.now() - Date.parse(s.fetchedAt) : Infinity;
   if (age < (force ? DAY : 30 * DAY)) return homeValue();
   const month = new Date().toISOString().slice(0, 7);
@@ -115,9 +144,10 @@ export async function refreshHomeValue(force = false): Promise<HomeValueView | n
     const json = (await rentcastGet("/v1/avm/value", { address: s.address }, key)) as { price?: number; priceRangeLow?: number; priceRangeHigh?: number };
     if (typeof json.price !== "number" || json.price <= 0) throw new BankFeedError("RentCast has no estimate for that address");
     const valueCents = Math.round(json.price * 100);
-    await store({ ...s, valueCents, lowCents: json.priceRangeLow ? Math.round(json.priceRangeLow * 100) : null, highCents: json.priceRangeHigh ? Math.round(json.priceRangeHigh * 100) : null, fetchedAt: new Date().toISOString(), error: null });
-    // Net worth's "Home" value follows the estimate, unless estimates were typed in (they win).
-    if (!s.estimates?.length) await setHomeAsset(valueCents);
+    const fetchedAt = new Date().toISOString();
+    const next = { ...s, valueCents, lowCents: json.priceRangeLow ? Math.round(json.priceRangeLow * 100) : null, highCents: json.priceRangeHigh ? Math.round(json.priceRangeHigh * 100) : null, fetchedAt, error: null, history: [...(s.history ?? []), { source: "RentCast", cents: valueCents, on: fetchedAt.slice(0, 10) }].slice(-200) };
+    await store(next);
+    await applyBlend(next);
   } catch (error) {
     await store({ ...s, fetchedAt: new Date().toISOString(), error: error instanceof Error ? error.message : "Lookup failed" });
   }
@@ -127,9 +157,21 @@ export async function refreshHomeValue(force = false): Promise<HomeValueView | n
 async function setHomeAsset(cents: number) {
   const assets = await ownedAssets();
   const i = assets.findIndex((x) => /^(home|house)\b/i.test(x.name));
+  if (i >= 0 && assets[i].cents === cents) return;
   if (i >= 0) assets[i] = { ...assets[i], cents };
   else assets.unshift({ id: "home", name: "Home", cents });
   await saveOwnedAssets(assets);
+}
+
+async function applyBlend(s: Stored) {
+  const b = blend(s);
+  if (b.cents !== null) await setHomeAsset(b.cents);
+}
+
+/** Forgets the API key saved in Setup (one in the server's environment stays). */
+export async function clearHomeKey(): Promise<void> {
+  const s = await load();
+  if (s) await store({ ...s, keyEnc: null });
 }
 
 /** Saves the estimates typed in; their average becomes the Home value. */
@@ -147,6 +189,16 @@ export async function saveHomeEstimates(list: Array<{ source: string; cents: num
     return { ...e, on: had && had.cents === e.cents ? had.on : today };
   });
   await store({ ...(old ?? { keyEnc: null, valueCents: null, lowCents: null, highCents: null, fetchedAt: null, error: null }), address: address?.trim().slice(0, 200) || old?.address || "", estimates });
-  if (estimates.length) await setHomeAsset(Math.round(estimates.reduce((t, e) => t + e.cents, 0) / estimates.length));
+  // Values that are new or changed go into the history with today's date.
+  const changed = estimates.filter((e) => {
+    const had = before.get(e.source.toLowerCase());
+    return !had || had.cents !== e.cents;
+  });
+  const saved = await load();
+  if (saved) {
+    saved.history = [...(saved.history ?? []), ...changed].slice(-200);
+    await store(saved);
+    await applyBlend(saved);
+  }
   return (await homeValue())!;
 }

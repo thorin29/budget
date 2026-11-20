@@ -3,6 +3,20 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.88.1]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Home value, blended by freshness:** typed-in estimates and RentCast's are averaged together,
+  counting only current ones (a site's for 6 months, the county's for 15, RentCast's for 45
+  days); with none current, the newest one stands. It's re-checked every hour, so stale ones drop
+  out on their own. Setup shows the value net worth uses and which estimates went into it.
+- **History:** every estimate entered or looked up is kept with its date (Setup → Home value →
+  History).
+- **Remove saved key:** a RentCast key saved in Setup can be removed (RENTCAST_API_KEY in the
+  environment, when set, is the one used).
+
 ## [0.88.0]
 
 No migration. The phone app is unchanged. New optional setting: `RENTCAST_API_KEY` (see

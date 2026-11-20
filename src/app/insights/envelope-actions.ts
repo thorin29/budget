@@ -152,3 +152,8 @@ export async function deleteCategoryAction(id: string): Promise<EnvelopeState> {
   });
   return state.ok ? { ok: true, message: msg } : state;
 }
+
+export async function clearHomeKeyAction(): Promise<EnvelopeState> {
+  const { clearHomeKey } = await import("@/server/home-value");
+  return run(() => clearHomeKey(), "Saved key removed.");
+}

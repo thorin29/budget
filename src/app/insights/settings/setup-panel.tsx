@@ -10,6 +10,7 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
+  clearHomeKeyAction,
   deleteCategoryAction,
   deleteGroupAction,
   refreshHomeValueAction,
@@ -36,10 +37,14 @@ export interface SetupBudget {
 }
 export interface SetupHome {
   keyFromEnv: boolean;
+  keySaved: boolean;
   callsThisMonth: number;
   callsLimit: number;
   estimates: Array<{ source: string; cents: number; on: string }>;
   averageCents: number | null;
+  usedCents: number | null;
+  usedSources: string[];
+  history: Array<{ source: string; cents: number; on: string }>;
   address: string;
   hasKey: boolean;
   valueCents: number | null;
@@ -485,11 +490,35 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
         </button>
         <Note state={state} />
       </div>
+      {home?.usedCents ? (
+        <p className="rounded-xl bg-neutral-soft px-4 py-3 text-sm">
+          Net worth uses <b className="tnum">{money(home.usedCents)}</b>
+          <span className="text-muted">
+            {" "}
+            · {home.usedSources.length > 1 ? `average of ${home.usedSources.join(", ")}` : `from ${home.usedSources[0]}`}. Only current estimates count: a site&rsquo;s for 6 months, the county&rsquo;s for 15, RentCast&rsquo;s for 45 days; with none current, the newest one stands.
+          </span>
+        </p>
+      ) : null}
+      {home?.history.length ? (
+        <details className="text-sm">
+          <summary className="cursor-pointer text-xs font-semibold text-accent-text">History ({home.history.length})</summary>
+          <ul className="mt-1 max-h-48 space-y-0.5 overflow-y-auto text-xs text-muted">
+            {[...home.history].reverse().map((h, i) => (
+              <li key={i} className="tnum flex justify-between gap-3 sm:max-w-sm">
+                <span>
+                  {fmt(h.on)} · {h.source}
+                </span>
+                <span>{money(h.cents)}</span>
+              </li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
       <details className="rounded-xl border border-line p-3 text-sm">
         <summary className="cursor-pointer font-semibold">Or look it up automatically with RentCast</summary>
         <p className="mt-2 text-xs text-muted">
           Needs a RentCast API key. Best kept on the server as <code>RENTCAST_API_KEY</code>; pasting it here also works (stored encrypted). At most one lookup a month on its own, one a day by hand, and never more than {home?.callsLimit ?? 5} a month.
-          {home ? ` ${home.callsThisMonth} used this month.` : ""} Typed-in estimates above take priority when there are any.
+          {home ? ` ${home.callsThisMonth} used this month.` : ""} Its value joins the average with the others.
         </p>
         {home?.keyFromEnv ? <p className="mt-1 text-xs font-semibold text-ok">Key found in the server&rsquo;s environment.</p> : null}
         {home?.valueCents ? (
@@ -511,6 +540,11 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
           {home?.hasKey ? (
             <button type="button" disabled={pending} className={QUIET} onClick={() => act(() => refreshHomeValueAction())}>
               Look up again
+            </button>
+          ) : null}
+          {home?.keySaved ? (
+            <button type="button" disabled={pending} className="text-xs font-semibold text-danger hover:underline" onClick={() => act(() => clearHomeKeyAction())}>
+              {home.keyFromEnv ? "Remove the key saved here (the server\u2019s is used)" : "Remove saved key"}
             </button>
           ) : null}
         </div>
