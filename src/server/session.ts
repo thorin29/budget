@@ -69,3 +69,13 @@ export async function userFromToken(token: string | undefined): Promise<SessionU
   return user;
 }
 
+
+/**
+ * Replaces the cookie-signing secret with a new random one: every session (both people, every
+ * browser) stops working and has to sign in again. For a secret that may have been seen.
+ */
+export async function rotateSessionSecret(): Promise<void> {
+  const minted = randomBytes(32).toString("base64url");
+  await prisma.setting.upsert({ where: { key: SECRET_KEY }, create: { key: SECRET_KEY, value: minted }, update: { value: minted } });
+  cachedSecret = minted;
+}

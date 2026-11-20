@@ -3,6 +3,16 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.96.1]
+
+No migration. The phone app is unchanged.
+
+### Fixed
+- **Security:** the audit file included the sign-in signing key (a setting, which the field-name
+  filter didn't catch). Secret settings are now never exported.
+- **User Accounts › Sessions › Sign out everywhere** now also replaces the sign-in key, so a copy of
+  the old one can't be used. Both users sign in again.
+
 ## [0.96.0]
 
 No migration. The phone app is unchanged.

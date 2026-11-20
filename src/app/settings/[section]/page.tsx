@@ -133,7 +133,7 @@ async function Security() {
 
       <Card className="p-6">
         <h3 className="font-sans text-base font-bold">Sessions</h3>
-        <p className="mt-1 text-sm text-muted">Ends every session of yours, here and on your devices.</p>
+        <p className="mt-1 text-sm text-muted">Ends every session for both users, here and on all devices, and replaces the sign-in key.</p>
         <div className="mt-4">
           <SignOutEverywhere />
         </div>

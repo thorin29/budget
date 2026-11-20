@@ -247,6 +247,9 @@ export async function signOutEverywhere(user: SessionUser): Promise<void> {
     prisma.user.update({ where: { id: user.id }, data: { credentialVersion: { increment: 1 } } }),
     prisma.device.updateMany({ where: { userId: user.id, revokedAt: null }, data: { revokedAt: new Date() } }),
   ]);
+  // A new signing key too, so a copy of the old one can't make a sign-in.
+  const { rotateSessionSecret } = await import("./session");
+  await rotateSessionSecret();
 }
 
 /** Removes the other account. You cannot remove yourself. */

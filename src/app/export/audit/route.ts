@@ -46,7 +46,8 @@ export async function GET() {
     bankAccounts, transactions, splits, billRules, categoryRules, dismissals, bankImports, importBatches,
     netWorth, forecasts, connection,
   ] = await Promise.all([
-    prisma.setting.findMany(),
+    // Secret settings (the sign-in signing key) never leave, whatever their value looks like.
+    prisma.setting.findMany().then((rows) => (rows as Array<{ key: string }>).filter((r) => !/secret|session|token|password|key$/i.test(r.key))),
     prisma.account.findMany(),
     prisma.category.findMany(),
     prisma.categoryGroup.findMany(),
