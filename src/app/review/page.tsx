@@ -1,6 +1,6 @@
 /**
- * Review in two columns: what needs a decision (bills that look paid, due days the bank moved,
- * charges that repeat) on the left, and what the bank feed recorded on its own on the right,
+ * Review in two columns: action items (bills that look paid, due days the bank moved, charges
+ * that repeat) on the left, and bill payments recorded automatically from the bank feed on the right,
  * grouped by bill (open one for each month, each with its Undo).
  */
 
@@ -34,7 +34,7 @@ export default async function ReviewPage() {
       <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
         <Card className="space-y-3 p-4">
           <div className="flex items-baseline justify-between">
-            <h2 className="text-base font-bold">Needs you</h2>
+            <h2 className="text-base font-bold">Action items</h2>
             {waiting ? <span className="rounded-full bg-warn-soft px-2.5 py-0.5 text-xs font-bold text-warn">{waiting}</span> : null}
           </div>
           {waiting === 0 ? <p className="text-sm text-muted">All caught up.</p> : null}
@@ -72,8 +72,8 @@ export default async function ReviewPage() {
 
         <Card className="p-4">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-base font-bold">Done for you</h2>
-            <span className="text-xs text-muted">Recorded from the bank feed · open a bill for each month</span>
+            <h2 className="text-base font-bold">Recorded automatically</h2>
+            <span className="text-xs text-muted">Bill payments matched from the bank feed in the last 10 days · open one for each month</span>
           </div>
           {groups.length ? (
             <ul className="mt-2 divide-y divide-line">

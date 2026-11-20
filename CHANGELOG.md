@@ -3,6 +3,19 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.88.2]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Review:** the columns are now "Action items" and "Recorded automatically" (bill payments
+  matched from the bank feed in the last 10 days).
+- **Accounts:** the Net worth link is gone from the header.
+
+### Fixed
+- Bills turned off in Bills & income (inactive) no longer collect payments from the bank feed on
+  their own. An old imported row, such as a duplicate named "Amazon (2)", was picking up charges.
+
 ## [0.88.1]
 
 No migration. The phone app is unchanged.

@@ -97,10 +97,6 @@ export default async function AccountsPage({ searchParams }: { searchParams: Pro
           {connection ? "Bank feed connected" : "Bank feed not connected"} · {connection?.lastSuccessAt ? `synced ${stamp.format(connection.lastSuccessAt)}` : "no sync yet"} · {active.length} in use ·{" "}
           <Link href="/settings/bank" className="font-semibold text-accent-text hover:underline">
             Bank sync settings
-          </Link>{" "}
-          ·{" "}
-          <Link href="/insights/debt" className="font-semibold text-accent-text hover:underline">
-            Net worth
           </Link>
         </p>
       </div>

@@ -163,7 +163,9 @@ export async function recordPastMonths(monthsBack = 12): Promise<number> {
     }) as Promise<Array<{ id: string; postedOn: Date; amount: { toString(): string }; merchant: string; description: string; account: { type: AccountType }; category: { name: string; managedForOthers: boolean } | null }>>,
     prisma.billRule.findMany({ select: { lineItemId: true, merchantKey: true } }) as Promise<Array<{ lineItemId: string; merchantKey: string }>>,
     prisma.reviewDismissal.findMany({ where: { kind: "match" }, select: { key: true } }) as Promise<Array<{ key: string }>>,
-    prisma.lineItem.findMany({ where: { OR: [{ paysCardId: { not: null } }, { autoRecord: false }] }, select: { id: true } }) as Promise<Array<{ id: string }>>,
+    // Card payments, bills set not to record on their own, and retired bills (turned off in Bills
+    // & income: an old imported row shouldn't keep collecting payments) are left alone.
+    prisma.lineItem.findMany({ where: { OR: [{ paysCardId: { not: null } }, { autoRecord: false }, { active: false }] }, select: { id: true } }) as Promise<Array<{ id: string }>>,
   ]);
   const ruleMap = new Map<string, Set<string>>();
   for (const r of rules) ruleMap.set(r.merchantKey, new Set([...(ruleMap.get(r.merchantKey) ?? []), r.lineItemId]));
