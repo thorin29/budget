@@ -133,11 +133,11 @@ export async function refreshHomeValueAction(): Promise<EnvelopeState> {
   return state.ok ? { ok: true, message: msg } : state;
 }
 
-export async function saveHomeEstimatesAction(list: Array<{ source: string; cents: number }>): Promise<EnvelopeState> {
+export async function saveHomeEstimatesAction(list: Array<{ source: string; cents: number }>, address?: string): Promise<EnvelopeState> {
   const { saveHomeEstimates } = await import("@/server/home-value");
   let msg = "Saved.";
   const state = await run(async () => {
-    const v = await saveHomeEstimates(Array.isArray(list) ? list.map((e) => ({ source: String(e.source), cents: Number(e.cents) })) : []);
+    const v = await saveHomeEstimates(Array.isArray(list) ? list.map((e) => ({ source: String(e.source), cents: Number(e.cents) })) : [], address ? String(address) : undefined);
     if (v.averageCents) msg = `Home value set to the average: $${Math.round(v.averageCents / 100).toLocaleString("en-US")}`;
   });
   return state.ok ? { ok: true, message: msg } : state;

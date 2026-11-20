@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.87.1]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Home value:** a County appraisal row joins Zillow, Redfin and Realtor.com, and the address
+  sits at the top. With it filled in, each source has a "Look up ↗" link for that home: Zillow
+  directly, the others through a search, and the county through a search for that area's
+  appraisal district, so it works for any address in the US. The county value counts in the
+  average like the others and is flagged as out of date after a year (sites after three months).
+- **Setup:** the Bills & income and Categories links are gone from the tab row.
+
 ## [0.87.0]
 
 No migration. The phone app is unchanged.

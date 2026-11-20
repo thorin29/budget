@@ -107,7 +107,7 @@ async function setHomeAsset(cents: number) {
 }
 
 /** Saves the estimates typed in; their average becomes the Home value. */
-export async function saveHomeEstimates(list: Array<{ source: string; cents: number }>): Promise<HomeValueView> {
+export async function saveHomeEstimates(list: Array<{ source: string; cents: number }>, address?: string): Promise<HomeValueView> {
   const clean = list
     .map((e) => ({ source: e.source.trim().slice(0, 40), cents: Math.round(e.cents) }))
     .filter((e) => e.source && Number.isFinite(e.cents) && e.cents > 0 && e.cents < 1e12);
@@ -120,7 +120,7 @@ export async function saveHomeEstimates(list: Array<{ source: string; cents: num
     const had = before.get(e.source.toLowerCase());
     return { ...e, on: had && had.cents === e.cents ? had.on : today };
   });
-  await store({ address: old?.address ?? "", keyEnc: old?.keyEnc ?? null, valueCents: old?.valueCents ?? null, lowCents: old?.lowCents ?? null, highCents: old?.highCents ?? null, fetchedAt: old?.fetchedAt ?? null, error: old?.error ?? null, estimates });
+  await store({ address: address?.trim().slice(0, 200) || old?.address || "", keyEnc: old?.keyEnc ?? null, valueCents: old?.valueCents ?? null, lowCents: old?.lowCents ?? null, highCents: old?.highCents ?? null, fetchedAt: old?.fetchedAt ?? null, error: old?.error ?? null, estimates });
   if (estimates.length) await setHomeAsset(Math.round(estimates.reduce((t, e) => t + e.cents, 0) / estimates.length));
   return (await homeValue())!;
 }

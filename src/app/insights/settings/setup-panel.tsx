@@ -372,7 +372,7 @@ function NewBudget({ pending, act, state }: { pending: boolean; act: Act; state:
 function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pending: boolean; act: Act; state: EnvelopeState | null }) {
   const start: Array<{ source: string; amount: string; on?: string }> = home?.estimates.length
     ? home.estimates.map((e) => ({ source: e.source, amount: String(Math.round(e.cents / 100)), on: e.on }))
-    : [{ source: "Zillow", amount: "" }, { source: "Redfin", amount: "" }, { source: "Realtor.com", amount: "" }];
+    : [{ source: "Zillow", amount: "" }, { source: "Redfin", amount: "" }, { source: "Realtor.com", amount: "" }, { source: "County appraisal", amount: "" }];
   const [rows, setRows] = useState(start);
   const [address, setAddress] = useState(home?.address ?? "");
   const [key, setKey] = useState("");
@@ -380,20 +380,46 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
   const avg = nums.length ? Math.round(nums.reduce((a, b) => a + b, 0) / nums.length) : null;
   const set = (i: number, patch: Partial<{ source: string; amount: string }>) => setRows((r) => r.map((x, k) => (k === i ? { ...x, ...patch } : x)));
   const fmt = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
-  const oldest = home?.estimates.length ? home.estimates.map((e) => e.on).sort()[0] : null;
-  const stale = oldest ? Date.now() - Date.parse(`${oldest}T00:00:00Z`) > 90 * 86_400_000 : false;
+  // Sites update often; a county appraisal once a year.
+  const yearly = (s: string) => /county|apprais|assess|cad\b|tax/i.test(s);
+  const stale = (home?.estimates ?? []).some((e) => Date.now() - Date.parse(`${e.on}T00:00:00Z`) > (yearly(e.source) ? 395 : 90) * 86_400_000);
+  // Where to look each one up, from the address: any address in the US works.
+  const lookup = (source: string) => {
+    const a = address.trim();
+    if (!a) return null;
+    const q = (s: string) => `https://www.google.com/search?q=${encodeURIComponent(s)}`;
+    if (/zillow/i.test(source)) return `https://www.zillow.com/homes/${encodeURIComponent(a.replace(/,/g, ""))}_rb/`;
+    if (/redfin/i.test(source)) return q(`${a} redfin estimate`);
+    if (/realtor/i.test(source)) return q(`${a} realtor.com`);
+    if (yearly(source)) {
+      const place = a.split(",").slice(1).join(",").trim() || a;
+      return q(`${place} county appraisal district property search`);
+    }
+    return q(`${a} ${source} home value`);
+  };
   return (
     <div className="max-w-2xl space-y-4">
       <div>
         <h2 className="text-xl font-bold">Home value</h2>
-        <p className="mt-1 text-sm text-muted">Type in the estimates from Zillow, Redfin and others (a web search for your address shows them). Their average becomes the Home value in net worth.</p>
+        <p className="mt-1 text-sm text-muted">
+          Type in the estimates from Zillow, Redfin, Realtor.com and your county&rsquo;s appraisal (the value on its yearly notice or its property search). Their average becomes the Home value in net worth. With the address filled in, &ldquo;Look up&rdquo; opens each one for your home.
+        </p>
       </div>
-      {stale ? <p className="rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">These are over three months old: worth checking again.</p> : null}
+      <label className="block text-sm">
+        <span className="mb-1 block text-xs text-muted">Address</span>
+        <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, City, ST 12345" className="w-full max-w-md rounded-lg border border-line bg-surface px-2 py-1.5" />
+      </label>
+      {stale ? <p className="rounded-lg bg-warn-soft px-3 py-2 text-xs text-warn">Some estimates are out of date (sites after three months, the county after a year): worth checking again.</p> : null}
       <div className="space-y-1.5">
         {rows.map((r, i) => (
           <div key={i} className="flex items-center gap-2">
             <input aria-label="Source" value={r.source} onChange={(e) => set(i, { source: e.target.value })} className="w-40 rounded-lg border border-line bg-surface px-2 py-1.5 text-sm" />
             <input aria-label={`${r.source || "Source"} estimate`} inputMode="decimal" placeholder="$" value={r.amount} onChange={(e) => set(i, { amount: e.target.value })} className={`${INPUT} w-36 py-1.5`} />
+            {lookup(r.source) ? (
+              <a href={lookup(r.source)!} target="_blank" rel="noreferrer noopener" className="text-xs font-semibold text-accent-text hover:underline">
+                Look up ↗
+              </a>
+            ) : null}
             {r.on ? <span className="text-xs text-muted">{fmt(r.on)}</span> : null}
             <button type="button" aria-label={`Remove ${r.source || "row"}`} className="text-sm text-muted hover:text-danger" onClick={() => setRows((x) => x.filter((_, k) => k !== i))}>
               ✕
@@ -413,7 +439,7 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
           type="button"
           disabled={pending}
           className={BTN}
-          onClick={() => act(() => saveHomeEstimatesAction(rows.map((r) => ({ source: r.source, cents: toCents(r.amount) ?? 0 })).filter((r) => r.source.trim() && r.cents > 0)))}
+          onClick={() => act(() => saveHomeEstimatesAction(rows.map((r) => ({ source: r.source, cents: toCents(r.amount) ?? 0 })).filter((r) => r.source.trim() && r.cents > 0), address))}
         >
           Save
         </button>
@@ -431,7 +457,7 @@ function HomeValue({ home, pending, act, state }: { home: SetupHome | null; pend
         ) : null}
         {home?.error ? <p className="mt-1 text-xs text-danger">Last lookup: {home.error}</p> : null}
         <div className="mt-2 grid gap-2 sm:grid-cols-2">
-          <input aria-label="Address" value={address} onChange={(e) => setAddress(e.target.value)} placeholder="123 Main St, City, ST 12345" className="rounded-lg border border-line bg-surface px-2 py-1.5" />
+          <span className="self-center text-xs text-muted">Uses the address above.</span>
           <input aria-label="RentCast API key" value={key} onChange={(e) => setKey(e.target.value)} type="password" autoComplete="off" placeholder={home?.hasKey ? "Key saved (blank keeps it)" : "API key"} className="rounded-lg border border-line bg-surface px-2 py-1.5" />
         </div>
         <div className="mt-2 flex flex-wrap gap-2">
