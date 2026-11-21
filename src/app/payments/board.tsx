@@ -10,6 +10,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import type {
   CashEvent,
+  CycleBar,
   PaymentChoice,
   PaymentsView,
   Tier,
@@ -88,7 +89,8 @@ export function PaymentsBoard({ v }: { v: PaymentsView }) {
   };
   const [key, setKey] = useState(chips[0]?.key ?? "");
   const c = v.choices.find((x) => x.key === key) ?? chips[0];
-  const [periodIx, setPeriodIx] = useState(v.periods.length > 1 ? 1 : 0);
+  // Month, or the selected card's statement cycle (cards planned by cycle only).
+  const [byCycle, setByCycle] = useState(true);
   const [typedChecking, setTypedChecking] = useState("");
   const [checkingOverride, setCheckingOverride] = useState<number | null>(null);
 
@@ -103,6 +105,10 @@ export function PaymentsBoard({ v }: { v: PaymentsView }) {
     );
   }
   const checking = checkingOverride ?? v.checking.cents;
+  const cyclePeriod = v.periods.find((p) => p.cardId === c.group) ?? null;
+  const cycleOn = byCycle && cyclePeriod !== null;
+  const period = cycleOn ? cyclePeriod : v.periods[0];
+  const bars = (cycleOn ? v.cycles[c.group] : v.cycles.month) ?? [];
 
   return (
     <div className="space-y-3">
@@ -130,16 +136,16 @@ export function PaymentsBoard({ v }: { v: PaymentsView }) {
             </button>
           ))}
         </div>
-        {v.periods.length > 1 ? (
+        {cyclePeriod ? (
           <div className="ml-auto inline-flex overflow-hidden rounded-lg border border-line bg-surface text-xs font-semibold">
-            {v.periods.map((p, i) => (
+            {[false, true].map((on) => (
               <button
-                key={p.label}
+                key={String(on)}
                 type="button"
-                onClick={() => setPeriodIx(i)}
-                className={`px-3 py-1.5 ${i === periodIx ? "bg-foreground text-surface" : ""}`}
+                onClick={() => setByCycle(on)}
+                className={`px-3 py-1.5 ${on === byCycle ? "bg-foreground text-surface" : ""}`}
               >
-                {p.label}
+                {on ? cyclePeriod.label : "Month"}
               </button>
             ))}
           </div>
@@ -153,7 +159,8 @@ export function PaymentsBoard({ v }: { v: PaymentsView }) {
         checking={checking}
         siblings={v.choices.filter((x) => x.group === c.group)}
         onCycle={setKey}
-        periodIx={periodIx}
+        period={period}
+        bars={bars}
       >
         <div className={card}>
           <p className={step}>Checking balance</p>
@@ -209,7 +216,8 @@ function Choice({
   checking,
   siblings,
   onCycle,
-  periodIx,
+  period,
+  bars,
   children,
 }: {
   c: PaymentChoice;
@@ -217,7 +225,8 @@ function Choice({
   checking: number | null;
   siblings: PaymentChoice[];
   onCycle: (key: string) => void;
-  periodIx: number;
+  period: PaymentsView["periods"][number];
+  bars: CycleBar[];
   children: React.ReactNode;
 }) {
   const [mode, setMode] = useState<Mode>("full");
@@ -250,7 +259,7 @@ function Choice({
         ? Math.max(c.fullCents, soFar)
         : payCents;
   // Checking at the end of the period, with this payment as picked.
-  const period = v.periods[periodIx];
+
   const checkingOut =
     checking === null || period.to < v.today
       ? null
@@ -428,7 +437,7 @@ function Choice({
       </div>
       <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[2fr_1fr]">
         <Period p={period} checkingOut={checkingOut} />
-        <Cycles cycles={v.cycles} />
+        <Cycles cycles={bars} months={bars === v.cycles.month} />
       </div>
     </>
   );
@@ -981,10 +990,9 @@ const OUT_NAME = {
 } as const;
 
 /** Each past period: what came in beside what went out (by kind), the plan, and the net. */
-function Cycles({ cycles }: { cycles: PaymentsView["cycles"] }) {
+function Cycles({ cycles, months }: { cycles: CycleBar[]; months: boolean }) {
   const H = 120;
-  const outOf = (x: PaymentsView["cycles"][number]) =>
-    x.out.reduce((t, o) => t + o.cents, 0);
+  const outOf = (x: CycleBar) => x.out.reduce((t, o) => t + o.cents, 0);
   const max = Math.max(
     1,
     ...cycles.flatMap((x) => [x.incomeCents, outOf(x), x.planCents]),
@@ -1000,7 +1008,7 @@ function Cycles({ cycles }: { cycles: PaymentsView["cycles"] }) {
   return (
     <div className={card}>
       <div className="flex items-center gap-2">
-        <p className={step}>Cycles</p>
+        <p className={step}>{months ? "Months" : "Cycles"}</p>
         <span className="flex-1" />
         {cycles.length ? (
           <span className="text-xs text-muted">

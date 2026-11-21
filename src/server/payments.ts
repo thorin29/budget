@@ -147,6 +147,8 @@ export interface CashEvent {
 
 export interface PeriodSummary {
   label: string;
+  /** The card whose statement cycle this is; null for the month. */
+  cardId: string | null;
   from: string;
   to: string;
   checkingInCents: number | null;
@@ -166,18 +168,20 @@ export interface PaymentsView {
   ledgers: Record<string, MonthLedger>;
   events: CashEvent[];
   periods: PeriodSummary[];
-  /** The last six periods (the cycle card's statements, or months): in, out by kind, and the plan. */
-  cycles: Array<{
-    from: string;
-    to: string;
-    incomeCents: number;
-    out: Array<{
-      key: "BILLS" | "DEBT" | "ESSENTIAL" | "FLEXIBLE" | "UNPLANNED";
-      cents: number;
-    }>;
-    planCents: number;
-  }>;
+  /** The last six periods, by "month" or by a card planned by cycle (its statements): in, out by kind, and the plan. */
+  cycles: Record<string, CycleBar[]>;
   changes: BudgetChange[];
+}
+
+export interface CycleBar {
+  from: string;
+  to: string;
+  incomeCents: number;
+  out: Array<{
+    key: "BILLS" | "DEBT" | "ESSENTIAL" | "FLEXIBLE" | "UNPLANNED";
+    cents: number;
+  }>;
+  planCents: number;
 }
 
 type BankCard = {
@@ -689,8 +693,8 @@ export async function paymentsView(): Promise<PaymentsView> {
     ),
   ];
   for (const st of regular.filter((s) => cycleCards.has(s.id))) {
-    periods.push(
-      periodSummary(
+    periods.push({
+      ...periodSummary(
         env,
         plan,
         `${st.name} cycle`,
@@ -704,75 +708,78 @@ export async function paymentsView(): Promise<PaymentsView> {
         promo,
         debtCents,
       ),
-    );
+      cardId: st.id,
+    });
   }
   const filled = await Promise.all(
     periods.map((p) => fillPeriod(env, p, today)),
   );
 
-  // ---- The last six periods: the cycle card's statements, or months.
-  const spans: Array<{ from: string; to: string }> = [];
-  const cycleCard = regular.find((s) => cycleCards.has(s.id));
-  const closeDay = cycleCard
-    ? (bankCards.find((c) => c.id === cycleCard.id)?.statementCloseDay ?? null)
-    : null;
-  let end =
-    cycleCard && closeDay
-      ? cycleCard.lastClose
-      : addDays(monthStart(today.slice(0, 7)), -1);
-  for (let i = 0; i < 6; i++) {
-    const from =
-      cycleCard && closeDay
+  // ---- The last six periods: months, and each card planned by cycle (its statements).
+  const series: Record<string, Array<{ from: string; to: string }>> = {};
+  const lastSix = (closeDay: number | null, last: string) => {
+    const out: Array<{ from: string; to: string }> = [];
+    let end = last;
+    for (let i = 0; i < 6; i++) {
+      const from = closeDay
         ? windowClosing(end, closeDay).from
         : monthStart(end.slice(0, 7));
-    spans.unshift({ from, to: end });
-    end = addDays(from, -1);
+      out.unshift({ from, to: end });
+      end = addDays(from, -1);
+    }
+    return out;
+  };
+  series.month = lastSix(null, addDays(monthStart(today.slice(0, 7)), -1));
+  for (const st of regular.filter((s) => cycleCards.has(s.id))) {
+    const closeDay =
+      bankCards.find((c) => c.id === st.id)?.statementCloseDay ?? null;
+    if (closeDay) series[st.id] = lastSix(closeDay, st.lastClose);
   }
-  // Each past period set out like the period table: what came in, what went out, and the plan.
+  const allSpans = Object.values(series).flat();
   const pastMonths: string[] = [];
-  for (
-    let ym = spans[0].from.slice(0, 7);
-    ym <= spans[5].to.slice(0, 7);
-    ym = nextYm(ym)
-  )
+  const first = allSpans.reduce((m, sp) => (sp.from < m ? sp.from : m), today);
+  for (let ym = first.slice(0, 7); ym <= today.slice(0, 7); ym = nextYm(ym))
     pastMonths.push(ym);
   const pastViews = await Promise.all(pastMonths.map((ym) => env.view(ym)));
-  const cycles = await Promise.all(
-    spans.map(async (sp) => {
-      const p = await fillPeriod(
+  const bar = async (sp: { from: string; to: string }): Promise<CycleBar> => {
+    const p = await fillPeriod(
+      env,
+      periodSummary(
         env,
-        periodSummary(
-          env,
-          plan,
-          "",
-          sp.from,
-          sp.to,
-          pastViews,
-          [],
-          null,
-          isCardPayment,
-          isDebt,
-          promo,
-          debtCents,
-        ),
-        today,
-      );
-      const row = (k: PeriodSummary["rows"][number]["key"]) =>
-        p.rows.find((r) => r.key === k)!;
-      const out = (
-        ["BILLS", "DEBT", "ESSENTIAL", "FLEXIBLE", "UNPLANNED"] as const
-      ).map((k) => ({ key: k, cents: row(k).actualCents }));
-      return {
-        from: sp.from,
-        to: sp.to,
-        incomeCents: row("INCOME").actualCents,
-        out,
-        planCents: (
-          ["BILLS", "DEBT", "ESSENTIAL", "FLEXIBLE", "UNPLANNED"] as const
-        ).reduce((t, k) => t + row(k).plannedCents, 0),
-      };
-    }),
-  );
+        plan,
+        "",
+        sp.from,
+        sp.to,
+        pastViews,
+        [],
+        null,
+        isCardPayment,
+        isDebt,
+        promo,
+        debtCents,
+      ),
+      today,
+    );
+    const row = (k: PeriodSummary["rows"][number]["key"]) =>
+      p.rows.find((r) => r.key === k)!;
+    const kinds = [
+      "BILLS",
+      "DEBT",
+      "ESSENTIAL",
+      "FLEXIBLE",
+      "UNPLANNED",
+    ] as const;
+    return {
+      from: sp.from,
+      to: sp.to,
+      incomeCents: row("INCOME").actualCents,
+      out: kinds.map((k) => ({ key: k, cents: row(k).actualCents })),
+      planCents: kinds.reduce((t, k) => t + row(k).plannedCents, 0),
+    };
+  };
+  const cycles: Record<string, CycleBar[]> = {};
+  for (const [k, spans] of Object.entries(series))
+    cycles[k] = await Promise.all(spans.map(bar));
 
   return {
     today,
@@ -855,6 +862,7 @@ function periodSummary(
         events.filter((e) => e.date <= to).reduce((t, e) => t + e.cents, 0);
   return {
     label,
+    cardId: null,
     from,
     to,
     checkingInCents: null,

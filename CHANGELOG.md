@@ -3,6 +3,13 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.104.1]
+
+### Changed
+- Payments: the Month / cycle switch follows the selected payment. A card planned by cycle offers
+  its own cycle; other payments show the month. The switch now changes the history chart too
+  (Months or Cycles), not just the period table.
+
 ## [0.104.0]
 
 No migration. The phone app is unchanged.
