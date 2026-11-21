@@ -3,6 +3,14 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.106.3]
+
+### Fixed
+- Card amounts on the phone's Cards tab, card reminders and the Tracker's card summary are what's
+  planned: a payment set on Payments first; on a 0% card, the month's debt payment (not the pace
+  that clears it by the offer's end); otherwise what's left on the statement.
+- The phone's "card payment due" alert no longer fires for a card already paid this cycle.
+
 ## [0.106.2]
 
 ### Changed

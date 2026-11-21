@@ -14,7 +14,7 @@ import { getCashTiming } from "./cash-timing";
 import { getOutlook, type OutlookView } from "./outlook";
 import { getReview } from "./review";
 import { needsCategory } from "./needs-category";
-import { listCardPayments } from "./card-payments";
+import { listCardPayments, withPlannedPay } from "./card-payments";
 import { getDebt } from "./debt";
 import { recentAutomation } from "./bills-auto";
 import { prisma } from "@/lib/prisma";
@@ -338,7 +338,7 @@ export async function phoneAlerts(): Promise<PhoneAlert[]> {
   const today = plan.today;
   const out: PhoneAlert[] = [];
   const [cards, cash, review, uncategorized, auto, conn, reserve] = await Promise.all([
-    listCardPayments(today).catch(() => []),
+    listCardPayments(today).then((p) => withPlannedPay(p, today)).catch(() => []),
     getCashTiming(plan.debt.cents).catch(() => null),
     getReview().catch(() => null),
     needsCategory().catch(() => []),
@@ -355,7 +355,7 @@ export async function phoneAlerts(): Promise<PhoneAlert[]> {
     if (r.paidOn && r.paidOn >= addDays(today, -2)) out.push({ key: `billAuto:${r.lineItemId}:${r.year}-${r.month}`, kind: "billAuto", title: `${r.name} recorded`, body: `${exact(r.amountCents)} on ${md(r.paidOn)}`, open: "review" });
   }
   for (const c of cards) {
-    if (c.dueCents > 0 && c.nextDue >= today && c.nextDue <= addDays(today, 2)) out.push({ key: `cardDue:${c.id}:${c.nextDue}`, kind: "cardDue", title: `${c.name} · pay ${whole(c.suggestedCents || c.dueCents)} by ${md(c.nextDue)}`, body: `${whole(c.dueCents)} left on the statement`, open: "cards" });
+    if (c.suggestedCents > 0 && c.nextDue >= today && c.nextDue <= addDays(today, 2)) out.push({ key: `cardDue:${c.id}:${c.nextDue}`, kind: "cardDue", title: `${c.name} · pay ${whole(c.suggestedCents)} by ${md(c.nextDue)}`, body: c.plan === "payoff" ? "This month's payment" : `${whole(c.dueCents)} left on the statement`, open: "cards" });
     if (c.lastClose >= addDays(today, -3) && c.lastClose <= today && c.statementCents > 0) out.push({ key: `statement:${c.id}:${c.lastClose}`, kind: "statementClosed", title: `${c.name} statement closed at ${whole(c.statementCents)}`, body: `Due ${md(c.nextDue)}`, open: "cards" });
   }
   for (const i of plan.income.items) {

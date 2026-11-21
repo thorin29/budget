@@ -94,9 +94,34 @@ export interface CardRow {
   lastDigits: string | null;
 }
 
+/**
+ * What each card's payment should be, as planned: a payment set on the Payments page first; on a 0%
+ * card, the month's debt payment (not the pace that clears it by the offer's end); otherwise what's
+ * left on the statement. The phone's Cards tab, card reminders and the Tracker's card summary use it.
+ */
+export async function withPlannedPay(payments: CardPayment[], today = localToday()): Promise<CardPayment[]> {
+  const [{ plannedPayments, paymentKey }, { getMonthPlan }] = await Promise.all([import("./planned-payments"), import("./month-plan")]);
+  const set = await plannedPayments();
+  const promo = payments.some((p) => p.promoEndsOn && p.promoEndsOn >= today);
+  const plan = promo ? await getMonthPlan().catch(() => null) : null;
+  const debtCents = plan ? Math.max(0, plan.debt.cents - plan.debt.extraCents) : null;
+  return payments.map((p) => {
+    if (p.promoEndsOn && p.promoEndsOn >= today && p.statementCents > 0) {
+      const planned = set[paymentKey.debt(p.id, p.nextDue)]?.cents ?? debtCents;
+      if (planned === null) return p;
+      const suggestedCents = Math.max(0, planned - p.paidSinceCents);
+      return { ...p, suggestedCents, plan: suggestedCents > 0 ? "payoff" : "paid" };
+    }
+    const planned = set[paymentKey.card(p.id, p.lastClose)]?.cents;
+    if (planned === undefined) return p;
+    const suggestedCents = Math.max(0, planned - p.paidSinceCents);
+    return { ...p, suggestedCents, plan: suggestedCents > 0 ? "statement" : "paid" };
+  });
+}
+
 export interface CardOverview {
   totalOwedCents: number;
-  /** What to pay this cycle across cards with their days set: full statements, and the monthly payoff on 0% balances. */
+  /** What to pay this cycle across cards with their days set, as planned (see withPlannedPay). */
   payThisCycleCents: number;
   nextDue: string | null;
   rows: CardRow[];
@@ -109,7 +134,7 @@ export async function cardOverview(today = localToday()): Promise<CardOverview> 
       where: { type: "CREDIT_CARD", hidden: false },
       select: { id: true, name: true, nickname: true, institution: true, balance: true, statementCloseDay: true, paymentDueDay: true, cardColor: true },
     }) as Promise<Array<{ id: string; name: string; nickname: string | null; institution: string | null; balance: { toString(): string } | null; statementCloseDay: number | null; paymentDueDay: number | null; cardColor: string | null }>>,
-    listCardPayments(today),
+    listCardPayments(today).then((p) => withPlannedPay(p, today)),
   ]);
   const byId = new Map(payments.map((p) => [p.id, p]));
   const rows: CardRow[] = cards
