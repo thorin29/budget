@@ -6,6 +6,7 @@ import { revalidatePath } from "next/cache";
 import { requireUser, UnauthorizedError } from "@/server/auth";
 import { NotFoundError, ValidationError } from "@/server/errors";
 import { resetTransactionCategory, setTransactionCategory } from "@/server/categorize";
+import { setTransfer } from "@/server/transfer-mark";
 
 export type CategoryResult = { ok: true; others: number } | { ok: false; message: string };
 
@@ -32,6 +33,18 @@ export async function resetCategoryAction(txnId: string): Promise<CategoryResult
   try {
     await requireUser();
     await resetTransactionCategory(String(txnId));
+    revalidatePath("/transactions");
+    revalidatePath("/insights");
+    return { ok: true, others: 0 };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function setTransferAction(txnId: string, on: boolean): Promise<CategoryResult> {
+  try {
+    await requireUser();
+    await setTransfer(String(txnId), Boolean(on));
     revalidatePath("/transactions");
     revalidatePath("/insights");
     return { ok: true, others: 0 };

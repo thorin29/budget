@@ -16,6 +16,8 @@ import { getMonthView, type MonthEntry } from "./month";
 import { payoffTrackers } from "./card-payments";
 import { billCharge } from "./bill-merchants";
 import { ensureGroups, debtSetting, reserveSetting, extraToDebtSetting } from "./envelopes";
+import { isExtraIncome } from "@/lib/extra-income";
+import { loadPaydays } from "./pay-split";
 import { usualFor } from "@/lib/usual";
 
 const iso = (d: Date) => d.toISOString().slice(0, 10);
@@ -268,10 +270,11 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   // ---- money in
   // Extra income: not in a normal month (a third paycheck, a bonus, anything not every month).
   const itemById = new Map(items.map((i) => [i.id, i]));
+  const payFrequency = (await loadPaydays()).frequency(y, m);
   const isExtra = (id: string) => {
     const i = itemById.get(id);
     if (!i) return false;
-    return (i.paydayNumber ?? 0) >= 3 || i.scheduleKind !== "MONTHLY" || i.months.length < 12 || toCents(i.plannedAmount) === 0;
+    return isExtraIncome({ ...i, plannedCents: toCents(i.plannedAmount) }, payFrequency);
   };
   const income = view.income
     .filter((e) => !e.skipped)

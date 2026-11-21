@@ -19,95 +19,60 @@ export const dynamic = "force-dynamic";
 
 const money = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(Math.round(cents / 100)).toLocaleString("en-US")}`;
 
-/** A tile for another tab: its headline, then either one line or a few label/amount rows. */
-function Tile({ href, title, value, line, rows, tone = "plain" }: { href: string; title: string; value?: string; line?: string; rows?: Array<[string, number, string?]>; tone?: "plain" | "danger" | "ok" | "warn" }) {
+/** A small tile for another tab: a title, one figure and one short line. The whole tile opens the tab. */
+function Tile({ href, title, value, line, tone = "plain" }: { href: string; title: string; value: string; line?: string; tone?: "plain" | "danger" | "ok" | "warn" }) {
   const color = tone === "danger" ? "text-danger" : tone === "ok" ? "text-ok" : tone === "warn" ? "text-warn" : "";
   return (
-    <Link href={href} className="group block rounded-2xl border border-line bg-surface px-4 py-3 shadow-card transition hover:ring-1 hover:ring-accent">
-      <span className="flex items-baseline justify-between text-sm font-semibold text-muted">
-        {title}
-        <span aria-hidden className="text-accent-text opacity-0 transition group-hover:opacity-100">
-          ›
-        </span>
-      </span>
-      {rows ? (
-        <span className="mt-1 block space-y-0.5">
-          {rows.map(([label, cents, cls]) => (
-            <span key={label} className="flex items-baseline justify-between gap-3 text-sm">
-              <span className="text-muted">{label}</span>
-              <span className={`tnum font-bold ${cls ?? ""}`}>{money(cents)}</span>
-            </span>
-          ))}
-        </span>
-      ) : (
-        <>
-          <span className={`tnum mt-0.5 block text-xl font-bold ${color}`}>{value}</span>
-          {line ? <span className="block truncate text-xs text-muted">{line}</span> : null}
-        </>
-      )}
+    <Link href={href} className="block min-w-0 rounded-2xl border border-line bg-surface px-4 py-2.5 shadow-card transition hover:ring-1 hover:ring-accent">
+      <span className="block truncate text-xs font-semibold text-muted">{title}</span>
+      <span className={`tnum block truncate text-lg font-bold leading-snug ${color}`}>{value}</span>
+      {line ? <span className="block truncate text-xs text-muted">{line}</span> : null}
     </Link>
-  );
-}
-
-function Tiles({ plan, debt, last, checkingCents }: { plan: MonthPlanView; debt: DebtView | null; last: MonthPlanView | null; checkingCents: number | null }) {
-  const over = plan.groups.filter((g) => g.overCents > 0);
-  const expenses = plan.bills.totalCents + plan.debt.cents + plan.spentCents;
-  return (
-    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <Tile
-        href="/insights/money"
-        title="Money"
-        rows={[
-          ...(checkingCents !== null ? ([["Checking", checkingCents, checkingCents < 0 ? "text-danger" : ""]] as Array<[string, number, string]>) : []),
-          ["Income", plan.income.totalCents, "text-ok"],
-          ["Expenses", expenses, expenses > plan.income.totalCents ? "text-danger" : ""],
-        ]}
-      />
-      <Tile
-        href="/insights/budget"
-        title="Budget"
-        value={over.length ? `${over.length} over` : "Within limits"}
-        line={over.length ? over.map((g) => g.name).slice(0, 3).join(", ") : `${money(plan.spentCents)} spent of ${money(plan.poolCents)}`}
-        tone={over.length ? "warn" : "ok"}
-      />
-      <Tile
-        href="/insights/debt"
-        title="Debt"
-        value={debt ? money(debt.totalCents) : "—"}
-        line={debt ? `${money(debt.installmentCents)} loans · ${money(debt.revolvingCents)} cards` : undefined}
-      />
-      <Tile
-        href="/insights/trends"
-        title="Trends"
-        value={last ? (last.poolLeftCents < 0 ? `−${money(-last.poolLeftCents)}` : `+${money(last.poolLeftCents)}`) : "—"}
-        line={last ? `${monthLabel(Number(last.month.slice(0, 4)), Number(last.month.slice(5, 7)), "long").split(" ")[0]}: income − expenses` : undefined}
-        tone={last ? (last.poolLeftCents < 0 ? "danger" : "ok") : "plain"}
-      />
-    </div>
   );
 }
 
 const usd = (c: number) => `$${Math.round(c / 100).toLocaleString("en-US")}`;
 const md = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
-/** The main card on its own statement: charged so far, bills still to land, room left per day. */
-function StatementTile({ v }: { v: StatementView }) {
-  return (
-    <Link href={`/insights/budget?view=${v.card.id}`} className="block rounded-2xl border border-line bg-surface px-5 py-4 shadow-card hover:border-line-strong">
-      <div className="flex flex-wrap items-baseline justify-between gap-2">
-        <p className="text-sm font-semibold text-muted">
-          {v.card.name} statement · {md(v.from)} – {md(v.to)} · day {v.day} of {v.days}
-        </p>
-        <span className="text-xs font-semibold text-accent-text">Open →</span>
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <p><span className="block text-xs text-muted">Charged so far</span><span className="tnum text-xl font-bold">{usd(v.chargedCents)}</span></p>
-        <p><span className="block text-xs text-muted">Bills still to come</span><span className="tnum text-xl font-bold">{usd(v.billsToComeCents)}</span></p>
-        <p><span className="block text-xs text-muted">Room left in budgets</span><span className="tnum text-xl font-bold text-ok">{usd(v.roomCents)}</span>{v.daysLeft ? <span className="block text-xs text-muted">about {usd(v.roomCents / v.daysLeft)} a day</span> : null}</p>
-        <p><span className="block text-xs text-muted">Statement, projected</span><span className="tnum text-xl font-bold">{usd(v.projectedCents)}</span>{v.dueOn ? <span className="block text-xs text-muted">due {md(v.dueOn)}</span> : null}</p>
-      </div>
-    </Link>
-  );
+/** One row: checking, the budget, the main card's statement, debt and last month. */
+function Tiles({ plan, debt, last, check, statement }: { plan: MonthPlanView; debt: DebtView | null; last: MonthPlanView | null; check: { checkingCents: number; incomeCents: number } | null; statement: StatementView | null }) {
+  const over = plan.groups.filter((g) => g.overCents > 0);
+  const lastName = last ? monthLabel(Number(last.month.slice(0, 4)), Number(last.month.slice(5, 7)), "long").split(" ")[0] : "";
+  const tiles = [
+    check ? (
+      <Tile key="checking" href="/insights/cash" title="Checking" value={money(check.checkingCents)} tone={check.checkingCents < 0 ? "danger" : "plain"} line={check.incomeCents > 0 ? `+${money(check.incomeCents)} pay still coming` : "No more pay this month"} />
+    ) : (
+      <Tile key="income" href="/insights/money" title="Income" value={money(plan.income.totalCents)} line={`${money(plan.income.receivedCents)} received`} />
+    ),
+    <Tile
+      key="budget"
+      href="/insights/budget"
+      title="Budget"
+      value={over.length ? `${over.length} over` : "On track"}
+      line={over.length ? over.map((g) => g.name).slice(0, 3).join(", ") : `${money(plan.spentCents)} spent`}
+      tone={over.length ? "warn" : "ok"}
+    />,
+    statement ? (
+      <Tile
+        key="statement"
+        href={`/insights/budget?view=${statement.card.id}`}
+        title={`${statement.card.name} · closes ${md(statement.to)}`}
+        value={`${usd(statement.roomCents)} left`}
+        tone={statement.roomCents < 0 ? "danger" : "ok"}
+        line={`${usd(statement.chargedCents)} charged · ${usd(statement.projectedCents)} projected`}
+      />
+    ) : null,
+    <Tile key="debt" href="/insights/debt" title="Debt" value={debt ? money(debt.totalCents) : "—"} line={debt ? `${money(debt.installmentCents)} loans · ${money(debt.revolvingCents)} cards` : undefined} />,
+    <Tile
+      key="last"
+      href="/insights/trends"
+      title={last ? `${lastName} Result` : "Last Month"}
+      value={last ? (last.poolLeftCents < 0 ? money(last.poolLeftCents) : `+${money(last.poolLeftCents)}`) : "—"}
+      line={last ? (last.poolLeftCents < 0 ? "spent more than came in" : "came in more than spent") : undefined}
+      tone={last ? (last.poolLeftCents < 0 ? "danger" : "ok") : "plain"}
+    />,
+  ].filter(Boolean);
+  return <div className={`grid grid-cols-2 gap-3 sm:grid-cols-3 ${tiles.length === 5 ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>{tiles}</div>;
 }
 
 export default async function InsightsOverview({ searchParams }: { searchParams: Promise<{ m?: string }> }) {
@@ -154,8 +119,7 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
       <TabHeading title="Overview" />
       {plan ? (
         <>
-          <Tiles plan={plan} debt={debt} last={last} checkingCents={current && cash?.check ? cash.check.checkingCents : null} />
-          {statement ? <StatementTile v={statement} /> : null}
+          <Tiles plan={plan} debt={debt} last={last} check={current && cash?.check ? cash.check : null} statement={statement} />
           <div className="grid gap-4 lg:grid-cols-2">
             <IncomeVsExpenses plan={plan} check={cash?.check} />
             <div className="flex flex-col gap-4">

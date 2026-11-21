@@ -70,6 +70,7 @@ export async function getCashTiming(debtCents: number): Promise<CashTimingView> 
   const onCard = new Set(items.filter((i) => i.chargedToId).map((i) => i.id));
 
   const events: CashEvent[] = [];
+  const lateCutoff = new Date(Date.parse(`${today}T00:00:00Z`) - 5 * 86_400_000).toISOString().slice(0, 10);
   /** Bills charged to a card that haven't been charged yet this month: they'll land on a card, then leave checking. */
   let onCardDueCents = 0;
   const seen = new Set<string>();
@@ -79,7 +80,10 @@ export async function getCashTiming(debtCents: number): Promise<CashTimingView> 
     seen.add(key);
     const date = dueIso(e.year, e.month, e.dueDay);
     if (e.kind === "INCOME") {
+      // Pay a few days late is usually the bank feed catching up, not pay that isn't coming:
+      // it still counts as coming in (today) for five days past its date.
       if (date >= today) events.push({ date, label: e.name, cents: e.budgetedCents, kind: "pay" });
+      else if (date >= lateCutoff) events.push({ date: today, label: e.name, cents: e.budgetedCents, kind: "pay" });
       return;
     }
     if (onCard.has(e.lineItemId) && !isCardPayment(e.lineItemId) && !isDebt(e.lineItemId) && !e.paidFromSurplus && e.year === y && e.month === m) onCardDueCents += e.budgetedCents;

@@ -73,7 +73,8 @@ export async function getOutlook(today: string, debtCents: number): Promise<Outl
   // The paycheck: the income that lands more than once in the month (every two weeks), whether
   // it's one line item or several numbered ones ("Paycheck", "Paycheck 2").
   const income = view.income.filter(live).sort((a, b) => date(a).localeCompare(date(b)));
-  const key = (e: MonthEntry) => e.name.toLowerCase().replace(/[\s#]*\d+$/, "").trim() || e.lineItemId;
+  // The same-name tag (" · 1st paycheck") and a trailing number both mark the same paycheck.
+  const key = (e: MonthEntry) => e.name.split(" · ")[0].toLowerCase().replace(/[\s#]*\d+$/, "").trim() || e.lineItemId;
   const counts = new Map<string, number>();
   for (const e of income) counts.set(key(e), (counts.get(key(e)) ?? 0) + 1);
   const paycheckKey = [...counts].filter(([, n]) => n >= 2).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;

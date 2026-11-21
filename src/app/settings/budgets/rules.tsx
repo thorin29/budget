@@ -4,12 +4,11 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { setExtraToDebtAction, setReserveAction } from "../../insights/envelope-actions";
 
 const INPUT = "w-24 rounded-lg border border-line bg-surface px-2 py-1 text-sm";
 
-export function BudgetRules({ reserveCents, extraToDebt, debtCents }: { reserveCents: number; extraToDebt: boolean; debtCents: number }) {
+export function BudgetRules({ reserveCents, extraToDebt, debtCents, hasZeroCard }: { reserveCents: number; extraToDebt: boolean; debtCents: number; hasZeroCard: boolean }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [reserve, setReserve] = useState(reserveCents ? String(Math.round(reserveCents / 100)) : "");
@@ -37,17 +36,18 @@ export function BudgetRules({ reserveCents, extraToDebt, debtCents }: { reserveC
         />
         <span className="text-xs text-muted">a month, for medical, repairs and fees</span>
       </label>
-      <label className="flex items-center gap-2">
-        <input type="checkbox" checked={extra} disabled={pending} onChange={(e) => (setExtra(e.target.checked), save(() => setExtraToDebtAction(e.target.checked)))} />
-        <b>Bonuses and 3rd paychecks go to the 0% card</b>
-        <span className="text-xs text-muted">budgets run on a normal month</span>
-      </label>
-      <span className="text-xs text-muted">
-        0% card {debtCents ? `$${Math.round(debtCents / 100).toLocaleString("en-US")}/mo` : "payment"} ·{" "}
-        <Link href="/settings/accounts" className="font-semibold text-accent-text hover:underline">
-          change in Accounts
-        </Link>
-      </span>
+      {hasZeroCard ? (
+        <>
+          <label className="flex items-center gap-2">
+            <input type="checkbox" checked={extra} disabled={pending} onChange={(e) => (setExtra(e.target.checked), save(() => setExtraToDebtAction(e.target.checked)))} />
+            <b>Bonuses and extra paychecks go to the 0% card</b>
+            <span className="text-xs text-muted">budgets run on a normal month</span>
+          </label>
+          <span className="text-xs text-muted">0% card {debtCents ? `$${Math.round(debtCents / 100).toLocaleString("en-US")}/mo` : "payment"} · set in Accounts</span>
+        </>
+      ) : (
+        <span className="text-xs text-muted">Bonuses and extra paychecks stay in the month&rsquo;s money until a card in Accounts has a 0% offer.</span>
+      )}
       {pending ? <span className="text-xs text-muted">Saving…</span> : note ? <span className="text-xs text-ok">{note}</span> : null}
     </div>
   );

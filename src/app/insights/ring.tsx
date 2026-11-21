@@ -27,7 +27,11 @@ function ringArc(c: number, r: number, from: number, to: number) {
   return `M ${p(from)} A ${r} ${r} 0 ${to - from > 500 ? 1 : 0} 1 ${p(to)}`;
 }
 
-export function IncomeRing({ segs, income, received, left }: { segs: RingSeg[]; income: number; received: number; left: number }) {
+/**
+ * [overCents]: what's actually been spent or paid past income (solid red). [expectedOverCents]: how far
+ * past income the month may go once bills still due and the budgets left are used (pale red, never solid).
+ */
+export function IncomeRing({ segs, income, received, left, overCents = 0, expectedOverCents = 0 }: { segs: RingSeg[]; income: number; received: number; left: number; overCents?: number; expectedOverCents?: number }) {
   const [picked, setPicked] = useState<string | null>(null);
   const out = segs.reduce((t, g) => t + g.cents, 0);
   const scale = Math.max(1, income || out);
@@ -68,19 +72,23 @@ export function IncomeRing({ segs, income, received, left }: { segs: RingSeg[]; 
       : picked === "left"
         ? { big: money(left), small: "remaining", tone: "fill-foreground" }
         : picked === "over"
-          ? { big: money(-left), small: "past income", tone: "fill-danger" }
+          ? overCents > 0
+            ? { big: money(overCents), small: "spent past income", tone: "fill-danger" }
+            : { big: money(expectedOverCents), small: "may go past income", tone: "fill-warn" }
           : seg
             ? { big: money(seg.cents), small: `${seg.label.toLowerCase()} ${seg.verb}`, tone: "fill-foreground" }
-            : left < 0
-              ? { big: `${money(-left)} over`, small: "expenses pass income", tone: "fill-danger" }
-              : { big: money(left), small: "remaining", tone: "fill-foreground" };
+            : overCents > 0
+              ? { big: `${money(overCents)} over`, small: "spent past income", tone: "fill-danger" }
+              : left < 0
+                ? { big: `${money(-left)} short`, small: "bills still due pass income", tone: "fill-warn" }
+                : { big: money(left), small: "remaining", tone: "fill-foreground" };
 
   return (
     <svg
       viewBox={`0 0 ${S} ${S}`}
       className="mx-auto w-64 select-none"
       role="group"
-      aria-label={`Income ${money(received)} of ${money(income)} received; ${left >= 0 ? `${money(left)} remaining` : `${money(-left)} over income`}. Pick a part of the ring to see it in the middle.`}
+      aria-label={`Income ${money(received)} of ${money(income)} received; ${overCents > 0 ? `${money(overCents)} spent past income` : left >= 0 ? `${money(left)} remaining` : `${money(-left)} short`}. Pick a part of the ring to see it in the middle.`}
     >
       <g transform={`rotate(-90 ${C} ${C})`} fill="none">
         <circle cx={C} cy={C} r={R_OUT} stroke="var(--border)" strokeWidth={W_OUT} pathLength={1000} />
@@ -112,9 +120,14 @@ export function IncomeRing({ segs, income, received, left }: { segs: RingSeg[]; 
             <path d={ringArc(C, R_IN, Math.min(1000, at0) + 2, 1000)} stroke="transparent" strokeWidth={W_IN} pointerEvents="stroke" />
           </g>
         ) : null}
-        {left < 0 ? (
-          <circle cx={C} cy={C} r={R_OVER} stroke="var(--danger)" strokeWidth={7} strokeLinecap="round" pathLength={1000} strokeDasharray={`${Math.min(1000, turn(-left))} 1000`} opacity={dim("over")} {...press("over")}>
-            <title>{`Over income: ${money(-left)}`}</title>
+        {expectedOverCents > overCents ? (
+          <circle cx={C} cy={C} r={R_OVER} stroke="var(--danger)" strokeOpacity={0.25} strokeWidth={7} strokeLinecap="round" pathLength={1000} strokeDasharray={`${Math.min(1000, turn(expectedOverCents))} 1000`} opacity={dim("over")} {...press("over")}>
+            <title>{`May go past income: ${money(expectedOverCents)}, once bills still due and the budgets left are used`}</title>
+          </circle>
+        ) : null}
+        {overCents > 0 ? (
+          <circle cx={C} cy={C} r={R_OVER} stroke="var(--danger)" strokeWidth={7} strokeLinecap="round" pathLength={1000} strokeDasharray={`${Math.min(1000, turn(overCents))} 1000`} opacity={dim("over")} {...press("over")}>
+            <title>{`Spent past income: ${money(overCents)}`}</title>
           </circle>
         ) : null}
       </g>

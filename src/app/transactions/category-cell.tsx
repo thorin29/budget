@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { resetCategoryAction, setCategoryAction } from "./actions";
+import { resetCategoryAction, setCategoryAction, setTransferAction } from "./actions";
 
 export interface CategoryOption {
   id: string;
@@ -10,6 +10,7 @@ export interface CategoryOption {
 }
 
 const AUTO = "__auto";
+const TRANSFER = "__transfer";
 
 /**
  * Picks a transaction's category. Choosing one asks whether it's for this
@@ -20,10 +21,10 @@ export function CategoryCell({
   txn,
   categories,
 }: {
-  txn: { id: string; merchant: string; categoryId: string | null; categorySource: string; peer: boolean };
+  txn: { id: string; merchant: string; categoryId: string | null; categorySource: string; peer: boolean; transfer?: boolean };
   categories: CategoryOption[];
 }) {
-  const [value, setValue] = useState(txn.categoryId ?? "");
+  const [value, setValue] = useState(txn.transfer ? TRANSFER : (txn.categoryId ?? ""));
   const [pendingChoice, setPendingChoice] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [busy, start] = useTransition();
@@ -43,6 +44,17 @@ export function CategoryCell({
 
   const onChange = (next: string) => {
     setNote(null);
+    // Money moving to another of your accounts (a loan payment, savings): not spending at all.
+    if (next === TRANSFER || value === TRANSFER) {
+      const on = next === TRANSFER;
+      setValue(next);
+      start(async () => {
+        const r = await setTransferAction(txn.id, on);
+        if (!r.ok) setNote(r.message);
+        else if (!on && next && next !== AUTO) setPendingChoice(next);
+      });
+      return;
+    }
     if (next === AUTO) {
       setValue("");
       start(async () => {
@@ -74,6 +86,7 @@ export function CategoryCell({
               {c.managedForOthers ? " (for others)" : ""}
             </option>
           ))}
+          <option value={TRANSFER}>Transfer (not spending)</option>
           {personSet ? <option value={AUTO}>Automatic</option> : null}
         </select>
       </span>

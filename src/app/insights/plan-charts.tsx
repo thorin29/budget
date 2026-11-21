@@ -11,7 +11,6 @@ import type { ReactNode } from "react";
 import type { MonthPlanView } from "@/server/month-plan";
 import type { BankCheckParts } from "@/server/cash-timing";
 import { budgetLeftOf } from "@/server/plan-charts";
-import Link from "next/link";
 import { IncomeRing } from "./ring";
 import type { DebtChart, MonthHistory } from "@/server/plan-charts";
 import { Card } from "@/components/ui";
@@ -95,9 +94,6 @@ function BankCheck({ check, debtCents, nextMonth, budgets }: { check: BankCheckP
           <b>Checking {money(check.checkingCents)}</b>
           {check.incomeCents > 0 ? <span className="text-muted"> + {money(check.incomeCents)} still coming in</span> : null}
         </span>
-        <Link href="/insights/cash" className="text-xs text-accent-text hover:underline">
-          Day by day ›
-        </Link>
       </div>
       <div className="relative mt-3">
         <div className="flex h-2.5 w-full gap-0.5 overflow-hidden rounded-full bg-surface" role="img" aria-label={`${money(have)} in checking and still coming in; ${money(owedCents)} already owed; ${money(now)} carries over now, ${money(ifUsed)} if the budgets are used`}>
@@ -152,7 +148,8 @@ function BankCheck({ check, debtCents, nextMonth, budgets }: { check: BankCheckP
  * Income vs expenses: the full circle is the month's expected income. The outer ring fills with
  * income received; the inner ring holds every expense on the same scale, what's already paid or
  * spent first (so it lines up with income received), then bills and the debt payment still due,
- * then what's left. Spending past income grows as a red arc outside the circle. Only actual
+ * then what's left. What's actually spent past income grows as a red arc outside the circle; a pale
+ * red arc shows how far past income the month may go once bills still due and the budgets left are used. Only actual
  * spending is shown for everyday categories: no budget amounts.
  */
 export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?: BankCheckParts | null }) {
@@ -177,6 +174,9 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
   ].filter((g) => g.cents > 0);
   const out = segs.reduce((t, g) => t + g.cents, 0);
   const left = income - out;
+  // Red only for what's actually been spent or paid past income; still-due bills never make it red.
+  const actualOut = segs.filter((g) => !g.due).reduce((t, g) => t + g.cents, 0);
+  const overCents = Math.max(0, actualOut - income);
   const scale = Math.max(1, income || out);
   const pct = (c: number) => `${Math.min(100, Math.max(0, (c / scale) * 100))}%`;
   const row = (label: string, color: string, value: ReactNode, bar: ReactNode, strong = false, extra = "") => (
@@ -219,6 +219,7 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
     { key: "ext", label: "Extras", cents: budget.ext.left, color: "var(--series-4)" },
   ].filter((b) => b.cents > 0);
   const budgetLeftCents = budgetLeft.reduce((a, b) => a + b.cents, 0);
+  const expectedOverCents = plan.closed ? overCents : Math.max(overCents, out + budgetLeftCents - income);
   return (
     <Card>
       <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -231,6 +232,8 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
           income={income}
           received={received}
           left={left}
+          overCents={overCents}
+          expectedOverCents={expectedOverCents}
         />
         <ul className="space-y-2.5">
           {row("Income", "var(--foreground)", <><b>{money(received)}</b> <span className="text-xs text-muted">of {money(income)}</span></>, <>{fill(received, "var(--foreground)")}</>, true)}
@@ -268,9 +271,11 @@ export function IncomeVsExpenses({ plan, check }: { plan: MonthPlanView; check?:
               </span>
             </li>
           ) : null}
-          {left >= 0
-            ? row("Remaining", "transparent", <b>{money(left)}</b>, fill(left, "var(--muted)", 0.5), true, "border-t border-line pt-2.5")
-            : row("Over income", "var(--danger)", <b className="text-danger">{money(-left)}</b>, fill(-left, "var(--danger)"), true, "border-t border-line pt-2.5")}
+          {overCents > 0
+            ? row("Over income", "var(--danger)", <b className="text-danger">{money(overCents)}</b>, fill(overCents, "var(--danger)"), true, "border-t border-line pt-2.5")
+            : left >= 0
+              ? row("Remaining", "transparent", <b>{money(left)}</b>, fill(left, "var(--muted)", 0.5), true, "border-t border-line pt-2.5")
+              : row("Short", "var(--warn)", <b className="text-warn">{money(-left)}</b>, fill(-left, "var(--warn)", 0.5), true, "border-t border-line pt-2.5")}
         </ul>
       </div></div>
       {!plan.closed && check ? <BankCheck check={check} debtCents={debtDue} budgets={budgetLeft} nextMonth={new Date(Date.UTC(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), 1)).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })} /> : null}

@@ -149,8 +149,8 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                         </td>
                         <td className="w-40 truncate pr-3 text-xs text-muted">{r.accountName}</td>
                         <td className="w-56 pr-3">
-                          {r.kind === "NORMAL" || r.categorySource === "person" ? (
-                            <CategoryCell txn={{ id: r.id, merchant: r.merchant, categoryId: r.categoryId, categorySource: r.categorySource, peer: r.peer }} categories={options} />
+                          {r.kind === "NORMAL" || r.kind === "TRANSFER" || r.categorySource === "person" ? (
+                            <CategoryCell txn={{ id: r.id, merchant: r.merchant, categoryId: r.categoryId, categorySource: r.categorySource, peer: r.peer, transfer: r.kind === "TRANSFER" }} categories={options} />
                           ) : null}
                         </td>
                         <td className={`tnum w-28 pr-4 text-right font-semibold ${r.amountCents > 0 ? "text-ok" : ""} ${r.kind !== "NORMAL" ? "text-muted" : ""}`}>{formatCents(r.amountCents)}</td>

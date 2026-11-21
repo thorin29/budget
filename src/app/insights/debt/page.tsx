@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { InsightsTabs } from "@/components/insights-tabs";
 import { getMonthPlan } from "@/server/month-plan";
 import { getDebt } from "@/server/debt";
@@ -113,13 +112,6 @@ export default async function DebtPage() {
                   <span className="flex items-baseline justify-between gap-3">
                     <span className="min-w-0 truncate pl-4">
                       {g.entered ? g.name : g.items.length === 1 ? `${g.name} · ${g.items[0].name}` : g.name}
-                      {g.entered ? (
-                        // A home's value comes from its estimates in Property Management.
-                        <Link href={g.id?.startsWith("home") ? `/settings/home?home=${encodeURIComponent(g.id)}` : "/settings/home"} className="text-xs text-muted hover:underline">
-                          {" "}
-                          · {g.id?.startsWith("home") || /^(home|house)\b/i.test(g.name) ? "estimate" : "you set"}
-                        </Link>
-                      ) : null}
                     </span>
                     <span className="tnum font-semibold">{money(g.cents)}</span>
                   </span>
@@ -149,14 +141,14 @@ export default async function DebtPage() {
       <Card>
         <h2 className="text-base font-bold">Loans</h2>
         {debt.installment.length ? (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[560px] text-sm">
+          <div className="mt-3">
+            <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wider text-muted">
                   <th className="py-2 pr-3">Loan</th>
                   <th className="py-2 pr-3 text-right">Balance</th>
                   <th className="py-2 pr-3 text-right">Payment</th>
-                  <th className="py-2 pr-3 text-right">Rate</th>
+                  <th className="hidden py-2 pr-3 text-right sm:table-cell">Rate</th>
                   <th className="py-2 text-right">Paid off</th>
                 </tr>
               </thead>
@@ -166,30 +158,14 @@ export default async function DebtPage() {
                     <td className="py-2 pr-3">
                       <span className="font-semibold">{d.name}</span>
                       <span className="block text-xs text-muted">
-                        {d.kind === "zero" ? `0% until ${day(d.endsOn!)}, ${d.endsOn!.slice(0, 4)}` : d.kind === "account" ? "From the bank · no bill pays it yet" : d.source === "bank" ? "Balance from the bank" : d.asOf ? `Balance as of ${day(d.asOf)}, less payments since` : ""}
-                        {d.interestLeftCents ? ` · about ${money(d.interestLeftCents)} interest to go` : ""}
+                        {d.kind === "zero" ? `0% until ${day(d.endsOn!)}, ${d.endsOn!.slice(0, 4)}` : d.kind === "account" || d.source === "bank" ? "Balance from the bank" : d.asOf ? `Balance as of ${day(d.asOf)}` : ""}
                       </span>
-                      {d.kind === "bill" ? (
-                        <span className="block text-xs text-muted">
-                          {d.escrowCents ? `${money(d.escrowCents)} of the payment is escrow, left out of the payoff · ` : ""}
-                          <Link href={`/line-items?edit=${encodeURIComponent(d.id)}`} className="font-semibold text-accent-text hover:underline">
-                            {d.aprBps === null ? "Add its rate" : "Change"} in Bills &amp; income
-                          </Link>
-                        </span>
-                      ) : d.kind === "account" ? (
-                        <span className="block text-xs text-muted">
-                          Pick it as the loan in its bill&rsquo;s{" "}
-                          <Link href="/line-items" className="font-semibold text-accent-text hover:underline">
-                            payoff settings
-                          </Link>
-                        </span>
-                      ) : null}
                     </td>
                     <td className="tnum py-2 pr-3 text-right font-semibold">{money(d.balanceCents)}</td>
-                    <td className="tnum py-2 pr-3 text-right">{d.paymentCents ? `${money(d.paymentCents)}/mo` : "—"}</td>
-                    <td className="tnum py-2 pr-3 text-right">{d.aprBps === null ? <span className="text-muted">?</span> : pct(d.aprBps)}</td>
-                    <td className={`py-2 text-right ${d.neverEnds || (d.endsOn && d.lastMonth && d.lastMonth > d.endsOn.slice(0, 7)) ? "text-danger" : ""}`}>
-                      {d.neverEnds ? "Never: the payment is below the interest" : d.lastMonth ? monthYear(d.lastMonth) : "—"}
+                    <td className="tnum whitespace-nowrap py-2 pr-3 text-right">{d.paymentCents ? `${money(d.paymentCents)}/mo` : "—"}</td>
+                    <td className="tnum hidden py-2 pr-3 text-right sm:table-cell">{d.aprBps === null ? <span className="text-muted">?</span> : pct(d.aprBps)}</td>
+                    <td className={`whitespace-nowrap py-2 text-right ${d.neverEnds || (d.endsOn && d.lastMonth && d.lastMonth > d.endsOn.slice(0, 7)) ? "text-danger" : ""}`}>
+                      {d.neverEnds ? "Never" : d.lastMonth ? monthYear(d.lastMonth) : "—"}
                       {d.paymentsLeft ? <span className="block text-xs text-muted">{d.paymentsLeft} payments</span> : null}
                     </td>
                   </tr>
@@ -203,7 +179,7 @@ export default async function DebtPage() {
         {twins.map(([x, y]) => (
           <p key={`${x.id}-${y.id}`} className="mt-3 rounded-xl bg-warn-soft px-3.5 py-2.5 text-sm text-warn">
             <b>{x.name}</b> and <b>{y.name}</b> both pay {money(x.paymentCents)} a month. If they&rsquo;re the same loan, delete one in{" "}
-            <Link href="/line-items" className="font-semibold underline">Bills &amp; income</Link> so its payment isn&rsquo;t counted twice.
+            Bills &amp; income so its payment isn&rsquo;t counted twice.
           </p>
         ))}
       </Card>

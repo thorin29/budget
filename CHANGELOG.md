@@ -3,6 +3,35 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.99.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Overview:** the five small tiles sit in one short row (checking, budget, the main card's
+  statement, debt, last month), each opening its tab when clicked, so Income vs Expenses and
+  Outlook move up. Stray links are gone.
+- **Income vs Expenses ring:** solid red only for money actually spent or paid past income. A pale
+  red arc shows how far past income the month may go once bills still due and the budgets left are
+  used. Bills still due never turn it red.
+- **Outlook:** labels stay inside the chart. No page scrolls sideways any more.
+- **Loans:** one short line under each loan (the 0% offer, "Balance from the bank" or "Balance as
+  of …"), no links, payments and payoff kept on one line; the rate column hides on a phone.
+- **Debt & Net Worth:** no "estimate" link next to the home.
+- **Budget, By card and statement tabs:** no note under each card and no "% usually here" after
+  budgets.
+- **Extra income** follows the pay calendar: the 3rd check is extra for every-two-weeks pay, the 5th
+  for weekly pay; twice-a-month and monthly pay never have an extra check. Without a 0% card the
+  setting is hidden and extra pay stays in the month's money.
+
+### Fixed
+- **Outlook window:** paychecks with the same name tag ("· 1st paycheck") weren't seen as the same
+  paycheck, so the Outlook ran to the end of the month with no payday split.
+- **Pay a few days late** (the bank feed catching up) still counts as coming in for five days.
+- **Transfers:** pick "Transfer (not spending)" in a transaction's category list for money moving to
+  another of your accounts (a loan the feed doesn't show). Hand-marked transfers, and those from a
+  changes file, now survive the next sync.
+
 ## [0.98.1]
 
 No migration. The phone app is unchanged.

@@ -94,7 +94,7 @@ function OutlookChart({ outlook, start, parts }: { outlook: OutlookView; start: 
   const scale = Math.max(1, inTotal, outTotal);
   const pct = (c: number) => (Math.max(0, c) / scale) * 100;
   const lines = [
-    { key: "have", at: pct(onHand), label: firstPay.length ? `Carried over + ${firstPay.map((l) => l.name).join(" + ")}` : "Carried over", top: true },
+    { key: "have", at: pct(onHand), label: firstPay.length ? "On hand" : "Carried over", top: true },
     ...(payday ? [{ key: "pay", at: pct(preOut), label: `${day(payday.date)} pay`, top: false }] : []),
   ];
   const swatch = (color: string, opacity: number) => <span aria-hidden className="inline-block h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: color, opacity }} />;
@@ -102,12 +102,13 @@ function OutlookChart({ outlook, start, parts }: { outlook: OutlookView; start: 
 
   return (
     <div>
-      <div className="relative px-0.5 pt-5 pb-5">
+      <div className="relative overflow-hidden px-0.5 pt-5 pb-5">
         {lines.map((l) => (
           <span
             key={`label-${l.key}`}
-            className={`absolute z-10 -translate-x-1/2 whitespace-nowrap text-[11px] font-semibold ${l.top ? "top-0" : "bottom-0"}`}
-            style={{ left: `${Math.min(88, Math.max(12, l.at))}%` }}
+            // Anchored so the label never runs past either end of the bar.
+            className={`absolute z-10 whitespace-nowrap text-[11px] font-semibold ${l.top ? "top-0" : "bottom-0"} ${l.at > 80 ? "-translate-x-full" : l.at < 20 ? "" : "-translate-x-1/2"}`}
+            style={{ left: `${l.at}%` }}
           >
             {l.label}
           </span>

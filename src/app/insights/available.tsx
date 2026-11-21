@@ -77,8 +77,8 @@ export function AvailableCard({
         <div className="mt-4 border-t border-line pt-3">
           <div className="flex items-baseline justify-between gap-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted">Projected bank balance</p>
-            <button type="button" onClick={open} className="text-sm font-semibold text-accent-text hover:underline">
-              Details ›
+            <button type="button" onClick={open} className="text-xs font-semibold text-muted hover:text-foreground">
+              Details
             </button>
           </div>
           <dl className="mt-1 divide-y divide-line text-sm">
@@ -95,8 +95,8 @@ export function AvailableCard({
       ) : null}
       {bank ? null : (
         <div className="mt-auto pt-3">
-          <button type="button" onClick={open} className="text-sm font-semibold text-accent-text hover:underline">
-            Details ›
+          <button type="button" onClick={open} className="text-xs font-semibold text-muted hover:text-foreground">
+            Details
           </button>
         </div>
       )}

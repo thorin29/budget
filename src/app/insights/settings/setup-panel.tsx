@@ -442,8 +442,8 @@ function Unsorted({ ungrouped, usage, budgets, pending, act, state }: { ungroupe
                     )}
                   </span>
                 </span>
-                <span className="flex items-center gap-2">
-                  <select aria-label={`Budget for ${c.name}`} className="rounded-lg border border-line bg-surface px-2 py-1 text-sm" value="" disabled={pending} onChange={(e) => e.target.value && act(() => setCategoryGroupAction(c.id, e.target.value))}>
+                <span className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
+                  <select aria-label={`Budget for ${c.name}`} className="max-w-[12rem] rounded-lg border border-line bg-surface px-2 py-1 text-sm" value="" disabled={pending} onChange={(e) => e.target.value && act(() => setCategoryGroupAction(c.id, e.target.value))}>
                     <option value="">Put it in…</option>
                     {budgets.map((b) => (
                       <option key={b.id} value={b.id}>

@@ -67,12 +67,6 @@ function Segments({ row }: { row: CardRow }) {
   );
 }
 
-function note(r: CardRow): string {
-  if (r.kind === "checking") return "bills from checking, debit purchases";
-  if (r.kind === "promo") return "debt payment only";
-  return [r.typicalCents ? `typical month ${money(r.typicalCents)}` : null, r.paymentLineCents ? `payment line ${money(r.paymentLineCents)}` : null].filter(Boolean).join(" · ");
-}
-
 function BillLines({ bills }: { bills: CardSection["bills"] }) {
   return (
     <>
@@ -116,7 +110,6 @@ function SectionLines({ s, closed, label, perDayLeft }: { s: CardSection; closed
             <div key={g.id} className={`${GRID} py-0.5 text-xs text-muted`}>
               <span className="truncate pl-12">
                 {g.name}
-                {g.sharePct > 0 && g.sharePct < 95 ? <span className="ml-1">({g.sharePct}% usually here)</span> : null}
               </span>
               <Bar spent={g.spentCents} forecast={g.projectedCents} limit={g.budgetCents || null} color={SECTION[s.tier].color} />
               <Cells spent={g.spentCents} budget={g.budgetCents} projected={g.projectedCents} closed={closed} perDayLeft={perDayLeft} />
@@ -142,7 +135,6 @@ export function CardsTable({ cards, closed, monthEnd, statementLinks }: { cards:
                 <span aria-hidden className="inline-block w-3 text-muted transition-transform group-open/card:rotate-90">›</span>
                 {r.name}
               </span>
-              <span className="block truncate pl-5 text-xs text-muted">{note(r)}</span>
             </span>
             <Segments row={r} />
             <Cells spent={r.spentCents} budget={r.budgetCents} projected={r.projectedCents} bills={r.kind !== "card"} closed={closed} />
@@ -240,7 +232,6 @@ export function StatementTable({ v }: { v: StatementView }) {
                     <span aria-hidden className="h-2 w-2 shrink-0 rounded-sm" style={{ background: SECTION[s.tier].color }} />
                     <span className="truncate">
                       {g.name}
-                      {g.sharePct > 0 && g.sharePct < 95 ? <span className="ml-1 text-xs text-muted">({g.sharePct}% usually on this card)</span> : null}
                     </span>
                   </span>
                   <Bar spent={g.spentCents} forecast={g.projectedCents} limit={g.budgetCents || null} color={SECTION[s.tier].color} />

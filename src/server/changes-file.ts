@@ -408,7 +408,7 @@ export async function applyChanges(text: string, choices: Record<string, string>
           break;
         }
         case "markTransfer":
-          for (const part of chunks(op.transactionIds)) await prisma.bankTransaction.updateMany({ where: { id: { in: part } }, data: { kind: "TRANSFER" } });
+          await (await import("./transfer-mark")).markTransfers(op.transactionIds);
           break;
         case "unlinkPayment":
           for (const part of chunks(op.actualIds)) await prisma.actualEntry.updateMany({ where: { id: { in: part } }, data: { bankTransactionId: null } });

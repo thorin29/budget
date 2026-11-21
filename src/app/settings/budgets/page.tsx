@@ -24,7 +24,7 @@ export default async function BudgetsSettings({ searchParams }: { searchParams: 
   return (
     <div className="space-y-4">
       <SectionHeading title="Budgets" />
-      <BudgetRules reserveCents={reserve} extraToDebt={extra} debtCents={debtSet ?? plan.debt.cents - plan.debt.extraCents} />
+      <BudgetRules reserveCents={reserve} extraToDebt={extra} debtCents={debtSet ?? plan.debt.cents - plan.debt.extraCents} hasZeroCard={(plan.debt.balanceCents ?? 0) > 0} />
       <BudgetsPanel budgets={budgets} ungrouped={setup.ungrouped} usage={usage} initial={item} categories={everyCategory} />
     </div>
   );

@@ -334,6 +334,11 @@
  * a heading, say) still win over them.
  */
 @layer base {
+  html,
+  body {
+    /* No page ever scrolls sideways; a wide table scrolls inside its own box. */
+    overflow-x: clip;
+  }
   body {
     background: var(--background);
     color: var(--foreground);
