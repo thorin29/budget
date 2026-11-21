@@ -3,6 +3,19 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.99.1]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Faster pages:** a page shows its outline the moment it's clicked (the tabs stay put) and fills
+  in when its figures are ready. The month's plan and month view are worked out once per page
+  instead of once for each part that needs them, and the Overview works out its parts side by side.
+- **Review:** charges from the last 60 days that still need a category are listed under Action
+  Items, with the category picker (including Transfer) right there.
+- **Unplanned reserve:** the whole reserve sits on the card unplanned spending usually lands on,
+  instead of being split into small shares across cards.
+
 ## [0.99.0]
 
 No migration. The phone app is unchanged.

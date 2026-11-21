@@ -23,6 +23,7 @@ export async function setCategoryAction(txnId: string, categoryId: string | null
     const others = await setTransactionCategory(String(txnId), categoryId ? String(categoryId) : null, Boolean(forMerchant));
     revalidatePath("/transactions");
     revalidatePath("/insights");
+    revalidatePath("/review");
     return { ok: true, others };
   } catch (error) {
     return failure(error);
@@ -35,6 +36,7 @@ export async function resetCategoryAction(txnId: string): Promise<CategoryResult
     await resetTransactionCategory(String(txnId));
     revalidatePath("/transactions");
     revalidatePath("/insights");
+    revalidatePath("/review");
     return { ok: true, others: 0 };
   } catch (error) {
     return failure(error);
@@ -47,6 +49,7 @@ export async function setTransferAction(txnId: string, on: boolean): Promise<Cat
     await setTransfer(String(txnId), Boolean(on));
     revalidatePath("/transactions");
     revalidatePath("/insights");
+    revalidatePath("/review");
     return { ok: true, others: 0 };
   } catch (error) {
     return failure(error);

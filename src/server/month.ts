@@ -13,6 +13,7 @@
  *    than the budget settles the item; it does not leave a balance owing.
  */
 
+import { cache } from "react";
 import { loadPaydays, monthSplit } from "./pay-split";
 import { periodBounds, periodIndex } from "@/lib/pay-periods";
 import { accountLabels } from "./bank/ledger";
@@ -204,7 +205,10 @@ interface ActualRow {
   bankTransactionId?: string | null;
 }
 
-export async function getMonthView(year: number, month: number): Promise<MonthView> {
+/** The month, worked out once per page load however many parts of the page ask for it. */
+export const getMonthView = cache((year: number, month: number): Promise<MonthView> => buildMonthView(year, month));
+
+async function buildMonthView(year: number, month: number): Promise<MonthView> {
   const settings = await getSettings();
   const paydaysIn = await loadPaydays();
   const split = await monthSplit(year, month, settings, paydaysIn);

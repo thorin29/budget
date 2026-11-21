@@ -11,15 +11,18 @@ import { formatCents } from "@/lib/money";
 import { AmountCard, AutoRecordedRow, DueDayRow, LooksPaidCard, RepeatCard } from "./cards";
 import { amountSuggestions } from "@/server/bill-amounts";
 import { listCategories } from "@/server/categories";
+import { needsCategory } from "@/server/needs-category";
+import { CategoryCell } from "../transactions/category-cell";
 
 export const dynamic = "force-dynamic";
 
 const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 export default async function ReviewPage() {
-  const [review, auto, amounts, categoryRows] = await Promise.all([getReview(), recentAutomation(), amountSuggestions().catch(() => []), listCategories()]);
+  const [review, auto, amounts, categoryRows, uncategorized] = await Promise.all([getReview(), recentAutomation(), amountSuggestions().catch(() => []), listCategories(), needsCategory().catch(() => [])]);
   const categories = categoryRows.map((c) => ({ id: c.id, name: c.name }));
-  const waiting = review.count + auto.moved.length + amounts.length;
+  const options = categoryRows.map((c) => ({ id: c.id, name: c.name, managedForOthers: c.managedForOthers }));
+  const waiting = review.count + auto.moved.length + amounts.length + uncategorized.length;
 
   // Recorded payments grouped by bill, newest month first, bills with the newest payment first.
   const byBill = new Map<string, typeof auto.recorded>();
@@ -67,6 +70,24 @@ export default async function ReviewPage() {
               <ul className="space-y-2">
                 {amounts.map((item) => (
                   <AmountCard key={item.lineItemId} item={item} />
+                ))}
+              </ul>
+            </section>
+          ) : null}
+          {uncategorized.length ? (
+            <section>
+              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Needs a Category</h3>
+              <ul className="divide-y divide-line rounded-xl border border-line">
+                {uncategorized.map((t) => (
+                  <li key={t.id} className="flex flex-wrap items-start justify-between gap-2 px-3 py-2 text-sm">
+                    <span className="min-w-0">
+                      <b className="block truncate">{t.merchant}</b>
+                      <span className="text-xs text-muted">
+                        {short(t.postedOn)} · {t.accountName} · <span className="tnum">{formatCents(t.amountCents)}</span>
+                      </span>
+                    </span>
+                    <CategoryCell txn={{ id: t.id, merchant: t.merchant, categoryId: null, categorySource: "guess", peer: t.peer }} categories={options} />
+                  </li>
                 ))}
               </ul>
             </section>

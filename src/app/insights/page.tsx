@@ -80,17 +80,26 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
   const picked = pickMonth(m);
   const plan = await getMonthPlan(picked.year, picked.month).catch((error: unknown) => (console.error("Month plan:", error), null));
   const prev = shiftMonth(picked.year, picked.month, -1);
-  const [cash, debt, last] = plan
+  const isNow = !!plan && !plan.closed;
+  // Everything after the plan runs side by side.
+  const mainStatement = async (): Promise<StatementView | null> => {
+    // The card with the biggest typical month, on its own statement today.
+    const split = await monthByCard(plan!, planForecastRows(plan!), await reserveSetting()).catch(() => null);
+    const main = split?.cards.filter((c) => c.kind === "card" && c.closesOn && (c.typicalCents ?? 0) >= 10_000).sort((a, b) => (b.typicalCents ?? 0) - (a.typicalCents ?? 0))[0];
+    return main ? statementView(main.key).catch(() => null) : null;
+  };
+  const [cash, debt, last, cushion, statementNow] = plan
     ? await Promise.all([
         plan.closed ? Promise.resolve(null) : getCashTiming(plan.debt.cents).catch(() => null),
         getDebt(plan.debt.cents).catch((error: unknown) => (console.error("Debt:", error), null)),
         getMonthPlan(prev.year, prev.month).catch(() => null),
+        cushionSetting(),
+        isNow ? mainStatement() : Promise.resolve(null),
       ])
-    : [null, null, null];
+    : [null, null, null, 0, null];
   const current = !!(plan && cash && plan.month === cash.today.slice(0, 7));
   const outlook: OutlookView | null = current && cash?.check ? await getOutlook(cash.today, plan!.debt.cents).catch((error: unknown) => (console.error("Outlook:", error), null)) : null;
   const carry = plan && cash?.check ? carryOver(plan, cash.check) : null;
-  const cushion = await cushionSetting();
   // The bank balance as things stand: card payments leave on their due dates, nothing set aside.
   // Worst case: this month's budgets get used on the cards too (as on the Cash tab).
   const bank =
@@ -104,13 +113,7 @@ export default async function InsightsOverview({ searchParams }: { searchParams:
           return { best: path(cash), worst: path(worstCase(cash, budgetLeftOf(plan))) };
         })()
       : null;
-  // Where the main card stands on its own statement today (the card with the biggest typical month).
-  let statement: StatementView | null = null;
-  if (current && plan) {
-    const split = await monthByCard(plan, planForecastRows(plan), await reserveSetting()).catch(() => null);
-    const main = split?.cards.filter((c) => c.kind === "card" && c.closesOn && (c.typicalCents ?? 0) >= 10_000).sort((a, b) => (b.typicalCents ?? 0) - (a.typicalCents ?? 0))[0];
-    if (main) statement = await statementView(main.key).catch(() => null);
-  }
+  const statement = current ? statementNow : null;
   const thisMonth = plan ? monthLabel(Number(plan.month.slice(0, 4)), Number(plan.month.slice(5, 7)), "long").split(" ")[0] : "";
 
   return (

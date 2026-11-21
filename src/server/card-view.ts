@@ -196,19 +196,13 @@ export async function monthByCard(plan: MonthPlanView, rows: ForecastRow[], rese
       s.groups.push({ id: r.id, name: r.name, spentCents: spent, budgetCents: budget, projectedCents: projected, sharePct: Math.round((share.get(k) ?? 0) * 100) });
     }
   }
-  // The unplanned reserve, split the way unplanned spending usually goes.
+  // The unplanned reserve, whole, on the account unplanned spending usually lands on: it's one sum
+  // for anything, so splitting it into small shares across cards only confuses.
   if (reserveCents > 0) {
-    const unplannedIds = rows.filter((r) => r.tier === "UNPLANNED").map((r) => r.id);
-    const mix = new Map<string, number>();
-    for (const id of unplannedIds) for (const [k, v] of shareOf(id)) mix.set(k, (mix.get(k) ?? 0) + v);
-    const total = [...mix.values()].reduce((s, v) => s + v, 0);
-    const by = split(reserveCents, total > 0 ? new Map([...mix].map(([k, v]) => [k, v / total])) : new Map([[CHECKING, 1]]));
-    for (const [k, v] of by) {
-      const s = sec(row(k), "UNPLANNED");
-      s.budgetCents = (s.budgetCents ?? 0) + v;
-      // Until the reserve is used, it's still expected to be spent.
-      s.projectedCents += Math.max(0, Math.round(Math.max(0, reserveCents - unplannedSpent) * (v / reserveCents)));
-    }
+    const s = sec(row(reserveHome(plan, shareOf) ?? CHECKING), "UNPLANNED");
+    s.budgetCents = (s.budgetCents ?? 0) + reserveCents;
+    // Until the reserve is used, it's still expected to be spent.
+    s.projectedCents += Math.max(0, reserveCents - unplannedSpent);
   }
 
   // Totals, the typical month and the card-payment line.
@@ -372,12 +366,6 @@ export async function statementView(cardId: string): Promise<StatementView | nul
 
   const { reserveSetting } = await import("./envelopes");
   const reserveCents = await reserveSetting();
-  const unplannedIds = plan.groups.filter((g) => g.tier === "UNPLANNED").map((g) => g.id);
-  const unplannedUsual = unplannedIds.reduce((t, id) => t + (usualOfId(id) ?? 0), 0);
-  const unplannedShare = unplannedUsual > 0 ? unplannedIds.reduce((t, id) => t + (usualOfId(id) ?? 0) * (shareOf(id).get(cardId) ?? 0), 0) / unplannedUsual : 0;
-  function usualOfId(id: string) {
-    return plan.groups.find((g) => g.id === id)?.usualCents;
-  }
   // Budgets: this month's limits, this card's share; projected at the pace so far, as the month does.
   const limitOf = new Map(plan.groups.map((g) => [g.id, g.limitCents]));
   const usualOf = new Map(plan.groups.map((g) => [g.id, g.usualCents]));
@@ -406,8 +394,8 @@ export async function statementView(cardId: string): Promise<StatementView | nul
     groupsOut.sort((a, b) => b.spentCents - a.spentCents || (b.budgetCents ?? 0) - (a.budgetCents ?? 0));
     const budgeted = tier !== "UNPLANNED";
     const spentHere = groupsOut.reduce((t, g) => t + g.spentCents, 0);
-    // The unplanned reserve: this card's usual share of it, expected until it's used.
-    const reserveHere = tier === "UNPLANNED" ? Math.round(reserveCents * unplannedShare) : 0;
+    // The unplanned reserve, whole, when this is the card unplanned spending usually lands on.
+    const reserveHere = tier === "UNPLANNED" && reserveHome(plan, shareOf) === cardId ? reserveCents : 0;
     return {
       tier,
       spentCents: spentHere,
@@ -458,4 +446,14 @@ export async function statementCards(today: string): Promise<Array<{ id: string;
     select: { id: true, name: true, nickname: true, promoEndsOn: true },
   })) as Array<{ id: string; name: string; nickname: string | null; promoEndsOn: Date | null }>;
   return rows.filter((r) => !(r.promoEndsOn && iso(r.promoEndsOn) >= today)).map((r) => ({ id: r.id, name: r.nickname || displayAccountName(r.name) }));
+}
+
+/** The account unplanned spending usually lands on (weighted by each unplanned budget's usual month), or null. */
+function reserveHome(plan: MonthPlanView, shareOf: (id: string) => Map<string, number>): string | null {
+  const weight = new Map<string, number>();
+  for (const g of plan.groups.filter((x) => x.tier === "UNPLANNED")) {
+    const usual = Math.max(1, g.usualCents ?? 0);
+    for (const [k, v] of shareOf(g.id)) weight.set(k, (weight.get(k) ?? 0) + v * usual);
+  }
+  return [...weight].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
 }

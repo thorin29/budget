@@ -16,6 +16,7 @@ import { getMonthView, type MonthEntry } from "./month";
 import { payoffTrackers } from "./card-payments";
 import { billCharge } from "./bill-merchants";
 import { ensureGroups, debtSetting, reserveSetting, extraToDebtSetting } from "./envelopes";
+import { cache } from "react";
 import { isExtraIncome } from "@/lib/extra-income";
 import { loadPaydays } from "./pay-split";
 import { usualFor } from "@/lib/usual";
@@ -215,15 +216,25 @@ export function billTypes(items: BillItem[], cards: CardRow[], today: string) {
   return { isCardPayment, isDebt };
 }
 
+/**
+ * The month's plan. Worked out once per page load: a page and the parts it draws (the Overview's
+ * tiles, the card statement) ask for the same month and share one answer.
+ */
 export async function getMonthPlan(year?: number, month?: number): Promise<MonthPlanView> {
+  const today = localToday();
+  const [ty, tm] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
+  // Never a month that hasn't started.
+  const asked = year !== undefined && month !== undefined && year * 12 + month <= ty * 12 + tm;
+  return planOnce(asked ? year! : ty, asked ? month! : tm);
+}
+
+const planOnce = cache((y: number, m: number) => buildMonthPlan(y, m));
+
+async function buildMonthPlan(y: number, m: number): Promise<MonthPlanView> {
   await ensureGroups();
   const today = localToday();
   const [ty, tm] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
   const nowN = ty * 12 + tm;
-  // Never a month that hasn't started.
-  const asked = year !== undefined && month !== undefined && year * 12 + month <= nowN;
-  const y = asked ? year! : ty;
-  const m = asked ? month! : tm;
   const n = y * 12 + m;
   const closed = n < nowN;
   const monthStart = new Date(Date.UTC(y, m - 1, 1));
