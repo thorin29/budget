@@ -211,6 +211,8 @@ look like bill payments and what was recorded on its own), `POST
 `POST /api/v1/review/undo-auto` with `{lineItemId, year, month}`, and
 `GET /api/v1/insights?m=YYYY-MM` (a month's spending summary), `GET /api/v1/envelopes` (this pay period's spending plan and payday plan).
 
+Amazon extension (an `amazon`-scoped token): `GET /api/v1/amazon/status`, `POST /api/v1/amazon/orders` with `{orders: [{orderId, orderDate, items: [{name, cents, quantity, shipmentKey, shipDate}], charges: [{date, cents, last4}]}]}` (splits matching Amazon charges; counts only back), and `POST /api/v1/amazon/runs` with `{status, failedSection?, extensionVersion, ordersWaiting}`.
+
 ## Bank sync
 
 Optional, and off until you turn it on. It uses the

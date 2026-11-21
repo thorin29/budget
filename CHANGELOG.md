@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.106.0]
+
+### Added
+- **Amazon extension sync:** `POST /api/v1/amazon/orders` takes orders read by the Amazon browser
+  extension and splits each matching Amazon card charge by item, the same way as Order History.csv.
+  Amazon's own charge list is matched first (amount within a cent, date within five days, the
+  card's last 4 when its name shows them), then item totals. Charges already split are left alone,
+  so sending an order again changes nothing. Only item names (encrypted) and the split amounts are
+  kept; the answer is counts only.
+- `GET /api/v1/amazon/status` (last sync, charges split this month, orders waiting, and where the
+  next sync starts) and `POST /api/v1/amazon/runs` (each sync's outcome, as codes).
+
 ## [0.105.0]
 
 **Migration 0027** (applied on start): adds `Device.scope` and the `AmazonSync` table. The Docker
