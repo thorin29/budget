@@ -54,7 +54,6 @@ const RULES: Array<{ category: GuessCategory; pattern: RegExp; moneyIn?: boolean
   // Church names often run together ("Hillcrestbible"), so these match anywhere in the name.
   { category: { name: "Giving", aliases: ["Church", "Tithe", "Donations", "Charity"] }, pattern: /bible|church/ },
   { category: { name: "School", aliases: ["Education"] }, pattern: w("school", "tuition", "college", "university", "academy", "homeschool", "curriculum", "textbooks?", "collegeboard", "college board", "driver ed") },
-  { category: { name: "Kohl's", aliases: ["Kohls"] }, pattern: w("kohl s?", "kohls") },
   { category: { name: "Clothing", aliases: ["Clothes", "Apparel"] }, pattern: w("old navy", "gap", "tj maxx", "t j maxx", "tjmaxx", "marshalls", "ross", "burlington", "under armour", "nike", "adidas", "american eagle", "aerie", "loft", "ann taylor", "j crew", "banana republic", "levi s?", "columbia", "vans", "foot locker", "famous footwear", "macy s?", "nordstrom", "jcpenney", "dillard s?") },
   { category: { name: "Outdoors & sports", aliases: ["Sporting goods", "Outdoors"] }, pattern: w("rei", "bass pro", "cabela s?", "academy sports", "dick s sporting", "dickssportinggoods", "scheels", "sportsman s warehouse", "recreation gov", "state park", "golf") },
   { category: { name: "Fitness", aliases: ["Gym"] }, pattern: w("gym", "fitness", "planet fitness", "orangetheory", "hotworx", "crossfit", "ymca", "lifetime fitness", "peloton") },
@@ -101,7 +100,7 @@ export function isIncomeCategory(name: string | null | undefined): boolean {
 
 /** Day-to-day spending that repeats without being a bill (groceries, fuel…), by category name or alias. */
 const EVERYDAY = new Set(
-  RULES.filter((r) => ["Groceries", "Target & Walmart", "Costco & Sam's Club", "Fast food", "Restaurants", "Coffee & treats", "Kohl's", "Clothing", "Fuel", "Shopping", "Personal care", "Entertainment", "Travel", "Cash", "Fees", "Auto", "Car wash", "Parking & tolls"].includes(r.category.name))
+  RULES.filter((r) => ["Groceries", "Target & Walmart", "Costco & Sam's Club", "Fast food", "Restaurants", "Coffee & treats", "Clothing", "Fuel", "Shopping", "Personal care", "Entertainment", "Travel", "Cash", "Fees", "Auto", "Car wash", "Parking & tolls"].includes(r.category.name))
     .flatMap((r) => [r.category.name, ...r.category.aliases])
     .map((n) => n.toLowerCase()),
 );

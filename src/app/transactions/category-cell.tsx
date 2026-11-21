@@ -42,9 +42,26 @@ export function CategoryCell({
       setNote(forMerchant ? (r.others ? `Saved. ${r.others} other${r.others === 1 ? "" : "s"} updated too.` : "Saved for this merchant.") : null);
     });
 
+  const transfer = (forMerchant: boolean) =>
+    start(async () => {
+      const r = await setTransferAction(txn.id, true, forMerchant);
+      setPendingChoice(null);
+      if (!r.ok) {
+        setValue(txn.categoryId ?? "");
+        setNote(r.message);
+        return;
+      }
+      setNote(forMerchant ? (r.others ? `Saved. ${r.others} other${r.others === 1 ? "" : "s"} updated too.` : "Saved for this merchant.") : null);
+    });
+
   const onChange = (next: string) => {
     setNote(null);
     // Money moving to another of your accounts (a loan payment, savings): not spending at all.
+    if (next === TRANSFER && !txn.peer) {
+      setValue(next);
+      setPendingChoice(TRANSFER);
+      return;
+    }
     if (next === TRANSFER || value === TRANSFER) {
       const on = next === TRANSFER;
       setValue(next);
@@ -93,17 +110,17 @@ export function CategoryCell({
       {pendingChoice !== null ? (
         <span className="flex flex-wrap items-center justify-end gap-1.5 text-xs">
           <span className="text-muted">Apply to</span>
-          <button type="button" disabled={busy} onClick={() => save(pendingChoice || null, false)} className="rounded-md border border-line px-2 py-0.5 font-semibold hover:bg-neutral-soft">
+          <button type="button" disabled={busy} onClick={() => (pendingChoice === TRANSFER ? transfer(false) : save(pendingChoice || null, false))} className="rounded-md border border-line px-2 py-0.5 font-semibold hover:bg-neutral-soft">
             This one
           </button>
-          <button type="button" disabled={busy} onClick={() => save(pendingChoice || null, true)} className="max-w-48 truncate rounded-md bg-accent px-2 py-0.5 font-semibold text-on-accent">
+          <button type="button" disabled={busy} onClick={() => (pendingChoice === TRANSFER ? transfer(true) : save(pendingChoice || null, true))} className="max-w-48 truncate rounded-md bg-accent px-2 py-0.5 font-semibold text-on-accent">
             All from {txn.merchant}
           </button>
           <button
             type="button"
             onClick={() => {
               setPendingChoice(null);
-              setValue(txn.categoryId ?? "");
+              setValue(txn.transfer ? TRANSFER : (txn.categoryId ?? ""));
             }}
             className="text-muted hover:text-foreground"
           >

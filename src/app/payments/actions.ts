@@ -58,3 +58,11 @@ export async function snoozeOverAction(groupId: string, limitCents: number): Pro
   const { snoozeOver } = await import("@/server/budget-changes");
   return run(() => snoozeOver(String(groupId), Math.round(Number(limitCents))), "Hidden for 3 months");
 }
+
+/** The order of the payments across the top of the page, by card. */
+export async function setPaymentsOrderAction(groups: string[]): Promise<PayState> {
+  return run(async () => {
+    const ids = (Array.isArray(groups) ? groups : []).map(String).slice(0, 50);
+    await prisma.setting.upsert({ where: { key: "paymentsOrder" }, create: { key: "paymentsOrder", value: ids as never }, update: { value: ids as never } });
+  });
+}

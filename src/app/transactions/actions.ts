@@ -43,14 +43,14 @@ export async function resetCategoryAction(txnId: string): Promise<CategoryResult
   }
 }
 
-export async function setTransferAction(txnId: string, on: boolean): Promise<CategoryResult> {
+export async function setTransferAction(txnId: string, on: boolean, forMerchant = false): Promise<CategoryResult> {
   try {
     await requireUser();
-    await setTransfer(String(txnId), Boolean(on));
+    const others = await setTransfer(String(txnId), Boolean(on), Boolean(forMerchant));
     revalidatePath("/transactions");
     revalidatePath("/insights");
     revalidatePath("/review");
-    return { ok: true, others: 0 };
+    return { ok: true, others };
   } catch (error) {
     return failure(error);
   }

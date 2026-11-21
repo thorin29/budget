@@ -50,6 +50,9 @@ async function categoryResolver() {
  * the given ones). Returns how many changed.
  */
 export async function applyCategories(ids?: string[]): Promise<number> {
+  // Merchants remembered as transfers come first: a transfer carries no category.
+  const { applyTransferRules } = await import("./transfer-mark");
+  await applyTransferRules();
   const rows = (await prisma.bankTransaction.findMany({
     where: { categorySource: { not: "person" }, ...(ids ? { id: { in: ids } } : {}) },
     select: {

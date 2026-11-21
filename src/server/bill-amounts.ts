@@ -153,7 +153,9 @@ export async function amountSuggestions(): Promise<AmountReviewItem[]> {
     const payments = byItem.get(item.id) ?? [];
     if (payments.length < 3) continue;
     const usualCents = toCents(item.plannedAmount);
-    const suggestion = suggestAmount(payments, usualCents, nowYm(), targets.has(item.id));
+    // A bill that varies follows the same month last year on its own (month.ts): nothing to suggest.
+    if (targets.has(item.id)) continue;
+    const suggestion = suggestAmount(payments, usualCents, nowYm(), false);
     if (!suggestion || skip.has(`${item.id}:${suggestion.cents}`)) continue;
     const pastToFix = amountRuns(payments)
       .slice(0, -1)

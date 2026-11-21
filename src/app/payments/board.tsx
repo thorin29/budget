@@ -15,7 +15,12 @@ import type {
   Tier,
 } from "@/server/payments";
 import type { BudgetChange } from "@/server/budget-changes";
-import { setBudgetAction, setPaymentAction, snoozeOverAction } from "./actions";
+import {
+  setBudgetAction,
+  setPaymentAction,
+  setPaymentsOrderAction,
+  snoozeOverAction,
+} from "./actions";
 import {
   changeUsualAmountAction,
   dismissAmountAction,
@@ -66,7 +71,21 @@ const btn =
 type Mode = "full" | "adjust" | "other";
 
 export function PaymentsBoard({ v }: { v: PaymentsView }) {
-  const chips = v.choices.filter((x) => x.preferred);
+  const [chips, setChips] = useState(() =>
+    v.choices.filter((x) => x.preferred),
+  );
+  const [dragging, setDragging] = useState<string | null>(null);
+  // Drag a chip to put the payments in your own order; it's kept.
+  const dropOn = (target: string) => {
+    if (!dragging || dragging === target) return;
+    const next = [...chips];
+    const from = next.findIndex((x) => x.group === dragging);
+    const to = next.findIndex((x) => x.group === target);
+    next.splice(to, 0, next.splice(from, 1)[0]);
+    setChips(next);
+    setDragging(null);
+    void setPaymentsOrderAction(next.map((x) => x.group));
+  };
   const [key, setKey] = useState(chips[0]?.key ?? "");
   const c = v.choices.find((x) => x.key === key) ?? chips[0];
   const [periodIx, setPeriodIx] = useState(v.periods.length > 1 ? 1 : 0);
@@ -96,6 +115,11 @@ export function PaymentsBoard({ v }: { v: PaymentsView }) {
             <button
               key={x.key}
               type="button"
+              draggable
+              onDragStart={() => setDragging(x.group)}
+              onDragOver={(e) => e.preventDefault()}
+              onDrop={() => dropOn(x.group)}
+              onDragEnd={() => setDragging(null)}
               onClick={() => setKey(x.key)}
               className={`rounded-full border px-3 py-1 text-xs font-semibold ${x.group === c.group ? "border-foreground bg-foreground text-surface" : "border-line bg-surface"}`}
             >

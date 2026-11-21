@@ -470,9 +470,20 @@ export async function paymentsView(): Promise<PaymentsView> {
     months.push(ym);
   const views = await Promise.all(months.map((ym) => env.view(ym)));
 
-  // Cards planned by cycle first, then the other cards by statement, then the 0% card.
+  // The order the person dragged them into; otherwise cards planned by cycle first, then the other
+  // cards by statement, then the 0% card.
+  const orderRow = (await prisma.setting.findUnique({
+    where: { key: "paymentsOrder" },
+  })) as { value: unknown } | null;
+  const order = Array.isArray(orderRow?.value)
+    ? (orderRow.value as unknown[]).filter(
+        (v): v is string => typeof v === "string",
+      )
+    : [];
+  const placed = (c: PaymentChoice) =>
+    order.includes(c.group) ? order.indexOf(c.group) : order.length;
   const rank = (c: PaymentChoice) =>
-    c.kind === "card" ? (cycleCards.has(c.group) ? 0 : 1) : 2;
+    placed(c) * 3 + (c.kind === "card" ? (cycleCards.has(c.group) ? 0 : 1) : 2);
   const size = new Map(
     choices
       .filter((c) => c.cycle === "closed")

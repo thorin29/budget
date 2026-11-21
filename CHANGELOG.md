@@ -3,6 +3,23 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.104.0]
+
+No migration. The phone app is unchanged.
+
+### Added
+- **Transfers for a whole merchant:** picking "Transfer (not spending)" asks "This one" or "All
+  from …". All marks every transaction from that merchant as a transfer, now and after each sync
+  (one you set to a category by hand stays). Turning a transfer back off forgets the merchant.
+  Payment apps are always one at a time.
+- **Payments:** drag a payment across the top to put them in your own order; it's kept.
+
+### Changed
+- **Bills that vary** (marked "Varies month to month"): a month with no amount set uses what the
+  same month cost last year, rounded up to a dollar, so the target follows the seasons. They no
+  longer show up under Budget changes.
+- **Category guesses:** no store-specific category any more.
+
 ## [0.103.3]
 
 Includes the 0.102.1 changes again (Settings "Data Imports & Exports", the By card link removed,
@@ -1484,7 +1501,7 @@ Run the migration (`npm run migrate`, or restart the container): it adds categor
 ### Changed
 - More categories, guessed for new charges: eating out splits into Fast food, Restaurants and
   Coffee & treats; Phone is apart from Utilities; plus Housing, Loans, School (was Education),
-  Kohl's, Clothing, Outdoors & sports, Fitness, Alcohol, Gifts & occasions, Aquarium and Crypto.
+  Clothing, Outdoors & sports, Fitness, Alcohol, Gifts & occasions, Aquarium and Crypto.
   More gas station chains count as Fuel. Phone, Housing and Loans are essentials in the category
   targets; the new eating-out, clothing and hobby categories are flexible.
 

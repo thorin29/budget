@@ -30,13 +30,13 @@ describe("guessCategory", () => {
     expect(name("Microsoft Store", "MICROSOFT*STORE")).toBe("Subscriptions");
   });
 
-  it("splits eating out, and knows phones, schools, clothing and Kohl's", () => {
+  it("splits eating out, and knows phones, schools and clothing", () => {
     expect(name("Whataburger", "WHATABURGER 1177")).toBe("Fast food");
     expect(name("Example Steakhouse")).toBe("Restaurants");
     expect(name("Braums", "128 BRAUMS STORE")).toBe("Coffee & treats");
     expect(name("Mint Mobile")).toBe("Phone");
     expect(name("Example Classical Academy")).toBe("School");
-    expect(name("Kohls", "KOHLS 0368")).toBe("Kohl's");
+    expect(name("Dillard's", "DILLARD'S 0368")).toBe("Clothing");
     expect(name("Tjmaxx", "TJMAXX #0038")).toBe("Clothing");
     expect(name("Murphy7189atwalmart")).toBe("Fuel");
   });

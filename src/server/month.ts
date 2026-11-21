@@ -274,6 +274,17 @@ async function buildMonthView(year: number, month: number): Promise<MonthView> {
   );
   // Months that keep an earlier rate (the usual amount changed later) aren't one-month changes.
   const rateKeys = new Set(plans.filter((p) => p.note === "rate").map((p) => key(p.lineItemId, p.year, p.month)));
+  // Bills that vary month to month (targets): a month with no amount set uses what the same month
+  // cost last year, rounded up to a dollar, so the target follows the seasons.
+  const targetRow = (await prisma.setting.findUnique({ where: { key: "billTargets" } })) as { value: unknown } | null;
+  for (const id of Array.isArray(targetRow?.value) ? (targetRow.value as unknown[]).filter((v): v is string => typeof v === "string") : []) {
+    const k = key(id, year, month);
+    if (planMap.has(k)) continue;
+    const lastYear = actualMap.get(key(id, year - 1, month));
+    if (lastYear === undefined || lastYear <= 0) continue;
+    planMap.set(k, { amountCents: Math.ceil(lastYear / 100) * 100, skipped: false });
+    rateKeys.add(k);
+  }
   const autoPaid = new Set(actuals.filter((a) => a.source === "auto").map((a) => key(a.lineItemId, a.year, a.month)));
   const bankLinked = new Set(actuals.filter((a) => a.bankTransactionId).map((a) => key(a.lineItemId, a.year, a.month)));
   const paidOnMap = new Map(
