@@ -59,6 +59,8 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   return (
     <Link
       href={item.href}
+      // Fetched ahead in the background, so the page shows at once.
+      prefetch
       aria-current={active ? "page" : undefined}
       className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
         active

@@ -26,6 +26,10 @@ const nextConfig: NextConfig = {
   // advisories and would otherwise answer without sign-in.
   images: { unoptimized: true },
   experimental: {
+    // Pages fetched ahead (the Insights tabs) or just visited are reused in the browser for a short
+    // while, so switching back and forth doesn't wait on the server. Any change made in the app
+    // clears them at once; a bank sync shows within a minute.
+    staleTimes: { dynamic: 30, static: 60 },
     serverActions: {
       // The importer sends a whole converted workbook (up to 5 MB) plus choices.
       bodySizeLimit: "6mb",

@@ -44,6 +44,8 @@ function Tabs({ active }: { active?: "spending" | "year" }) {
             <Link
               key={t.href}
               href={t.month && m ? `${t.href}?m=${m}` : t.href}
+              // Fetched ahead in the background, so switching tabs shows the page at once.
+              prefetch
               aria-current={on ? "page" : undefined}
               className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-semibold transition ${on ? "bg-surface text-foreground shadow-card ring-1 ring-line" : "text-muted hover:text-foreground"}`}
             >

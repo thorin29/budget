@@ -3,6 +3,16 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.100.1]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Switching tabs:** the Insights tabs and the sidebar pages are fetched ahead in the background,
+  so a click shows the page at once instead of waiting on the server. Pages just visited are reused
+  for up to 30 seconds (a minute for ones fetched ahead); anything changed in the app clears them
+  right away.
+
 ## [0.100.0]
 
 No migration. The phone app is unchanged.
