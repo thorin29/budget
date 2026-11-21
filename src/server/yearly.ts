@@ -4,6 +4,7 @@
  * the person turned down stays hidden. "Add as a yearly bill" plans it.
  */
 
+import { keepUntilChanged, localDay } from "@/lib/data-version";
 import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
 import { merchantKey } from "@/lib/field-crypto";
@@ -25,7 +26,7 @@ export interface Upcoming extends UpcomingCharge {
   fromChecking: boolean;
 }
 
-export async function getUpcoming(today = localToday(), horizonDays = 45): Promise<Upcoming[]> {
+async function buildUpcoming(today = localToday(), horizonDays = 45): Promise<Upcoming[]> {
   const since = new Date(Date.parse(`${today}T00:00:00Z`) - 800 * DAY);
   const rows = (await prisma.bankTransaction.findMany({
     where: { postedOn: { gte: since }, pending: false, kind: "NORMAL", amount: { lt: 0 }, account: { hidden: false } },
@@ -55,6 +56,9 @@ export async function getUpcoming(today = localToday(), horizonDays = 45): Promi
     .filter((u) => !planned.has(u.key) && !hidden.has(u.key))
     .map((u) => ({ ...u, fromChecking: fromChecking.get(u.key) ?? false }));
 }
+
+/** Kept until the data or the day changes (src/lib/data-version.ts). */
+export const getUpcoming = keepUntilChanged("getUpcoming", buildUpcoming, localDay);
 
 /** Plans a yearly charge: a once-a-year bill in its month, tied to its merchant. */
 export async function addYearlyBill(key: string): Promise<{ lineItemId: string; name: string }> {

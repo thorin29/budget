@@ -4,6 +4,7 @@
  * it goes, so the trend builds over time.
  */
 
+import { keepUntilChanged, localDay } from "@/lib/data-version";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
@@ -90,7 +91,7 @@ export function friendlyName(raw: string): string {
 const ym = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 
 /** Works out net worth now and saves it as this month's figure. */
-export async function getNetWorth(debtPaymentCents: number): Promise<NetWorthView> {
+async function buildNetWorth(debtPaymentCents: number): Promise<NetWorthView> {
   const [accounts, assets, debt] = await Promise.all([
     prisma.bankAccount.findMany({ where: { hidden: false }, select: { name: true, nickname: true, type: true, balance: true } }) as Promise<
       Array<{ name: string; nickname: string | null; type: string; balance: { toString(): string } | null }>
@@ -124,10 +125,15 @@ export async function getNetWorth(debtPaymentCents: number): Promise<NetWorthVie
   const homeEquity = home && mortgage ? { valueCents: home.cents, mortgageCents: mortgage, equityCents: home.cents - mortgage } : null;
   const oweCents = debt.totalCents;
   const month = ym();
-  await prisma.netWorthSnapshot
+  // Saved only when it changed: a write on every look would make every page work its figures out again.
+  const was = (await prisma.netWorthSnapshot.findUnique({ where: { month } }).catch(() => null)) as { ownCents: bigint; oweCents: bigint } | null;
+  if (!was || was.ownCents !== BigInt(ownCents) || was.oweCents !== BigInt(oweCents)) await prisma.netWorthSnapshot
     .upsert({ where: { month }, create: { month, ownCents: BigInt(ownCents), oweCents: BigInt(oweCents) }, update: { ownCents: BigInt(ownCents), oweCents: BigInt(oweCents) } })
     .catch((error: unknown) => console.error("Net worth snapshot:", error instanceof Error ? error.message : error));
   const saved = (await prisma.netWorthSnapshot.findMany({ orderBy: { month: "asc" }, take: 240 }).catch(() => [])) as Array<{ month: string; ownCents: bigint; oweCents: bigint }>;
   const history = saved.slice(-12).map((s) => ({ month: s.month, netCents: Number(s.ownCents - s.oweCents) }));
   return { own, groups, homeEquity, ownCents, owe, oweCents, netCents: ownCents - oweCents, history };
 }
+
+/** Kept until the data or the day changes (src/lib/data-version.ts). */
+export const getNetWorth = keepUntilChanged("getNetWorth", buildNetWorth, localDay);

@@ -10,6 +10,7 @@
  *  - Money in: deposits to checking and savings that aren't refunds.
  */
 
+import { keepUntilChanged, localDay } from "@/lib/data-version";
 import { prisma } from "@/lib/prisma";
 import { middleOf } from "@/lib/usual";
 import { toCents } from "@/lib/money";
@@ -99,7 +100,7 @@ type Row = {
 const ym = (year: number, month: number) => year * 12 + (month - 1);
 const fromYm = (n: number) => ({ year: Math.floor(n / 12), month: (n % 12) + 1 });
 
-export async function getInsights(year: number, month: number, monthsBack = 12, withLastYear = true): Promise<Insights> {
+async function buildInsights(year: number, month: number, monthsBack = 12, withLastYear = true): Promise<Insights> {
   const end = ym(year, month);
   const first = end - (monthsBack - 1);
   const start = fromYm(first);
@@ -278,6 +279,9 @@ export async function getInsights(year: number, month: number, monthsBack = 12, 
     weekCents: isCurrent ? weekCents : null,
   };
 }
+
+/** Kept until the data or the day changes (src/lib/data-version.ts). */
+export const getInsights = keepUntilChanged("getInsights", buildInsights, localDay);
 
 /**
  * Suggestions from the six complete months before this one (a month still in

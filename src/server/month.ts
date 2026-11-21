@@ -14,6 +14,7 @@
  */
 
 import { cache } from "react";
+import { keepUntilChanged } from "@/lib/data-version";
 import { loadPaydays, monthSplit } from "./pay-split";
 import { periodBounds, periodIndex } from "@/lib/pay-periods";
 import { accountLabels } from "./bank/ledger";
@@ -206,7 +207,7 @@ interface ActualRow {
 }
 
 /** The month, worked out once per page load however many parts of the page ask for it. */
-export const getMonthView = cache((year: number, month: number): Promise<MonthView> => buildMonthView(year, month));
+export const getMonthView = cache(keepUntilChanged("month", (year: number, month: number): Promise<MonthView> => buildMonthView(year, month), () => new Intl.DateTimeFormat("en-CA", { timeZone: process.env.TZ || "UTC" }).format(new Date())));
 
 async function buildMonthView(year: number, month: number): Promise<MonthView> {
   const settings = await getSettings();

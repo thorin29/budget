@@ -17,6 +17,8 @@ import { payoffTrackers } from "./card-payments";
 import { billCharge } from "./bill-merchants";
 import { ensureGroups, debtSetting, reserveSetting, extraToDebtSetting } from "./envelopes";
 import { cache } from "react";
+import { keepUntilChanged } from "@/lib/data-version";
+import { billLookalike } from "@/lib/bill-lookalike";
 import { isExtraIncome } from "@/lib/extra-income";
 import { loadPaydays } from "./pay-split";
 import { usualFor } from "@/lib/usual";
@@ -228,7 +230,8 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   return planOnce(asked ? year! : ty, asked ? month! : tm);
 }
 
-const planOnce = cache((y: number, m: number) => buildMonthPlan(y, m));
+// Once per page load, and kept across pages until the data or the day changes.
+const planOnce = cache(keepUntilChanged("plan", (y: number, m: number) => buildMonthPlan(y, m), localToday));
 
 async function buildMonthPlan(y: number, m: number): Promise<MonthPlanView> {
   await ensureGroups();
@@ -370,8 +373,11 @@ async function buildMonthPlan(y: number, m: number): Promise<MonthPlanView> {
     m.set(g, inner);
   };
   const monthN = ymn(monthStart);
+  // Charges that look like a bill's payment not matched yet count as the bill (still due), not as spending.
+  const lookalike = billLookalike(txns.filter((t) => t.actual).map((t) => ({ merchant: t.merchant, cents: Math.abs(toCents(t.amount)) })));
+  const billOrLookalike = (t: Txn) => isBill(t) || lookalike({ merchant: t.merchant, cents: toCents(t.amount), categoryId: t.categoryId, linked: !!t.actual });
   for (const t of txns) {
-    const parts = everydayParts(t, isBill, cardNames);
+    const parts = everydayParts(t, billOrLookalike, cardNames);
     if (!parts) continue;
     const inMonth = t.postedOn >= monthStart;
     for (const part of parts) {

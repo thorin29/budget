@@ -70,7 +70,8 @@ export async function ensureGroups(): Promise<void> {
     }
   }
   if (!seededAt) await saveSetting(KEY_SEEDED, now);
-  await saveSetting(KEY_PLACED, now);
+  // Only when something was placed: a write on every look would make every page work its figures out again.
+  if (categories.length || !placedAt) await saveSetting(KEY_PLACED, now);
 }
 
 // ---------------------------------------------------------------- changes

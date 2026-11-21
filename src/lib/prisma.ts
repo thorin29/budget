@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@/generated/prisma/client";
 import { fieldKey, filtersEncrypted, openDeep, sealArgs } from "./field-crypto";
+import { bumpDataVersion, isWrite } from "./data-version";
 
 /**
  * Prisma 7 requires a driver adapter; the client no longer opens connections
@@ -52,6 +53,8 @@ function withFieldEncryption(base: PrismaClient): PrismaClient {
           if (blocked) throw new Error(`${model}.${blocked} is encrypted and can't be filtered in the database`);
           const sealed = key ? sealArgs(model, operation, args, key) : args;
           const result = await query(sealed as typeof args);
+          // Any write makes figures worked out from the data stale (src/lib/data-version.ts).
+          if (isWrite(operation)) bumpDataVersion();
           return openDeep(result, key);
         },
       },

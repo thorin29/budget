@@ -3,6 +3,25 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.99.2]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Much faster pages:** the figures behind each page (the month's plan, the month view, cash
+  timing, outlook, debt, net worth, insights, review) are kept until something in the database
+  changes (a bank sync, an edit) or the day changes, so going back to a page or switching tabs
+  doesn't work them out again. Two writes that happened on every page view (placing new categories
+  in budgets, saving the month's net worth) now happen only when something changed.
+- **Review, Needs a Category:** only checking and card charges (not investment or retirement
+  accounts); pending charges show, marked "(pending)".
+
+### Fixed
+- **A bill payment not matched yet** (pending, or a few dollars off the planned amount) no longer
+  shows as "Needs a category" on top of the bill still counted as due. A charge with no category from
+  a merchant that has paid a bill before, within 10% of what it paid, counts as that bill until it's
+  matched.
+
 ## [0.99.1]
 
 No migration. The phone app is unchanged.

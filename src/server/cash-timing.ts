@@ -5,6 +5,7 @@
  * full on its due date, and the 0% card's monthly payment.
  */
 
+import { keepUntilChanged, localDay } from "@/lib/data-version";
 import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
 import { cashTiming, type CashEvent, type CashTiming } from "@/lib/cash-timing";
@@ -48,7 +49,7 @@ const addMonth = (iso: string, by = 1) => {
 };
 
 /** [debtCents] is the month's 0% debt payment, from the month plan. */
-export async function getCashTiming(debtCents: number): Promise<CashTimingView> {
+async function buildCashTiming(debtCents: number): Promise<CashTimingView> {
   const today = localToday();
   const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
   const next = new Date(Date.UTC(y, m, 1));
@@ -126,6 +127,9 @@ export async function getCashTiming(debtCents: number): Promise<CashTimingView> 
         };
   return { ...t, today, until, missing: start === null, balanceAsOf: now.billsBankDataAt ?? now.billsBalanceAsOf, cardsWithoutDays: allCards.length - cards.length, check };
 }
+
+/** Kept until the data or the day changes (src/lib/data-version.ts). */
+export const getCashTiming = keepUntilChanged("getCashTiming", buildCashTiming, localDay);
 
 /**
  * The worst case: what's left of this month's Essentials and Extras budgets gets spent on the

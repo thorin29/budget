@@ -10,6 +10,7 @@
  * Nothing is recorded without the person confirming it.
  */
 
+import { keepUntilChanged, localDay } from "@/lib/data-version";
 import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
 import { merchantKey } from "@/lib/field-crypto";
@@ -103,7 +104,7 @@ async function openBills(): Promise<Array<MonthEntry>> {
   return all.filter((e) => e.actualCents === null && !e.skipped && e.budgetedCents > 0);
 }
 
-export async function getReview(): Promise<Review> {
+async function buildReview(): Promise<Review> {
   const [bills, txns, rules, dismissals, lineItems] = await Promise.all([
     openBills(),
     recentTransactions(120),
@@ -183,6 +184,9 @@ export async function getReview(): Promise<Review> {
 
   return { looksPaid, repeats, count: looksPaid.length + repeats.length };
 }
+
+/** Kept until the data or the day changes (src/lib/data-version.ts). */
+export const getReview = keepUntilChanged("getReview", buildReview, localDay);
 
 /** Records the payment from the bank's transaction, links them, and learns the merchant. */
 export async function confirmMatch(input: {

@@ -79,11 +79,11 @@ export default async function ReviewPage() {
               <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Needs a Category</h3>
               <ul className="divide-y divide-line rounded-xl border border-line">
                 {uncategorized.map((t) => (
-                  <li key={t.id} className="flex flex-wrap items-start justify-between gap-2 px-3 py-2 text-sm">
-                    <span className="min-w-0">
+                  <li key={t.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
+                    <span className="min-w-0 flex-1">
                       <b className="block truncate">{t.merchant}</b>
-                      <span className="text-xs text-muted">
-                        {short(t.postedOn)} · {t.accountName} · <span className="tnum">{formatCents(t.amountCents)}</span>
+                      <span className="block truncate text-xs text-muted">
+                        {short(t.postedOn)}{t.pending ? " (pending)" : ""} · {t.accountName} · <span className="tnum">{formatCents(t.amountCents)}</span>
                       </span>
                     </span>
                     <CategoryCell txn={{ id: t.id, merchant: t.merchant, categoryId: null, categorySource: "guess", peer: t.peer }} categories={options} />

@@ -7,6 +7,7 @@
  * spending goes on the cards and is paid the month after, so it isn't here either.
  */
 
+import { keepUntilChanged, localDay } from "@/lib/data-version";
 import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
 import { displayAccountName } from "@/lib/account-type";
@@ -46,7 +47,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const dayBefore = (iso: string) => new Date(Date.parse(`${iso}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
 
 /** [today] is YYYY-MM-DD; [debtCents] is the monthly debt payment from the month plan. */
-export async function getOutlook(today: string, debtCents: number): Promise<OutlookView> {
+async function buildOutlook(today: string, debtCents: number): Promise<OutlookView> {
   const [y, m] = [Number(today.slice(0, 4)), Number(today.slice(5, 7))];
   const next = new Date(Date.UTC(y, m, 1));
   const [ny, nm] = [next.getUTCFullYear(), next.getUTCMonth() + 1];
@@ -135,3 +136,6 @@ export async function getOutlook(today: string, debtCents: number): Promise<Outl
     cards,
   };
 }
+
+/** Kept until the data or the day changes (src/lib/data-version.ts). */
+export const getOutlook = keepUntilChanged("getOutlook", buildOutlook, localDay);

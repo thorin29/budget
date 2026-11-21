@@ -10,6 +10,7 @@
  * filled in; with a balance and interest rate, the payoff date counts interest.
  */
 
+import { keepUntilChanged, localDay } from "@/lib/data-version";
 import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
 import { displayAccountName } from "@/lib/account-type";
@@ -87,7 +88,7 @@ export interface DebtView {
   totalCents: number;
 }
 
-export async function getDebt(debtPaymentCents: number): Promise<DebtView> {
+async function buildDebt(debtPaymentCents: number): Promise<DebtView> {
   const today = localToday();
   const yearStart = new Date(`${today.slice(0, 4)}-01-01T00:00:00Z`);
   const [payoffs, trackers, cards, allCards, items, dismissed] = await Promise.all([
@@ -188,6 +189,9 @@ export async function getDebt(debtPaymentCents: number): Promise<DebtView> {
   const revolvingCents = revolving.reduce((t, d) => t + Math.max(0, d.balanceCents), 0);
   return { today, installment, installmentCents, needsDetails, revolving, revolvingCents, totalCents: installmentCents + revolvingCents };
 }
+
+/** Kept until the data or the day changes (src/lib/data-version.ts). */
+export const getDebt = keepUntilChanged("getDebt", buildDebt, localDay);
 
 /** A loan's balance (as of today) and interest rate, so its payoff date can be worked out. */
 export async function saveLoanDetails(lineItemId: string, balanceCents: number | null, aprBps: number | null, escrowCents: number | null = null): Promise<void> {
