@@ -3,6 +3,24 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.98.1]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **Budget tab views:** Month, By card, and a statement tab per card, all with the same layout: a
+  period bar (day X of Y), two cards on top, the same key and the same columns, so switching tabs
+  doesn't move the page. The card breakdown moved from the Month view to its own By card tab.
+- **Statement tab:** the two cards are the budget remaining on the card (today and by the
+  statement date) and the statement (charged so far, bills pending, projected). The per-day amount
+  sits under Remaining, so the table fits without scrolling.
+- **Bills** show their budget and what was charged: "—" while a bill is as budgeted, the difference
+  once a charge comes in over or under. "To come" is now "pending"; "Projected spend" is
+  "Projected".
+- **Extra income to the 0% card** keeps back what the month needs to cover spending already past a
+  normal month's money, and adds only the rest to the payment.
+- The cushion link goes to Settings › Accounts.
+
 ## [0.98.0]
 
 No migration. The phone app is unchanged.

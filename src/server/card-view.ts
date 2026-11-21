@@ -23,7 +23,7 @@ import { getMonthView } from "./month";
 
 export type CardTier = "BILLS" | "ESSENTIAL" | "FLEXIBLE" | "UNPLANNED";
 export interface CardGroup { id: string; name: string; spentCents: number; budgetCents: number | null; projectedCents: number; sharePct: number }
-export interface CardBill { lineItemId: string; name: string; dueOn: string; cents: number; paid: boolean }
+export interface CardBill { lineItemId: string; name: string; dueOn: string; /** Charged, or the budget while pending. */ cents: number; budgetedCents: number; paid: boolean }
 export interface CardSection { tier: CardTier; spentCents: number; budgetCents: number | null; projectedCents: number; groups: CardGroup[]; bills: CardBill[] }
 export interface CardRow {
   key: string;
@@ -150,10 +150,10 @@ export async function monthByCard(plan: MonthPlanView, rows: ForecastRow[], rese
     if (b.status === "skipped") continue;
     const k = b.status === "paid" && paidAt.has(b.lineItemId) ? paidAt.get(b.lineItemId)! : (ctx.landing.get(b.lineItemId) ?? CHECKING);
     const s = sec(row(k), "BILLS");
-    s.budgetCents = (s.budgetCents ?? 0) + b.cents;
+    s.budgetCents = (s.budgetCents ?? 0) + b.budgetedCents;
     s.projectedCents += b.cents;
     if (b.status === "paid") s.spentCents += b.cents;
-    s.bills.push({ lineItemId: b.lineItemId, name: b.name, dueOn: b.dueOn, cents: b.cents, paid: b.status === "paid" });
+    s.bills.push({ lineItemId: b.lineItemId, name: b.name, dueOn: b.dueOn, cents: b.cents, budgetedCents: b.budgetedCents, paid: b.status === "paid" });
   }
   for (const t of plan.bills.other) {
     const s = sec(row(ctx.keyOf(t.accountId)), "BILLS");
@@ -169,7 +169,9 @@ export async function monthByCard(plan: MonthPlanView, rows: ForecastRow[], rese
     s.budgetCents = (s.budgetCents ?? 0) + plan.debt.cents;
     s.projectedCents += plan.debt.cents;
     s.spentCents += paid;
-    s.bills.push({ lineItemId: "debt", name: plan.debt.extraCents ? `Debt payment (incl. $${Math.round(plan.debt.extraCents / 100).toLocaleString("en-US")} extra income)` : "Debt payment", dueOn: plan.debt.dueOn ?? `${plan.month}-28`, cents: plan.debt.cents, paid: paid > 0 });
+    const usd = (c: number) => `$${Math.round(c / 100).toLocaleString("en-US")}`;
+    const extra = plan.debt.extraCents ? ` (incl. ${usd(plan.debt.extraCents)} extra income)` : "";
+    s.bills.push({ lineItemId: "debt", name: `Debt payment${extra}`, dueOn: plan.debt.dueOn ?? `${plan.month}-28`, cents: plan.debt.cents, budgetedCents: plan.debt.cents, paid: paid > 0 });
   }
 
   // Budgets: exact spending per row, budget and the rest of the projection by share.
@@ -244,7 +246,7 @@ async function checksFor(
   const checks: Check[] = [];
   const pageSpent = rows.reduce((t, r) => t + r.spentCents, 0) + plan.bills.listPaidCents + plan.bills.otherCents + (plan.debt.source === "paid" ? plan.debt.cents : 0);
   const cardSpent = cards.reduce((t, c) => t + c.spentCents, 0);
-  const pageBudget = rows.filter((r) => r.limitCents !== null).reduce((t, r) => t + (r.limitCents ?? 0), 0) + plan.bills.listCents + plan.bills.otherCents + plan.debt.cents + reserveCents;
+  const pageBudget = rows.filter((r) => r.limitCents !== null).reduce((t, r) => t + (r.limitCents ?? 0), 0) + plan.bills.listBudgetedCents + plan.bills.otherCents + plan.debt.cents + reserveCents;
   const cardBudget = cards.reduce((t, c) => t + c.budgetCents, 0);
   checks.push({
     name: "Card rows add up",
@@ -291,6 +293,9 @@ export interface StatementView {
   projectedCents: number;
   sections: CardSection[];
   totals: { spentCents: number; budgetCents: number; projectedCents: number };
+  /** The card's budgets (Essentials, Extras, the reserve) less spending (unplanned too): today, and at the projection. */
+  budgetLeftCents: number;
+  budgetLeftEndCents: number;
 }
 
 /**
@@ -359,7 +364,7 @@ export async function statementView(cardId: string): Promise<StatementView | nul
       if (due < from || due > to) continue;
       // Charged before the statement began: it was on the last statement.
       if (e.actualCents !== null && e.paidOn && e.paidOn < from) continue;
-      bills.push({ lineItemId: e.lineItemId, name: e.name, dueOn: due, cents: e.actualCents ?? e.budgetedCents, paid: e.actualCents !== null });
+      bills.push({ lineItemId: e.lineItemId, name: e.name, dueOn: due, cents: e.actualCents ?? e.budgetedCents, budgetedCents: e.budgetedCents, paid: e.actualCents !== null });
     }
   }
   bills.sort((a, b) => a.dueOn.localeCompare(b.dueOn));
@@ -393,8 +398,8 @@ export async function statementView(cardId: string): Promise<StatementView | nul
   );
   const sections: CardSection[] = (["BILLS", "ESSENTIAL", "FLEXIBLE", "UNPLANNED"] as CardTier[]).map((tier) => {
     if (tier === "BILLS") {
-      const budget = bills.reduce((t, b) => t + b.cents, 0);
-      return { tier, spentCents: billCharges, budgetCents: Math.max(budget, billCharges + toCome), projectedCents: billCharges + toCome, groups: [], bills };
+      const budget = bills.reduce((t, b) => t + b.budgetedCents, 0);
+      return { tier, spentCents: billCharges, budgetCents: budget, projectedCents: billCharges + toCome, groups: [], bills };
     }
     const list = forecast.filter((f) => TIER_OF(f.tier === "SORT" ? "UNPLANNED" : f.tier) === tier);
     const groupsOut = list.map((f) => ({ id: f.id, name: f.name, spentCents: f.spentCents, budgetCents: f.limitCents, projectedCents: f.forecastCents, sharePct: Math.round((shareOf(f.id).get(cardId) ?? 0) * 100) }));
@@ -423,7 +428,13 @@ export async function statementView(cardId: string): Promise<StatementView | nul
     budgetCents: sections.reduce((t, s) => t + (s.budgetCents ?? 0), 0),
     projectedCents: sections.reduce((t, s) => t + s.projectedCents, 0),
   };
+  const spendSections = sections.filter((x) => x.tier !== "BILLS");
+  const spendBudget = spendSections.reduce((t, x) => t + (x.budgetCents ?? 0), 0);
+  const budgetLeftCents = spendBudget - spendSections.reduce((t, x) => t + x.spentCents, 0);
+  const budgetLeftEndCents = spendBudget - spendSections.reduce((t, x) => t + x.projectedCents, 0);
   return {
+    budgetLeftCents,
+    budgetLeftEndCents,
     card: { id: card.id, name: card.nickname || displayAccountName(card.name) },
     from, to, dueOn: dueAfter(st.nextDue, to),
     day, days, daysLeft: days - day,

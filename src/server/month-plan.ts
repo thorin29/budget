@@ -50,7 +50,10 @@ export interface PlanBill {
   name: string;
   /** YYYY-MM-DD */
   dueOn: string;
+  /** What was paid, or the budget while it's still to pay. */
   cents: number;
+  /** The bill's budget for the month. */
+  budgetedCents: number;
   status: "paid" | "due" | "overdue" | "skipped";
   paidOn: string | null;
   /** The month it's from, when it's an unpaid bill carried from an earlier month. */
@@ -96,6 +99,8 @@ export interface MonthPlanView extends Omit<MonthPlanOut, "groups"> {
     /** The bills on the bill list (card payments and the debt payment aren't): the "Bills" figure everywhere. */
     listCents: number;
     listPaidCents: number;
+    /** The bills' budgets (listCents uses what was paid where it's paid). */
+    listBudgetedCents: number;
     /** Card payments on the bill list, left out because the cards' charges count as spending. */
     cardPaymentsCents: number;
     /** Charges in bill categories that aren't on the bill list. They count in totalCents, shown on their own. */
@@ -118,6 +123,8 @@ export interface MonthPlanView extends Omit<MonthPlanOut, "groups"> {
     shortCents: number;
     /** Extra income added to the payment this month (included in cents). */
     extraCents: number;
+    /** Extra income kept back to cover spending already past a normal month (not added to the payment). */
+    extraHeldCents: number;
   };
   /** Per bank account, for the card breakdown: spent this month by budget ("__bills" for bill-category charges), and the twelve months before. */
   byAccount: { spent: Record<string, Record<string, number>>; usual: Record<string, Record<string, number>> };
@@ -288,7 +295,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
       cardPaymentsCents += amount(e);
       continue;
     }
-    billItems.push({ lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: amount(e), status: status(e), paidOn: e.paidOn, from: null, category: e.categoryName });
+    billItems.push({ lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: amount(e), budgetedCents: e.skipped ? 0 : e.budgetedCents, status: status(e), paidOn: e.paidOn, from: null, category: e.categoryName });
   }
   // Past-due bills from earlier months count in the open month, where they're still owed. A
   // closed month leaves them out: they already count in their own month, and adding them again
@@ -296,7 +303,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   for (const e of closed ? [] : view.carried) {
     if (e.kind === "INCOME" || isCardPayment(e.lineItemId) || e.actualCents !== null || e.skipped) continue;
     billItems.push({
-      lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: e.budgetedCents, status: "overdue", paidOn: null,
+      lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: e.budgetedCents, budgetedCents: e.budgetedCents, status: "overdue", paidOn: null,
       from: `${e.year}-${String(e.month).padStart(2, "0")}`, category: e.categoryName,
     });
   }
@@ -320,8 +327,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
   else if (targetCents) [debtCents, debtSource] = [Math.max(targetCents, paidDebt), "target"];
   else if (balance) [debtCents, debtSource] = [Math.ceil(balance / 100), "minimum"];
   // Extra income this month goes to the 0% card on top of the monthly payment, so budgets run on a normal month.
-  const debtExtraCents = extraToDebt && !closed && balance && balance > 0 && debtSource !== "paid" ? Math.min(extraIncomeCents, Math.max(0, balance - debtCents)) : 0;
-  debtCents += debtExtraCents;
+  const extraForDebtCents = extraToDebt && !closed && balance && balance > 0 && debtSource !== "paid" ? Math.min(extraIncomeCents, Math.max(0, balance - debtCents)) : 0;
   const doneIn = (() => {
     if (balance === null || balance <= 0 || debtCents <= 0) return null;
     const k = Math.ceil(balance / debtCents) - 1;
@@ -398,14 +404,24 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
     if (spent.has(s.id) || usual(s.id)) planGroups.push({ id: s.id, name: s.name, tier: "UNPLANNED", manualCents: null, usualCents: usual(s.id), spentCents: spentIn(s.id), sort: true });
   }
 
-  const out = monthPlan({
+  const planIn = {
     incomeCents,
     billsCents,
-    debtCents,
     closed,
     reserveCents,
     groups: planGroups.map((g) => ({ id: g.id, tier: g.tier, manualCents: g.manualCents, usualCents: g.usualCents, spentCents: g.spentCents })),
-  });
+  };
+  // Extra income goes to the 0% card, except what the month needs to cover spending already past a
+  // normal month's money (spent, plus essentials and the reserve still to come).
+  let debtExtraCents = 0;
+  let extraHeldCents = 0;
+  if (extraForDebtCents > 0) {
+    const base = monthPlan({ ...planIn, debtCents });
+    extraHeldCents = Math.min(extraForDebtCents, Math.max(0, extraForDebtCents - base.safeCents));
+    debtExtraCents = extraForDebtCents - extraHeldCents;
+  }
+  debtCents += debtExtraCents;
+  const out = monthPlan({ ...planIn, debtCents });
   const outById = new Map(out.groups.map((g) => [g.id, g]));
   // Whether the month covers the debt payment: money in, less bills, usual spending and the payment.
   const usualSpend = planGroups.reduce((s2, g) => s2 + Math.max(g.usualCents, g.spentCents), 0);
@@ -456,6 +472,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
       paidCents: billItems.filter((b) => b.status === "paid").reduce((s, b) => s + b.cents, 0) + otherCents,
       listCents: billItems.reduce((s, b) => s + b.cents, 0),
       listPaidCents: billItems.filter((b) => b.status === "paid").reduce((s, b) => s + b.cents, 0),
+      listBudgetedCents: billItems.reduce((s, b) => s + b.budgetedCents, 0),
       cardPaymentsCents,
       items: billItems,
       otherCents,
@@ -471,6 +488,7 @@ export async function getMonthPlan(year?: number, month?: number): Promise<Month
       targetCents,
       shortCents: debtShort,
       extraCents: debtExtraCents,
+      extraHeldCents,
       doneIn,
     },
     ...out,

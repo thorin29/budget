@@ -71,7 +71,7 @@ export function ForecastCards({
   const today = totals.budgetCents - spent;
   const end = totals.budgetCents - projected;
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4 lg:grid-cols-2 lg:[&>*]:min-h-[10rem]">
       <Card>
         <p className="text-sm text-muted">Budget remaining</p>
         <dl className="mt-2 grid grid-cols-2 gap-4">
@@ -108,7 +108,7 @@ export function ForecastCards({
           </dl>
           <p className="mt-2 text-xs text-muted">
             Planned checking cushion {money(minimumCents)}.{" "}
-            <Link href="/settings/budgets" className="text-accent-text hover:underline">
+            <Link href="/settings/accounts" className="text-accent-text hover:underline">
               Change
             </Link>
           </p>
@@ -119,7 +119,10 @@ export function ForecastCards({
 }
 
 export interface BillsLine {
+  /** Bills at what was paid where paid, else their budget (the projection). */
   billsCents: number;
+  /** The bills' budgets. */
+  billsBudgetedCents?: number;
   billsPaidCents: number;
   debtCents: number;
   debtPaidCents: number;
@@ -133,6 +136,40 @@ export interface BillsLine {
 
 export { Bar, GRID, SUMMARY, COLOR, money, day, left, tone };
 
+/** A bill's result: nothing while it's as budgeted, the difference once a charge comes in over or under. */
+export function billResult(budget: number, projected: number) {
+  const d = budget - projected;
+  if (Math.abs(d) < 100) return <span className="text-muted">—</span>;
+  return <span className={d < 0 ? "text-warn" : "text-ok"}>{d < 0 ? `${money(-d)} over` : `${money(d)} under`}</span>;
+}
+
+/** The key above every Budget tab table. */
+export function Legend({ closed }: { closed: boolean }) {
+  const swatch = (color: string, opacity = 1) => <span aria-hidden className="inline-block h-2.5 w-4 rounded-full" style={{ background: color, opacity }} />;
+  return (
+    <ul className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted">
+      <li className="flex items-center gap-1.5">{swatch("var(--muted)")}Solid = actual</li>
+      {closed ? null : <li className="flex items-center gap-1.5">{swatch("var(--muted)", 0.3)}Lighter = projection</li>}
+      <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-3 w-0.5 bg-foreground" />Line = budget</li>
+    </ul>
+  );
+}
+
+/** The column heads every Budget tab table shares, so the columns line up between tabs. */
+export function TableHead({ end, closed }: { end: string; closed: boolean }) {
+  return (
+    <div className={`${GRID} border-b border-line pb-2 text-xs font-semibold uppercase tracking-wider text-muted`}>
+      <span>Budget</span>
+      <span>{closed ? "Actual · Budget" : "Actual · Projection · Budget"}</span>
+      <span className="text-right">Spent</span>
+      <span className="text-right">Budget</span>
+      <span className="text-right">Remaining</span>
+      <span className="text-right">{closed ? "" : "Projected"}</span>
+      <span className="text-right leading-tight">{closed ? "Result" : <>Projected<br />by {day(end)}</>}</span>
+    </div>
+  );
+}
+
 export function ForecastTable({
   rows,
   totals,
@@ -140,7 +177,6 @@ export function ForecastTable({
   monthEnd,
   closed,
   reserveCents = 0,
-  cardsBox = null,
 }: {
   rows: ForecastRow[];
   totals: Totals;
@@ -149,22 +185,22 @@ export function ForecastTable({
   closed: boolean;
   /** Set aside for unplanned costs: the Unplanned row's budget. */
   reserveCents?: number;
-  /** The By card breakdown, shown under Bills & debt. */
-  cardsBox?: React.ReactNode;
 }) {
   const cell = (show: boolean, value: string) => (closed || !show ? "" : value);
+  const billsBudget = bills.billsBudgetedCents ?? bills.billsCents;
   const planned = bills.billsCents + bills.debtCents + bills.otherCents;
+  const budgeted = billsBudget + bills.debtCents + bills.otherCents;
   const paid = bills.billsPaidCents + bills.debtPaidCents + bills.otherCents;
   // The whole month: bills and the debt payment in full, plus the budgets.
   const all = {
     spent: totals.spentCents + paid,
-    budget: totals.budgetCents + planned,
+    budget: totals.budgetCents + budgeted,
     projected: totals.forecastCents + planned,
-    margin: totals.marginCents,
+    margin: totals.marginCents + budgeted - planned,
   };
   const swatch = (color: string, opacity = 1) => <span aria-hidden className="inline-block h-2.5 w-4 rounded-full" style={{ background: color, opacity }} />;
   const chevron = <span aria-hidden className="inline-block w-3 text-muted transition-transform group-open:rotate-90">›</span>;
-  const billRow = (name: string, color: string, spent: number, total: number, strong = false, summary = false) => {
+  const billRow = (name: string, color: string, spent: number, budget: number, total: number, strong = false, summary = false) => {
     const Tag = strong || summary ? "summary" : "div";
     return (
     <Tag key={name} className={`${GRID} border-b ${strong ? `border-line bg-neutral-soft py-2 font-bold ${SUMMARY}` : `border-line/60 py-1.5 ${summary ? SUMMARY : ""}`} ${strong ? "rounded-lg px-2 -mx-2" : ""} text-sm`}>
@@ -173,41 +209,29 @@ export function ForecastTable({
         <span aria-hidden className={`${strong ? "h-2.5 w-2.5" : "h-2 w-2"} shrink-0 rounded-sm`} style={{ background: color }} />
         <span className="truncate">{name}</span>
       </span>
-      <Bar spent={spent} forecast={total} limit={total} color={color} />
+      <Bar spent={spent} forecast={total} limit={budget} color={color} />
       <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{money(spent)}</span>
-      <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{money(total)}</span>
-      <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{money(total - spent)}</span>
+      <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{money(budget)}</span>
+      <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{money(budget - spent)}</span>
       <span className={`tnum text-right ${strong ? "" : "text-muted"}`}>{cell(true, money(total))}</span>
-      <span className="text-right text-muted">{closed ? (spent >= total ? "paid" : `${money(total - spent)} unpaid`) : "as planned"}</span>
+      <span className="text-right">{closed && spent < total ? <span className="text-muted">{money(total - spent)} unpaid</span> : billResult(budget, total)}</span>
     </Tag>
     );
   };
   return (
     <Card>
-      <ul className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs text-muted">
-        <li className="flex items-center gap-1.5">{swatch("var(--muted)")}Solid = actual</li>
-        {closed ? null : <li className="flex items-center gap-1.5">{swatch("var(--muted)", 0.3)}Lighter = projection</li>}
-        <li className="flex items-center gap-1.5"><span aria-hidden className="inline-block h-3 w-0.5 bg-foreground" />Line = budget</li>
-      </ul>
+      <Legend closed={closed} />
       <div className="overflow-x-auto overflow-y-hidden py-1 lg:overflow-visible">
         <div className="min-w-[820px]">
-          <div className={`${GRID} border-b border-line pb-2 text-xs font-semibold uppercase tracking-wider text-muted`}>
-            <span>Budget</span>
-            <span>{closed ? "Actual · Budget" : "Actual · Projection · Budget"}</span>
-            <span className="text-right">Spent</span>
-            <span className="text-right">Budget</span>
-            <span className="text-right">Remaining</span>
-            <span className="text-right leading-tight">{closed ? "" : <>Projected<br />spend</>}</span>
-            <span className="text-right leading-tight">{closed ? "Result" : <>Projected<br />by {day(monthEnd)}</>}</span>
-          </div>
+          <TableHead end={monthEnd} closed={closed} />
           {planned > 0 ? (
             <details className="group mt-2">
-              {billRow("Bills & debt", "var(--series-1)", paid, planned, true)}
-              {billRow("Bills", "var(--series-1)", bills.billsPaidCents, bills.billsCents)}
-              {bills.debtCents > 0 ? billRow("Debt payment", "var(--series-2)", bills.debtPaidCents, bills.debtCents) : null}
+              {billRow("Bills & debt", "var(--series-1)", paid, budgeted, planned, true)}
+              {billRow("Bills", "var(--series-1)", bills.billsPaidCents, billsBudget, bills.billsCents)}
+              {bills.debtCents > 0 ? billRow("Debt payment", "var(--series-2)", bills.debtPaidCents, bills.debtCents, bills.debtCents) : null}
               {bills.otherCents > 0 ? (
                 <details className="group/other">
-                  {billRow("Charges that may be bills", "var(--series-neutral)", bills.otherCents, bills.otherCents, false, true)}
+                  {billRow("Charges that may be bills", "var(--series-neutral)", bills.otherCents, bills.otherCents, bills.otherCents, false, true)}
                   <ul className="border-b border-line/60 py-1.5 pl-12 text-xs">
                     {(bills.other ?? []).map((t) => (
                       <li key={`${t.id}-${t.cents}`} className="flex flex-wrap items-baseline gap-x-3 py-0.5">
@@ -225,7 +249,6 @@ export function ForecastTable({
               ) : null}
             </details>
           ) : null}
-          {cardsBox}
           {TIERS.map(({ tier, name }) => {
             const list = rows.filter((r) => r.tier === tier && (r.spentCents !== 0 || r.limitCents));
             const reserve = tier === "UNPLANNED" ? reserveCents : 0;

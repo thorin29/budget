@@ -1,12 +1,14 @@
 /**
- * The Budget tab's card pieces: the By card box (the month's money split by where it was paid),
- * one card's statement view, and the checks line.
+ * The Budget tab's other views, built like the month: the By card table (the month's money split
+ * by where it was paid) and one card's statement (its last statement date to the next), each
+ * with the same two cards on top, the same key and the same columns. Plus the period bar and the
+ * checks line.
  */
 
 import Link from "next/link";
 import { Card } from "@/components/ui";
 import type { CardRow, CardSection, Check, StatementView } from "@/server/card-view";
-import { Bar, COLOR, GRID, SUMMARY, day, money, tone } from "./forecast";
+import { Bar, COLOR, GRID, Legend, SUMMARY, TableHead, billResult, day, left, money, tone } from "./forecast";
 
 const SECTION: Record<CardSection["tier"], { name: string; color: string }> = {
   BILLS: { name: "Bills", color: "var(--series-1)" },
@@ -14,8 +16,42 @@ const SECTION: Record<CardSection["tier"], { name: string; color: string }> = {
   FLEXIBLE: { name: "Extras", color: COLOR.FLEXIBLE },
   UNPLANNED: { name: "Unplanned", color: COLOR.UNPLANNED },
 };
-const result = (budget: number | null, projected: number, bills = false) =>
-  bills ? <span className="text-muted">as planned</span> : budget === null || budget === 0 ? <span className="text-muted">—</span> : <span className={tone(budget - projected, false)}>{budget - projected < 0 ? `${money(projected - budget)} over` : `${money(budget - projected)} under`}</span>;
+
+/** Where the period stands: day X of Y, as a bar. Every view has one, so the page doesn't shift. */
+export function PeriodBar({ from, to, day: d, days }: { from: string; to: string; day: number; days: number }) {
+  const pct = Math.round((Math.min(d, days) / days) * 100);
+  return (
+    <div className="flex items-center gap-3 text-xs text-muted">
+      <span className="shrink-0 tnum">
+        {day(from)} – {day(to)} · day {d} of {days}
+      </span>
+      <div className="h-1.5 flex-1 rounded-full bg-neutral-soft">
+        <div className="h-1.5 rounded-full bg-foreground" style={{ width: `${pct}%` }} />
+      </div>
+      <span className="shrink-0 tnum">{Math.max(0, days - d)} days left</span>
+    </div>
+  );
+}
+
+const spendResult = (budget: number | null, projected: number) =>
+  budget === null || budget === 0 ? <span className="text-muted">—</span> : <span className={tone(budget - projected, false)}>{left(budget - projected)}</span>;
+
+/** The cells after the bar: spent, budget, remaining (with a per-day amount when given), projected, result. */
+function Cells({ spent, budget, projected, bills = false, closed, perDayLeft }: { spent: number; budget: number | null; projected: number; bills?: boolean; closed: boolean; perDayLeft?: number }) {
+  const rem = budget ? budget - spent : null;
+  return (
+    <>
+      <span className="tnum text-right">{money(spent)}</span>
+      <span className="tnum text-right">{budget ? money(budget) : "none"}</span>
+      <span className={`tnum text-right leading-tight ${rem !== null && rem < 0 ? "text-danger" : ""}`}>
+        {rem === null ? "" : money(rem)}
+        {rem !== null && rem > 0 && perDayLeft ? <span className="block text-[11px] font-normal text-muted">{money(rem / perDayLeft)}/day</span> : null}
+      </span>
+      <span className="tnum text-right">{closed ? "" : money(projected)}</span>
+      <span className="text-right">{closed ? null : bills ? billResult(budget ?? 0, projected) : spendResult(budget, projected)}</span>
+    </>
+  );
+}
 
 function Segments({ row }: { row: CardRow }) {
   const scale = Math.max(1, row.budgetCents, row.projectedCents, row.spentCents);
@@ -31,197 +67,195 @@ function Segments({ row }: { row: CardRow }) {
   );
 }
 
-function Cells({ spent, budget, projected, bills = false, closed }: { spent: number; budget: number | null; projected: number; bills?: boolean; closed: boolean }) {
+function note(r: CardRow): string {
+  if (r.kind === "checking") return "bills from checking, debit purchases";
+  if (r.kind === "promo") return "debt payment only";
+  return [r.typicalCents ? `typical month ${money(r.typicalCents)}` : null, r.paymentLineCents ? `payment line ${money(r.paymentLineCents)}` : null].filter(Boolean).join(" · ");
+}
+
+function BillLines({ bills }: { bills: CardSection["bills"] }) {
   return (
     <>
-      <span className="tnum text-right">{money(spent)}</span>
-      <span className="tnum text-right">{budget ? money(budget) : "none"}</span>
-      <span className={`tnum text-right ${budget && budget - spent < 0 ? "text-danger" : ""}`}>{budget ? money(budget - spent) : ""}</span>
-      <span className="tnum text-right">{closed ? "" : money(projected)}</span>
-      <span className="text-right">{closed ? null : result(budget, projected, bills)}</span>
+      {bills.map((b) => (
+        <div key={`${b.lineItemId}-${b.dueOn}`} className={`${GRID} py-0.5 text-xs text-muted`}>
+          <span className="truncate pl-12">
+            <span className="tnum mr-2">{day(b.dueOn)}</span>
+            {b.name}
+          </span>
+          <span className={b.paid ? "text-ok" : ""}>{b.paid ? "charged" : "pending"}</span>
+          <span className="tnum text-right">{b.paid ? money(b.cents) : ""}</span>
+          <span className="tnum text-right">{money(b.budgetedCents)}</span>
+          <span />
+          <span className="tnum text-right">{money(b.cents)}</span>
+          <span className="text-right">{b.paid ? billResult(b.budgetedCents, b.cents) : <span className="text-muted">—</span>}</span>
+        </div>
+      ))}
     </>
   );
 }
 
-function note(r: CardRow): string {
-  if (r.kind === "checking") return "bills paid from checking, debit purchases";
-  if (r.kind === "promo") return "debt payment only";
-  return [
-    r.typicalCents ? `typical month ${money(r.typicalCents)}` : null,
-    r.paymentLineCents ? `payment line ${money(r.paymentLineCents)}` : null,
-    r.closesOn ? `statement closes ${day(r.closesOn)}` : null,
-  ]
-    .filter(Boolean)
-    .join(" · ");
+/** One section of a card: its line, then its budgets or bills. */
+function SectionLines({ s, closed, label, perDayLeft }: { s: CardSection; closed: boolean; label?: string; perDayLeft?: number }) {
+  const bills = s.tier === "BILLS";
+  return (
+    <div>
+      <div className={`${GRID} py-1 text-[13px] font-semibold`}>
+        <span className="flex items-center gap-2 pl-6">
+          <span aria-hidden className="h-2 w-2 rounded-sm" style={{ background: SECTION[s.tier].color }} />
+          {label ?? SECTION[s.tier].name}
+        </span>
+        <Bar spent={s.spentCents} forecast={s.projectedCents} limit={s.budgetCents || null} color={SECTION[s.tier].color} />
+        <Cells spent={s.spentCents} budget={s.budgetCents} projected={s.projectedCents} bills={bills} closed={closed} perDayLeft={bills ? undefined : perDayLeft} />
+      </div>
+      {bills ? (
+        <BillLines bills={s.bills} />
+      ) : (
+        s.groups
+          .filter((g) => g.spentCents || g.budgetCents || g.projectedCents)
+          .map((g) => (
+            <div key={g.id} className={`${GRID} py-0.5 text-xs text-muted`}>
+              <span className="truncate pl-12">
+                {g.name}
+                {g.sharePct > 0 && g.sharePct < 95 ? <span className="ml-1">({g.sharePct}% usually here)</span> : null}
+              </span>
+              <Bar spent={g.spentCents} forecast={g.projectedCents} limit={g.budgetCents || null} color={SECTION[s.tier].color} />
+              <Cells spent={g.spentCents} budget={g.budgetCents} projected={g.projectedCents} closed={closed} perDayLeft={perDayLeft} />
+            </div>
+          ))
+      )}
+    </div>
+  );
 }
 
-/** The By card box: card rows that open to their sections and budgets. Already counted above and below. */
-export function CardsBox({ cards, closed, statementLinks }: { cards: CardRow[]; closed: boolean; statementLinks: Record<string, string> }) {
-  if (!cards.length) return null;
+/** The By card tab: one row per card (and checking), each opening to its sections and budgets. */
+export function CardsTable({ cards, closed, monthEnd, statementLinks }: { cards: CardRow[]; closed: boolean; monthEnd: string; statementLinks: Record<string, string> }) {
+  const total = { spent: cards.reduce((t, c) => t + c.spentCents, 0), budget: cards.reduce((t, c) => t + c.budgetCents, 0), projected: cards.reduce((t, c) => t + c.projectedCents, 0) };
   return (
-    <div className="my-3 rounded-xl border border-dashed border-line-strong bg-neutral-soft/40 px-2 py-2">
-      <p className="px-2 pb-1 text-xs text-muted">
-        <b className="text-foreground">By card</b> · the same money as the sections, split by where it was paid
-      </p>
+    <Card>
+      <Legend closed={closed} />
+      <TableHead end={monthEnd} closed={closed} />
       {cards.map((r) => (
-        <details key={r.key} className="group/card border-b border-line/60 last:border-b-0">
-          <summary className={`${GRID} py-2 text-sm ${SUMMARY}`}>
-            <span className="min-w-0 pl-1">
-              <span className="font-semibold">
-                <span aria-hidden className="mr-1 inline-block w-3 text-muted transition-transform group-open/card:rotate-90">›</span>
+        <details key={r.key} className="group/card mt-2">
+          <summary className={`${GRID} -mx-2 rounded-lg border-b border-line bg-neutral-soft px-2 py-2 text-sm ${SUMMARY}`}>
+            <span className="min-w-0">
+              <span className="flex items-center gap-2 font-bold">
+                <span aria-hidden className="inline-block w-3 text-muted transition-transform group-open/card:rotate-90">›</span>
                 {r.name}
               </span>
-              <span className="block truncate pl-4 text-xs text-muted">{note(r)}</span>
+              <span className="block truncate pl-5 text-xs text-muted">{note(r)}</span>
             </span>
             <Segments row={r} />
             <Cells spent={r.spentCents} budget={r.budgetCents} projected={r.projectedCents} bills={r.kind !== "card"} closed={closed} />
           </summary>
-          <div className="pb-2">
+          <div className="pb-2 pt-1">
             {r.sections
               .filter((s) => s.spentCents || s.budgetCents || s.projectedCents)
               .map((s) => (
-                <div key={s.tier}>
-                  <div className={`${GRID} py-1 text-[13px] font-semibold`}>
-                    <span className="flex items-center gap-2 pl-6">
-                      <span aria-hidden className="h-2 w-2 rounded-sm" style={{ background: SECTION[s.tier].color }} />
-                      {s.tier === "BILLS" ? (r.kind === "checking" ? "Bills from checking" : r.kind === "promo" ? "Debt payment" : "Bills on this card") : SECTION[s.tier].name}
-                    </span>
-                    <Bar spent={s.spentCents} forecast={s.projectedCents} limit={s.budgetCents || null} color={SECTION[s.tier].color} />
-                    <Cells spent={s.spentCents} budget={s.budgetCents} projected={s.projectedCents} bills={s.tier === "BILLS"} closed={closed} />
-                  </div>
-                  {s.groups
-                    .filter((g) => g.spentCents || g.budgetCents || g.projectedCents)
-                    .map((g) => (
-                      <div key={g.id} className={`${GRID} py-0.5 text-xs text-muted`}>
-                        <span className="truncate pl-12">
-                          {g.name}
-                          {g.sharePct > 0 && g.sharePct < 95 ? <span className="ml-1">({g.sharePct}% usually here)</span> : null}
-                        </span>
-                        <Bar spent={g.spentCents} forecast={g.projectedCents} limit={g.budgetCents || null} color={SECTION[s.tier].color} />
-                        <Cells spent={g.spentCents} budget={g.budgetCents} projected={g.projectedCents} closed={closed} />
-                      </div>
-                    ))}
-                </div>
+                <SectionLines key={s.tier} s={s} closed={closed} label={s.tier === "BILLS" && r.kind === "promo" ? "Debt payment" : undefined} />
               ))}
             {statementLinks[r.key] ? (
-              <Link href={statementLinks[r.key]} className="ml-12 mt-1 inline-block text-xs font-semibold text-accent-text hover:underline">
+              <Link href={statementLinks[r.key]} scroll={false} className="ml-12 mt-1 inline-block text-xs font-semibold text-accent-text hover:underline">
                 See this card by statement →
               </Link>
             ) : null}
           </div>
         </details>
       ))}
+      <div className={`${GRID} mt-1 border-t-2 border-line pb-1 pt-3 text-sm font-bold`}>
+        <span>Total</span>
+        <span />
+        <Cells spent={total.spent} budget={total.budget} projected={total.projected} closed={closed} />
+      </div>
+    </Card>
+  );
+}
+
+/** The statement's two cards, built like the month's: budget remaining on the card, and the statement itself. */
+export function StatementCards({ v }: { v: StatementView }) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2 lg:[&>*]:min-h-[10rem]">
+      <Card>
+        <p className="text-sm text-muted">Budget remaining on the {v.card.name}</p>
+        <dl className="mt-2 grid grid-cols-2 gap-4">
+          <div>
+            <dt className="text-xs text-muted">Today</dt>
+            <dd className={`tnum text-3xl font-bold ${v.budgetLeftCents < 0 ? "text-danger" : "text-ok"}`}>{v.budgetLeftCents < 0 ? `${money(-v.budgetLeftCents)} over` : money(v.budgetLeftCents)}</dd>
+            <dd className="text-xs text-muted">{v.daysLeft && v.budgetLeftCents > 0 ? `about ${money(v.budgetLeftCents / v.daysLeft)} a day` : "Budget − spent − unplanned"}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Projected by {day(v.to)}</dt>
+            <dd className={`tnum text-3xl font-bold ${v.budgetLeftEndCents < 0 ? "text-warn" : "text-ok"}`}>{left(v.budgetLeftEndCents)}</dd>
+            <dd className="text-xs text-muted">Budget − projected − unplanned</dd>
+          </div>
+        </dl>
+      </Card>
+      <Card>
+        <p className="text-sm text-muted">This statement</p>
+        <dl className="mt-2 grid grid-cols-3 gap-3">
+          <div>
+            <dt className="text-xs text-muted">Charged so far</dt>
+            <dd className="tnum text-2xl font-bold">{money(v.chargedCents)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Bills pending</dt>
+            <dd className="tnum text-2xl font-bold">{money(v.billsToComeCents)}</dd>
+          </div>
+          <div>
+            <dt className="text-xs text-muted">Closes {day(v.to)}, projected</dt>
+            <dd className="tnum text-2xl font-bold">{money(v.projectedCents)}</dd>
+          </div>
+        </dl>
+        <p className="mt-2 text-xs text-muted">{v.dueOn ? `Due ${day(v.dueOn)}.` : ""}</p>
+      </Card>
     </div>
   );
 }
 
-/** One card from its last statement date: where it stands today. */
-export function StatementPanel({ v }: { v: StatementView }) {
-  const perDay = (c: number) => (v.daysLeft > 0 ? `${money(c / v.daysLeft)}/day` : "");
-  const pct = Math.round((v.day / v.days) * 100);
-  const tiles = [
-    { k: "Charged so far", v: money(v.chargedCents), s: `since ${day(v.from)}` },
-    { k: "Bills still to come on this card", v: money(v.billsToComeCents), s: `before ${day(v.to)}` },
-    { k: "Room left in budgets", v: money(v.roomCents), s: v.daysLeft ? `about ${perDay(v.roomCents)} for ${v.daysLeft} days` : "statement closes today", good: true },
-    { k: "Statement, projected", v: money(v.projectedCents), s: v.dueOn ? `due ${day(v.dueOn)}` : "at this pace" },
-  ];
+/** One card from its last statement date: the same table as the month, counted from the statement date. */
+export function StatementTable({ v }: { v: StatementView }) {
   return (
     <Card>
-      <h2 className="text-lg font-bold">
-        {v.card.name} · statement {day(v.from)} – {day(v.to)}
-      </h2>
-      <p className="text-sm text-muted">
-        Day {v.day} of {v.days} · closes in {v.daysLeft} day{v.daysLeft === 1 ? "" : "s"}
-        {v.dueOn ? ` · due ${day(v.dueOn)}` : ""}
-      </p>
-      <div className="mt-2 h-2 rounded-full bg-neutral-soft">
-        <div className="h-2 rounded-full bg-foreground" style={{ width: `${pct}%` }} />
+      <Legend closed={false} />
+      <TableHead end={v.to} closed={false} />
+      {v.sections.map((s) => {
+        if (!s.spentCents && !s.budgetCents && !s.projectedCents && !s.bills.length) return null;
+        const bills = s.tier === "BILLS";
+        return (
+          <details key={s.tier} className="group mt-2" open={!bills || s.bills.length <= 10}>
+            <summary className={`${GRID} -mx-2 rounded-lg border-b border-line bg-neutral-soft px-2 py-2 text-sm font-bold ${SUMMARY}`}>
+              <span className="flex items-center gap-2">
+                <span aria-hidden className="inline-block w-3 text-muted transition-transform group-open:rotate-90">›</span>
+                <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: SECTION[s.tier].color }} />
+                {SECTION[s.tier].name}
+              </span>
+              <Bar spent={s.spentCents} forecast={s.projectedCents} limit={s.budgetCents || null} color={SECTION[s.tier].color} />
+              <Cells spent={s.spentCents} budget={s.budgetCents} projected={s.projectedCents} bills={bills} closed={false} perDayLeft={bills ? undefined : v.daysLeft} />
+            </summary>
+            {bills ? (
+              <BillLines bills={s.bills} />
+            ) : (
+              s.groups.map((g) => (
+                <div key={g.id} className={`${GRID} border-b border-line/60 py-1.5 text-sm`}>
+                  <span className="flex min-w-0 items-center gap-2 pl-6">
+                    <span aria-hidden className="h-2 w-2 shrink-0 rounded-sm" style={{ background: SECTION[s.tier].color }} />
+                    <span className="truncate">
+                      {g.name}
+                      {g.sharePct > 0 && g.sharePct < 95 ? <span className="ml-1 text-xs text-muted">({g.sharePct}% usually on this card)</span> : null}
+                    </span>
+                  </span>
+                  <Bar spent={g.spentCents} forecast={g.projectedCents} limit={g.budgetCents || null} color={SECTION[s.tier].color} />
+                  <Cells spent={g.spentCents} budget={g.budgetCents} projected={g.projectedCents} closed={false} perDayLeft={v.daysLeft} />
+                </div>
+              ))
+            )}
+          </details>
+        );
+      })}
+      <div className={`${GRID} mt-1 border-t-2 border-line pb-1 pt-3 text-sm font-bold`}>
+        <span>This statement</span>
+        <span />
+        <Cells spent={v.totals.spentCents} budget={v.totals.budgetCents} projected={v.totals.projectedCents} closed={false} />
       </div>
-      <div className="mt-4 grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {tiles.map((t) => (
-          <div key={t.k} className="rounded-xl bg-neutral-soft px-4 py-3">
-            <p className="text-xs text-muted">{t.k}</p>
-            <p className={`tnum text-2xl font-bold ${t.good ? "text-ok" : ""}`}>{t.v}</p>
-            <p className="text-xs text-muted">{t.s}</p>
-          </div>
-        ))}
-      </div>
-      <div className="mt-4 overflow-x-auto">
-        <div className="min-w-[820px]">
-          <div className={`grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.8fr)_repeat(5,minmax(0,0.72fr))_minmax(0,0.9fr)] items-center gap-3 border-b border-line pb-2 text-xs font-semibold uppercase tracking-wider text-muted`}>
-            <span>On the {v.card.name}</span>
-            <span>Actual · Projection · Budget</span>
-            <span className="text-right">Spent</span>
-            <span className="text-right">Budget</span>
-            <span className="text-right">Remaining</span>
-            <span className="text-right">Per day</span>
-            <span className="text-right">Projected</span>
-            <span className="text-right">By {day(v.to)}</span>
-          </div>
-          {v.sections.map((s) => {
-            if (!s.spentCents && !s.budgetCents && !s.projectedCents && !s.bills.length) return null;
-            const bills = s.tier === "BILLS";
-            const G8 = "grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.8fr)_repeat(5,minmax(0,0.72fr))_minmax(0,0.9fr)] items-center gap-3";
-            const line = (name: React.ReactNode, spent: number, budget: number | null, projected: number, cls: string, sub = false) => (
-              <div className={`${G8} ${cls}`}>
-                <span className={`flex min-w-0 items-center gap-2 ${sub ? "pl-6" : ""}`}>{name}</span>
-                <Bar spent={spent} forecast={projected} limit={budget || null} color={SECTION[s.tier].color} />
-                <span className="tnum text-right">{money(spent)}</span>
-                <span className="tnum text-right">{budget ? money(budget) : "none"}</span>
-                <span className={`tnum text-right ${budget && budget - spent < 0 ? "text-danger" : ""}`}>{budget ? money(budget - spent) : ""}</span>
-                <span className="tnum text-right">{!bills && budget ? perDay(Math.max(0, budget - spent)) : ""}</span>
-                <span className="tnum text-right">{money(projected)}</span>
-                <span className="text-right">{result(budget, projected, bills)}</span>
-              </div>
-            );
-            return (
-              <details key={s.tier} className="group mt-2" open>
-                <summary className={`${SUMMARY} -mx-2 block rounded-lg bg-neutral-soft px-2`}>
-                  {line(
-                    <>
-                      <span aria-hidden className="inline-block w-3 text-muted transition-transform group-open:rotate-90">›</span>
-                      <span aria-hidden className="h-2.5 w-2.5 rounded-sm" style={{ background: SECTION[s.tier].color }} />
-                      {bills ? "Bills on this card" : SECTION[s.tier].name}
-                    </>,
-                    s.spentCents, s.budgetCents, s.projectedCents, "border-b border-line py-2 text-sm font-bold",
-                  )}
-                </summary>
-                {bills
-                  ? s.bills.map((b) => (
-                      <div key={`${b.lineItemId}-${b.dueOn}`} className="grid grid-cols-[4.5rem_minmax(0,1fr)_6rem_6rem] gap-3 border-b border-line/60 py-1 pl-8 text-xs">
-                        <span className="text-muted">{day(b.dueOn)}</span>
-                        <span className="truncate">{b.name}</span>
-                        <span className={b.paid ? "text-ok" : "text-muted"}>{b.paid ? "charged" : "to come"}</span>
-                        <span className="tnum pr-2 text-right">{money(b.cents)}</span>
-                      </div>
-                    ))
-                  : s.groups.map((g) => (
-                      <div key={g.id}>
-                        {line(
-                          <span className="truncate">
-                            {g.name}
-                            {g.sharePct > 0 && g.sharePct < 95 ? <span className="ml-1 text-xs text-muted">({g.sharePct}% usually on this card)</span> : null}
-                          </span>,
-                          g.spentCents, g.budgetCents, g.projectedCents, "border-b border-line/60 py-1.5 text-sm text-muted", true,
-                        )}
-                      </div>
-                    ))}
-              </details>
-            );
-          })}
-          <div className="grid grid-cols-[minmax(0,1.4fr)_minmax(0,1.8fr)_repeat(5,minmax(0,0.72fr))_minmax(0,0.9fr)] items-center gap-3 border-t-2 border-line pt-3 text-sm font-bold">
-            <span>This statement</span>
-            <span />
-            <span className="tnum text-right">{money(v.totals.spentCents)}</span>
-            <span className="tnum text-right">{money(v.totals.budgetCents)}</span>
-            <span className="tnum text-right">{money(v.totals.budgetCents - v.totals.spentCents)}</span>
-            <span />
-            <span className="tnum text-right">{money(v.totals.projectedCents)}</span>
-            <span className="text-right">{result(v.totals.budgetCents, v.totals.projectedCents)}</span>
-          </div>
-        </div>
-      </div>
-      <p className="mt-3 text-xs text-muted">The month&rsquo;s budgets, counted from the statement date: this card&rsquo;s usual share of each. They start over when the statement closes.</p>
     </Card>
   );
 }
