@@ -3,6 +3,12 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.106.1]
+
+### Fixed
+- Payments: the statement building now counts pending charges, so pending charges no longer show
+  as a negative "Other" row in Planned vs actual.
+
 ## [0.106.0]
 
 ### Added

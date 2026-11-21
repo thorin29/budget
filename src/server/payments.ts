@@ -208,6 +208,15 @@ async function owedOn(card: BankCard, day: string): Promise<number> {
   );
 }
 
+/** What's pending on the card, as a positive amount owed. */
+async function pendingOn(cardId: string): Promise<number> {
+  const rows = (await prisma.bankTransaction.findMany({
+    where: { accountId: cardId, pending: true },
+    select: { amount: true },
+  })) as Array<{ amount: { toString(): string } }>;
+  return -rows.reduce((t, r) => t + toCents(r.amount), 0);
+}
+
 /** Payments to the card from [from] to [to]: what came in that wasn't a refund. */
 async function paymentsTo(
   cardId: string,
@@ -426,12 +435,13 @@ export async function paymentsView(): Promise<PaymentsView> {
         paidCents: 0,
         set: set[openKey] ?? null,
         month: due.slice(0, 7),
+        // Pending charges count in the budgets' spending but not yet in the card's balance.
         statement: await statementCheck(
           env,
           card,
           addDays(st.lastClose, 1),
           close,
-          st.owedNowCents,
+          st.owedNowCents + (await pendingOn(card.id)),
         ),
         history,
       });
