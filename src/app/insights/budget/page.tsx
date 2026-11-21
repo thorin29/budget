@@ -56,7 +56,6 @@ export default async function BudgetPage({ searchParams }: { searchParams: Promi
     if (key !== "month") q.set("view", key);
     return `/insights/budget${q.size ? `?${q}` : ""}`;
   };
-  const links = Object.fromEntries(statementTabs.map((c) => [c.key, tabHref(c.key)]));
   const tabs = [{ key: "month", name: "Month" }, ...(split.cards.length ? [{ key: "cards", name: "By card" }] : []), ...statementTabs.map((c) => ({ key: c.key, name: `${c.name} statement` }))];
   const monthDay = plan ? (plan.closed ? plan.daysInMonth : Number(plan.today.slice(8, 10))) : 1;
 
@@ -96,7 +95,7 @@ export default async function BudgetPage({ searchParams }: { searchParams: Promi
             closed={plan.closed}
           />
           {tab === "cards" ? (
-            <CardsTable cards={split.cards} closed={plan.closed} monthEnd={view.monthEnd} statementLinks={links} />
+            <CardsTable cards={split.cards} closed={plan.closed} monthEnd={view.monthEnd} />
           ) : (
             <ForecastTable
               rows={view.rows}

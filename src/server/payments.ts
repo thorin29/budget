@@ -166,7 +166,17 @@ export interface PaymentsView {
   ledgers: Record<string, MonthLedger>;
   events: CashEvent[];
   periods: PeriodSummary[];
-  checkingHistory: Array<{ on: string; cents: number }>;
+  /** The last six periods (the cycle card's statements, or months): in, out by kind, and the plan. */
+  cycles: Array<{
+    from: string;
+    to: string;
+    incomeCents: number;
+    out: Array<{
+      key: "BILLS" | "DEBT" | "ESSENTIAL" | "FLEXIBLE" | "UNPLANNED";
+      cents: number;
+    }>;
+    planCents: number;
+  }>;
   changes: BudgetChange[];
 }
 
@@ -689,7 +699,7 @@ export async function paymentsView(): Promise<PaymentsView> {
     periods.map((p) => fillPeriod(env, p, today)),
   );
 
-  // ---- Checking's average over each of the last six periods (cycles, or months).
+  // ---- The last six periods: the cycle card's statements, or months.
   const spans: Array<{ from: string; to: string }> = [];
   const cycleCard = regular.find((s) => cycleCards.has(s.id));
   const closeDay = cycleCard
@@ -707,22 +717,51 @@ export async function paymentsView(): Promise<PaymentsView> {
     spans.unshift({ from, to: end });
     end = addDays(from, -1);
   }
-  const hist = await checkingHistory(spans[0].from, today).catch(() => null);
-  const checkingHist = hist
-    ? spans.map((sp) => {
-        const days = hist.days.filter(
-          (d) => d.date >= sp.from && d.date <= sp.to,
-        );
-        return {
-          on: sp.to,
-          cents: days.length
-            ? Math.round(
-                days.reduce((t, d) => t + d.balanceCents, 0) / days.length,
-              )
-            : hist.startCents,
-        };
-      })
-    : [];
+  // Each past period set out like the period table: what came in, what went out, and the plan.
+  const pastMonths: string[] = [];
+  for (
+    let ym = spans[0].from.slice(0, 7);
+    ym <= spans[5].to.slice(0, 7);
+    ym = nextYm(ym)
+  )
+    pastMonths.push(ym);
+  const pastViews = await Promise.all(pastMonths.map((ym) => env.view(ym)));
+  const cycles = await Promise.all(
+    spans.map(async (sp) => {
+      const p = await fillPeriod(
+        env,
+        periodSummary(
+          env,
+          plan,
+          "",
+          sp.from,
+          sp.to,
+          pastViews,
+          [],
+          null,
+          isCardPayment,
+          isDebt,
+          promo,
+          debtCents,
+        ),
+        today,
+      );
+      const row = (k: PeriodSummary["rows"][number]["key"]) =>
+        p.rows.find((r) => r.key === k)!;
+      const out = (
+        ["BILLS", "DEBT", "ESSENTIAL", "FLEXIBLE", "UNPLANNED"] as const
+      ).map((k) => ({ key: k, cents: row(k).actualCents }));
+      return {
+        from: sp.from,
+        to: sp.to,
+        incomeCents: row("INCOME").actualCents,
+        out,
+        planCents: (
+          ["BILLS", "DEBT", "ESSENTIAL", "FLEXIBLE", "UNPLANNED"] as const
+        ).reduce((t, k) => t + row(k).plannedCents, 0),
+      };
+    }),
+  );
 
   return {
     today,
@@ -731,7 +770,7 @@ export async function paymentsView(): Promise<PaymentsView> {
     ledgers,
     events,
     periods: filled,
-    checkingHistory: checkingHist,
+    cycles,
     changes: await budgetChanges(env).catch(() => []),
   };
 }

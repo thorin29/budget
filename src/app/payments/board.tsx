@@ -404,7 +404,7 @@ function Choice({
       </div>
       <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-[2fr_1fr]">
         <Period p={period} checkingOut={checkingOut} />
-        <History c={c} checking={v.checkingHistory} />
+        <Cycles cycles={v.cycles} />
       </div>
     </>
   );
@@ -941,114 +941,131 @@ function Period({
   );
 }
 
-function Bars({
-  values,
-  lines,
-  labels,
-  over,
-}: {
-  values: number[];
-  lines?: number[];
-  labels: string[];
-  over?: boolean[];
-}) {
-  const max = Math.max(1, ...values, ...(lines ?? []));
-  return (
-    <div>
-      <div className="flex h-16 items-end gap-1.5">
-        {values.map((n, i) => (
-          <div
-            key={i}
-            className={`relative flex-1 rounded-t ${over?.[i] ? "bg-danger/40" : "bg-accent/30"}`}
-            style={{ height: `${Math.max(4, (Math.max(0, n) / max) * 64)}px` }}
-            title={whole(n)}
-          >
-            {lines ? (
-              <i
-                className="absolute -left-0.5 -right-0.5 border-t-2 border-foreground"
-                style={{
-                  bottom: `${(lines[i] / max) * 64 - 1}px`,
-                  top: "auto",
-                }}
-              />
-            ) : null}
-          </div>
-        ))}
-      </div>
-      <div className="mt-1 flex gap-1.5 text-[10px] text-muted">
-        {labels.map((l, i) => (
-          <span key={i} className="flex-1 text-center">
-            {l}
-          </span>
-        ))}
-      </div>
-    </div>
-  );
-}
+const OUT_COLOR = {
+  BILLS: "#8a97b8",
+  DEBT: "#6f8fe8",
+  ESSENTIAL: "#9fb4f0",
+  FLEXIBLE: "#e3a35a",
+  UNPLANNED: "#d97d9b",
+} as const;
+const OUT_NAME = {
+  BILLS: "Bills",
+  DEBT: "0% payment",
+  ESSENTIAL: "Essentials",
+  FLEXIBLE: "Extras",
+  UNPLANNED: "Unplanned",
+} as const;
 
-function History({
-  c,
-  checking,
-}: {
-  c: PaymentChoice;
-  checking: PaymentsView["checkingHistory"];
-}) {
-  const h = c.history;
-  const overCount = h.filter((x) => x.chargedCents > x.plannedCents).length;
-  const change =
-    checking.length > 1
-      ? checking[checking.length - 1].cents - checking[0].cents
-      : 0;
+/** Each past period: what came in beside what went out (by kind), the plan, and the net. */
+function Cycles({ cycles }: { cycles: PaymentsView["cycles"] }) {
+  const H = 120;
+  const outOf = (x: PaymentsView["cycles"][number]) =>
+    x.out.reduce((t, o) => t + o.cents, 0);
+  const max = Math.max(
+    1,
+    ...cycles.flatMap((x) => [x.incomeCents, outOf(x), x.planCents]),
+  );
+  const nets = cycles.map((x) => x.incomeCents - outOf(x));
+  const shortCount = nets.filter((n) => n < 0).length;
+  const total = nets.reduce((t, n) => t + n, 0);
   const mon = (iso: string) =>
     new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", {
       month: "short",
       timeZone: "UTC",
     });
   return (
-    <div className={`${card} grid grid-cols-2 gap-4`}>
-      <div>
-        <div className="flex items-center gap-2">
-          <p className={step}>Statements</p>
-          <span className="flex-1" />
-          {h.length ? (
-            <span className="text-xs text-muted">
-              Over {overCount} of {h.length}
-            </span>
-          ) : null}
-        </div>
-        {h.length ? (
-          <div className="mt-2">
-            <Bars
-              values={h.map((x) => x.chargedCents)}
-              lines={h.map((x) => x.plannedCents)}
-              labels={h.map((x) => mon(x.closedOn))}
-              over={h.map((x) => x.chargedCents > x.plannedCents)}
-            />
-          </div>
-        ) : (
-          <p className="mt-2 text-xs text-muted">For cards planned by cycle</p>
-        )}
-      </div>
-      <div>
-        <div className="flex items-center gap-2">
-          <p className={step}>Average checking</p>
-          <span className="flex-1" />
-          {checking.length > 1 ? (
-            <span
-              className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${change < 0 ? "bg-danger-soft text-danger" : "bg-ok-soft text-ok"}`}
-            >
-              {signed(change)}
-            </span>
-          ) : null}
-        </div>
-        {checking.length ? (
-          <div className="mt-2">
-            <Bars
-              values={checking.map((x) => x.cents)}
-              labels={checking.map((x) => mon(x.on))}
-            />
-          </div>
+    <div className={card}>
+      <div className="flex items-center gap-2">
+        <p className={step}>Cycles</p>
+        <span className="flex-1" />
+        {cycles.length ? (
+          <span className="text-xs text-muted">
+            Short {shortCount} of {cycles.length} · {signed(total)} in all
+          </span>
         ) : null}
+      </div>
+      <div
+        className="mt-3 flex items-end gap-3 border-b border-line"
+        style={{ height: H + 2 }}
+      >
+        {cycles.map((x) => {
+          const out = outOf(x);
+          return (
+            <div
+              key={x.to}
+              className="relative flex h-full flex-1 items-end gap-0.5"
+              title={`${short(x.from)} – ${short(x.to)}`}
+            >
+              <div
+                className="flex-1 rounded-t border-2 border-b-0 border-ok bg-ok-soft"
+                style={{ height: (x.incomeCents / max) * H }}
+                title={`Income ${whole(x.incomeCents)}`}
+              />
+              <div
+                className="flex flex-1 flex-col-reverse overflow-hidden rounded-t"
+                style={{ height: (out / max) * H }}
+              >
+                {x.out.map((o) =>
+                  o.cents > 0 ? (
+                    <div
+                      key={o.key}
+                      style={{
+                        height: `${(o.cents / Math.max(1, out)) * 100}%`,
+                        background: OUT_COLOR[o.key],
+                      }}
+                      title={`${OUT_NAME[o.key]} ${whole(o.cents)}`}
+                    />
+                  ) : null,
+                )}
+              </div>
+              <i
+                className="absolute -left-0.5 -right-0.5 border-t-2 border-dashed border-foreground"
+                style={{ bottom: (x.planCents / max) * H }}
+                title={`Plan ${whole(x.planCents)}`}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1 flex gap-3 text-center text-[11px] text-muted">
+        {cycles.map((x) => (
+          <span key={x.to} className="flex-1">
+            {mon(x.to)}
+          </span>
+        ))}
+      </div>
+      <div className="flex gap-3 text-center text-xs font-bold tnum">
+        {nets.map((n, i) => (
+          <span
+            key={i}
+            className={`flex-1 whitespace-nowrap ${n < 0 ? "text-danger" : "text-ok"}`}
+          >
+            {(n < 0 ? "−" : "+") +
+              "$" +
+              (Math.abs(n) >= 100_000
+                ? `${(Math.abs(n) / 100_000).toFixed(1)}k`
+                : Math.round(Math.abs(n) / 100).toString())}
+          </span>
+        ))}
+      </div>
+      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted">
+        <span className="inline-flex items-center gap-1">
+          <i className="inline-block h-2.5 w-2.5 rounded-sm border-2 border-ok bg-ok-soft" />
+          Income
+        </span>
+        {(Object.keys(OUT_COLOR) as Array<keyof typeof OUT_COLOR>).map((k) => (
+          <span key={k} className="inline-flex items-center gap-1">
+            <i
+              className="inline-block h-2.5 w-2.5 rounded-sm"
+              style={{ background: OUT_COLOR[k] }}
+            />
+            {OUT_NAME[k]}
+          </span>
+        ))}
+        <span className="inline-flex items-center gap-1">
+          <i className="inline-block w-3.5 border-t-2 border-dashed border-foreground" />
+          Plan
+        </span>
       </div>
     </div>
   );

@@ -349,7 +349,7 @@ async function Data() {
   return (
     <div className="space-y-6">
       <div>
-        <SectionHeading title="Import & Export" />
+        <SectionHeading title="Data Imports & Exports" />
         <Importer batches={batches} />
       </div>
 

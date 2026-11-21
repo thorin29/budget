@@ -1,6 +1,6 @@
 "use client";
 
-/** Import & Export › Changes file: pick the file, check every step, pick where the open ones go, apply. */
+/** Data Imports & Exports › Changes file: pick the file, check every step, pick where the open ones go, apply. */
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";

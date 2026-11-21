@@ -122,7 +122,7 @@ function SectionLines({ s, closed, label, perDayLeft }: { s: CardSection; closed
 }
 
 /** The By card tab: one row per card (and checking), each opening to its sections and budgets. */
-export function CardsTable({ cards, closed, monthEnd, statementLinks }: { cards: CardRow[]; closed: boolean; monthEnd: string; statementLinks: Record<string, string> }) {
+export function CardsTable({ cards, closed, monthEnd }: { cards: CardRow[]; closed: boolean; monthEnd: string }) {
   const total = { spent: cards.reduce((t, c) => t + c.spentCents, 0), budget: cards.reduce((t, c) => t + c.budgetCents, 0), projected: cards.reduce((t, c) => t + c.projectedCents, 0) };
   return (
     <Card>
@@ -146,11 +146,6 @@ export function CardsTable({ cards, closed, monthEnd, statementLinks }: { cards:
               .map((s) => (
                 <SectionLines key={s.tier} s={s} closed={closed} label={s.tier === "BILLS" && r.kind === "promo" ? "Debt payment" : undefined} />
               ))}
-            {statementLinks[r.key] ? (
-              <Link href={statementLinks[r.key]} scroll={false} className="ml-12 mt-1 inline-block text-xs font-semibold text-accent-text hover:underline">
-                See this card by statement →
-              </Link>
-            ) : null}
           </div>
         </details>
       ))}
@@ -294,6 +289,8 @@ export function StatementTable({ v }: { v: StatementView }) {
             </summary>
             {bills ? (
               <BillLines bills={s.bills} />
+            ) : s.groups.length === 0 ? (
+              <p className="py-1.5 pl-6 text-sm text-muted">{s.tier === "UNPLANNED" ? "No unplanned charges yet" : "No charges yet"}</p>
             ) : (
               s.groups.map((g) => (
                 <div key={g.id} className={`${GRID} border-b border-line/60 py-1.5 text-sm`}>

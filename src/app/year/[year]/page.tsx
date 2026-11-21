@@ -203,7 +203,7 @@ export default async function YearPage({ params }: { params: Promise<{ year: str
         <EmptyState>
           Nothing planned or recorded in {year}. Import an old workbook under{" "}
           <Link href="/settings/data" className="font-semibold text-accent-text hover:underline">
-            Settings → Import &amp; export
+            Settings → Data Imports &amp; Exports
           </Link>
           .
         </EmptyState>

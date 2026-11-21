@@ -1,7 +1,12 @@
 import { monthSplit } from "@/server/pay-split";
 import Link from "next/link";
-import { getLineItem, lineItemHistory, listLineItems } from "@/server/line-items";
+import {
+  getLineItem,
+  lineItemHistory,
+  listLineItems,
+} from "@/server/line-items";
 import { getTrackerMonth } from "@/server/tracker-month";
+import { cardPaymentLines } from "@/server/statement-plan";
 import { sameNameTags } from "@/lib/same-names";
 import { listAccounts } from "@/server/accounts";
 import { listCategories } from "@/server/categories";
@@ -70,7 +75,9 @@ const BLANK: LineItemDefaults = {
   active: true,
 };
 
-async function loadEditing(edit: string | undefined): Promise<LineItemDefaults | null> {
+async function loadEditing(
+  edit: string | undefined,
+): Promise<LineItemDefaults | null> {
   if (!edit) return null;
   if (edit === "new") return BLANK;
   try {
@@ -88,13 +95,25 @@ async function loadEditing(edit: string | undefined): Promise<LineItemDefaults |
       paidFromSurplus: item.paidFromSurplus,
       autoRecord: item.autoRecord,
       paysCard: item.paysCardLocked ? (item.paysCardId ?? "none") : "auto",
-      paysCardLearned: !item.paysCardLocked && item.paysCardId ? item.paysCardId : null,
-      payoffMode: item.payoffAccountId ? "account" : item.payoffBalanceCents !== null ? "balance" : "none",
-      payoffBalance: item.payoffBalanceCents !== null ? toDecimalString(item.payoffBalanceCents) : "",
+      paysCardLearned:
+        !item.paysCardLocked && item.paysCardId ? item.paysCardId : null,
+      payoffMode: item.payoffAccountId
+        ? "account"
+        : item.payoffBalanceCents !== null
+          ? "balance"
+          : "none",
+      payoffBalance:
+        item.payoffBalanceCents !== null
+          ? toDecimalString(item.payoffBalanceCents)
+          : "",
       payoffAsOf: item.payoffAsOf ?? "",
       payoffAccountId: item.payoffAccountId,
-      payoffApr: item.payoffAprBps !== null ? String(item.payoffAprBps / 100) : "",
-      payoffEscrow: item.payoffEscrowCents !== null ? toDecimalString(item.payoffEscrowCents) : "",
+      payoffApr:
+        item.payoffAprBps !== null ? String(item.payoffAprBps / 100) : "",
+      payoffEscrow:
+        item.payoffEscrowCents !== null
+          ? toDecimalString(item.payoffEscrowCents)
+          : "",
       payoffSummary: null,
       paydayNumber: item.paydayNumber,
       periodAssignment: item.periodAssignment,
@@ -124,7 +143,16 @@ export default async function LineItemsPage({
   const query = await searchParams;
   const showInactive = query.show === "all";
 
-  const [items, accounts, categories, paySchedules, settings, editing, payoffs, loans] = await Promise.all([
+  const [
+    items,
+    accounts,
+    categories,
+    paySchedules,
+    settings,
+    editing,
+    payoffs,
+    loans,
+  ] = await Promise.all([
     listLineItems({ includeInactive: true }),
     listAccounts({ includeInactive: true }),
     listCategories({ includeInactive: true }),
@@ -132,25 +160,73 @@ export default async function LineItemsPage({
     getSettings(),
     loadEditing(query.edit),
     listPayoffs(),
-    prisma.bankAccount.findMany({ where: { hidden: false, type: { in: ["LOAN", "MORTGAGE", "OTHER"] } }, select: { id: true, name: true, nickname: true } }) as Promise<
-      Array<{ id: string; name: string; nickname: string | null }>
-    >,
+    prisma.bankAccount.findMany({
+      where: { hidden: false, type: { in: ["LOAN", "MORTGAGE", "OTHER"] } },
+      select: { id: true, name: true, nickname: true },
+    }) as Promise<Array<{ id: string; name: string; nickname: string | null }>>,
   ]);
   const payoffById = new Map(payoffs.map((p) => [p.lineItemId, p]));
   const lineHistory = editing?.id ? await lineItemHistory(editing.id) : null;
-  const otherItems = editing?.id ? items.filter((i) => i.id !== editing.id && i.kind === editing.kind).map((i) => ({ id: i.id, name: i.name, active: i.active })) : [];
-  const amountHistory = editing?.id ? { id: editing.id, ...(await billAmountHistory(editing.id).catch(() => null)) } : null;
+  const otherItems = editing?.id
+    ? items
+        .filter((i) => i.id !== editing.id && i.kind === editing.kind)
+        .map((i) => ({ id: i.id, name: i.name, active: i.active }))
+    : [];
+  const amountHistory = editing?.id
+    ? {
+        id: editing.id,
+        ...(await billAmountHistory(editing.id).catch(() => null)),
+      }
+    : null;
 
   const accountName = new Map(accounts.map((a) => [a.id, a.name]));
   // Halves follow this month's split, which may come from the pay calendar.
   const now = new Date();
-  const { splitDay } = await monthSplit(now.getUTCFullYear(), now.getUTCMonth() + 1, settings);
+  const { splitDay } = await monthSplit(
+    now.getUTCFullYear(),
+    now.getUTCMonth() + 1,
+    settings,
+  );
+  // Card payments set from each card's statement: the next one due.
+  const nextM = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1),
+  );
+  const nextLines = await cardPaymentLines(
+    nextM.getUTCFullYear(),
+    nextM.getUTCMonth() + 1,
+  ).catch(() => new Map<string, number>());
+  const fromStatement = new Map(
+    [...nextLines].map(([id, cents]) => [
+      id,
+      {
+        cents,
+        month: nextM.toLocaleString("en-US", {
+          month: "short",
+          timeZone: "UTC",
+        }),
+      },
+    ]),
+  );
   // This month's amount where it isn't the usual one (a one-month change, or a card's statement).
-  const tracker = await getTrackerMonth(now.getUTCFullYear(), now.getUTCMonth() + 1).catch(() => null);
+  const tracker = await getTrackerMonth(
+    now.getUTCFullYear(),
+    now.getUTCMonth() + 1,
+  ).catch(() => null);
   const thisMonth = new Map(
     tracker
-      ? [...tracker.halves[0].entries, ...tracker.halves[1].entries, ...tracker.surplusItems, ...tracker.income]
-          .filter((e) => !e.carriedFrom && !e.skipped && e.year === tracker.year && e.month === tracker.month)
+      ? [
+          ...tracker.halves[0].entries,
+          ...tracker.halves[1].entries,
+          ...tracker.surplusItems,
+          ...tracker.income,
+        ]
+          .filter(
+            (e) =>
+              !e.carriedFrom &&
+              !e.skipped &&
+              e.year === tracker.year &&
+              e.month === tracker.month,
+          )
           .map((e) => [e.lineItemId, e] as const)
       : [],
   );
@@ -159,7 +235,8 @@ export default async function LineItemsPage({
   const shownName = sameNameTags(items);
   const visible = showInactive ? items : items.filter((i) => i.active);
   const base = showInactive ? "/line-items?show=all" : "/line-items";
-  const join = (extra: string) => `${base}${base.includes("?") ? "&" : "?"}${extra}`;
+  const join = (extra: string) =>
+    `${base}${base.includes("?") ? "&" : "?"}${extra}`;
 
   const groups = (["BILL", "SETTLEMENT", "INCOME"] as const)
     .map((kind) => ({ kind, items: visible.filter((i) => i.kind === kind) }))
@@ -172,8 +249,13 @@ export default async function LineItemsPage({
         action={
           <div className="flex items-center gap-2">
             {inactiveCount > 0 ? (
-              <Link href={showInactive ? "/line-items" : "/line-items?show=all"} className={buttonClass("ghost")}>
-                {showInactive ? "Hide inactive" : `Show inactive (${inactiveCount})`}
+              <Link
+                href={showInactive ? "/line-items" : "/line-items?show=all"}
+                className={buttonClass("ghost")}
+              >
+                {showInactive
+                  ? "Hide inactive"
+                  : `Show inactive (${inactiveCount})`}
               </Link>
             ) : null}
             <Link href={join("edit=new")} className={buttonClass("primary")}>
@@ -183,29 +265,53 @@ export default async function LineItemsPage({
         }
       />
 
-      <BillOptions accounts={accounts.filter((a) => a.kind === "BANK" && a.active).map((a) => ({ id: a.id, name: a.name }))} billsAccountId={settings.billsAccountId} horizonDays={settings.horizonDays} carryMonths={settings.carryMonths} />
+      <BillOptions
+        accounts={accounts
+          .filter((a) => a.kind === "BANK" && a.active)
+          .map((a) => ({ id: a.id, name: a.name }))}
+        billsAccountId={settings.billsAccountId}
+        horizonDays={settings.horizonDays}
+        carryMonths={settings.carryMonths}
+      />
 
-      {query.merged ? <p className="mb-3 rounded-xl bg-ok-soft px-4 py-2.5 text-sm text-ok">{query.merged.slice(0, 200)}</p> : null}
+      {query.merged ? (
+        <p className="mb-3 rounded-xl bg-ok-soft px-4 py-2.5 text-sm text-ok">
+          {query.merged.slice(0, 200)}
+        </p>
+      ) : null}
 
       {items.length === 0 ? (
         <EmptyState>
-          Nothing added yet. Start with the bills you pay every month — the irregular ones are easier
-          once the shape is familiar.
+          Nothing added yet. Start with the bills you pay every month — the
+          irregular ones are easier once the shape is familiar.
         </EmptyState>
       ) : (
         <div className="space-y-6">
           {groups.map((group) => (
-            <section key={group.kind} className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card">
+            <section
+              key={group.kind}
+              className="overflow-hidden rounded-2xl border border-line bg-surface shadow-card"
+            >
               <div className="flex items-baseline justify-between border-b border-line bg-sunken px-5 py-2.5">
                 <h2 className="font-sans text-[13px] font-semibold uppercase tracking-wide text-neutral">
                   {KIND_LABELS[group.kind]}
                 </h2>
                 <p className="tnum text-xs text-muted">
-                  {group.items.length} · {formatCents(group.items.filter((i) => i.active).reduce((s, i) => s + i.plannedAmountCents, 0))} usual
+                  {group.items.length} ·{" "}
+                  {formatCents(
+                    group.items
+                      .filter((i) => i.active)
+                      .reduce((s, i) => s + i.plannedAmountCents, 0),
+                  )}{" "}
+                  usual
                 </p>
               </div>
               {group.items.map((item) => {
-                const half = halfFor(item.dueDay, item.periodAssignment, splitDay);
+                const half = halfFor(
+                  item.dueDay,
+                  item.periodAssignment,
+                  splitDay,
+                );
                 return (
                   <Link
                     key={item.id}
@@ -214,36 +320,74 @@ export default async function LineItemsPage({
                     className="flex items-center gap-4 border-b border-line px-5 py-3 transition last:border-b-0 hover:bg-sunken"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className={`truncate text-sm font-semibold ${item.active ? "" : "text-muted line-through"}`}>
+                      <p
+                        className={`truncate text-sm font-semibold ${item.active ? "" : "text-muted line-through"}`}
+                      >
                         {shownName.get(item.id) ?? item.name}
                       </p>
                       <p className="mt-0.5 truncate text-xs text-muted">
                         {[
                           item.dueDay ? `Day ${item.dueDay}` : null,
-                          item.paidFromId ? accountName.get(item.paidFromId) : null,
-                          item.categoryId ? categoryName.get(item.categoryId) : null,
-                          payoffById.has(item.id) ? payoffLine(payoffById.get(item.id)!, formatCents) : null,
+                          item.paidFromId
+                            ? accountName.get(item.paidFromId)
+                            : null,
+                          item.categoryId
+                            ? categoryName.get(item.categoryId)
+                            : null,
+                          payoffById.has(item.id)
+                            ? payoffLine(payoffById.get(item.id)!, formatCents)
+                            : null,
                         ]
                           .filter(Boolean)
                           .join(" · ")}
                       </p>
                     </div>
                     <span className="hidden gap-1.5 sm:flex">
-                      <Pill tone="neutral">{SCHEDULE_LABELS[item.scheduleKind]}</Pill>
+                      <Pill tone="neutral">
+                        {SCHEDULE_LABELS[item.scheduleKind]}
+                      </Pill>
                       {item.kind === "INCOME" ? null : item.paidFromSurplus ? (
                         <Pill tone="info">From what&rsquo;s left</Pill>
                       ) : (
-                        <Pill tone="neutral">{half === 0 ? "1st half" : "2nd half"}</Pill>
+                        <Pill tone="neutral">
+                          {half === 0 ? "1st half" : "2nd half"}
+                        </Pill>
                       )}
                       {item.active ? null : <Pill tone="warn">Inactive</Pill>}
                     </span>
                     <span className="w-28 shrink-0 text-right">
-                      <span className="tnum block text-sm font-semibold">{formatCents(item.plannedAmountCents)}</span>
-                      {(() => {
-                        const e = thisMonth.get(item.id);
-                        if (!e || !item.active || e.budgetedCents === item.plannedAmountCents) return null;
-                        return <span className="tnum block text-xs text-muted">{formatCents(e.budgetedCents)} {e.fromStatement ? "statement" : "this month"}</span>;
-                      })()}
+                      {fromStatement.has(item.id) ? (
+                        <>
+                          <span className="block text-sm font-semibold">
+                            Statement
+                          </span>
+                          <span className="tnum block text-xs text-muted">
+                            {formatCents(fromStatement.get(item.id)!.cents)} in{" "}
+                            {fromStatement.get(item.id)!.month}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="tnum block text-sm font-semibold">
+                          {formatCents(item.plannedAmountCents)}
+                        </span>
+                      )}
+                      {fromStatement.has(item.id)
+                        ? null
+                        : (() => {
+                            const e = thisMonth.get(item.id);
+                            if (
+                              !e ||
+                              !item.active ||
+                              e.budgetedCents === item.plannedAmountCents
+                            )
+                              return null;
+                            return (
+                              <span className="tnum block text-xs text-muted">
+                                {formatCents(e.budgetedCents)}{" "}
+                                {e.fromStatement ? "statement" : "this month"}
+                              </span>
+                            );
+                          })()}
                     </span>
                   </Link>
                 );
@@ -254,7 +398,10 @@ export default async function LineItemsPage({
       )}
 
       {editing ? (
-        <Drawer closeHref={base} title={editing.id ? editing.name : "New line item"}>
+        <Drawer
+          closeHref={base}
+          title={editing.id ? editing.name : "New line item"}
+        >
           <LineItemForm
             key={editing.id ?? "new"}
             action={editing.id ? updateLineItemAction : createLineItemAction}
@@ -267,17 +414,34 @@ export default async function LineItemsPage({
               .filter((a) => a.active || a.id === editing.paidFromId)
               .map((a) => ({ id: a.id, name: a.name }))}
             cards={accounts
-              .filter((a) => a.kind === "CREDIT_CARD" && (a.active || a.id === editing.chargedToId))
+              .filter(
+                (a) =>
+                  a.kind === "CREDIT_CARD" &&
+                  (a.active || a.id === editing.chargedToId),
+              )
               .map((a) => ({ id: a.id, name: a.name }))}
             lineHistory={lineHistory}
             otherItems={otherItems}
-            amountHistory={amountHistory && "runs" in amountHistory ? (amountHistory as never) : null}
+            amountHistory={
+              amountHistory && "runs" in amountHistory
+                ? (amountHistory as never)
+                : null
+            }
             paySchedules={paySchedules.map((p) => ({ id: p.id, name: p.name }))}
-            loans={loans.map((l) => ({ id: l.id, name: l.nickname || displayAccountName(l.name) }))}
+            loans={loans.map((l) => ({
+              id: l.id,
+              name: l.nickname || displayAccountName(l.name),
+            }))}
             defaults={{
               ...editing,
-              payoffSummary: editing.id && payoffById.has(editing.id) ? payoffLine(payoffById.get(editing.id)!, formatCents) : null,
-              paysCardLearned: editing.paysCardLearned ? (accounts.find((a) => a.id === editing.paysCardLearned)?.name ?? null) : null,
+              payoffSummary:
+                editing.id && payoffById.has(editing.id)
+                  ? payoffLine(payoffById.get(editing.id)!, formatCents)
+                  : null,
+              paysCardLearned: editing.paysCardLearned
+                ? (accounts.find((a) => a.id === editing.paysCardLearned)
+                    ?.name ?? null)
+                : null,
             }}
           />
         </Drawer>

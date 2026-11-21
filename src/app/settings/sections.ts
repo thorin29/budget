@@ -9,7 +9,7 @@ export const SECTIONS = [
   { slug: "appearance", label: "Appearance" },
   { slug: "pay", label: "Pay Settings" },
   { slug: "bank", label: "Bridge Connectivity" },
-  { slug: "data", label: "Import & Export" },
+  { slug: "data", label: "Data Imports & Exports" },
   { slug: "about", label: "About" },
 ] as const;
 
@@ -41,7 +41,7 @@ export const GROUPS: Array<{ title: string; items: NavEntry[] }> = [
   {
     title: "System",
     items: [
-      { href: "/settings/data", label: "Import & Export", detail: "JSON & CSV files" },
+      { href: "/settings/data", label: "Data Imports & Exports", detail: "JSON & CSV files" },
       { href: "/settings/security", label: "User Accounts", detail: "Passwords, devices, sessions" },
       { href: "/settings/appearance", label: "Appearance", detail: "Color themes, light/dark mode" },
       { href: "/settings/about", label: "About", detail: "" },

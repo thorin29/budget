@@ -3,6 +3,22 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.103.3]
+
+Includes the 0.102.1 changes again (Settings "Data Imports & Exports", the By card link removed,
+empty statement sections say so), in case that release was skipped.
+
+### Added
+- **Cycles** chart on Payments (it replaces the statements and average-checking charts): each of
+  the last six periods (the cycle card's statements, or months) with what came in beside what went
+  out (bills, the 0% payment, Essentials, Extras, Unplanned), the plan, and the net under each.
+- **Changes file:** `addBill` adds a bill, paycheck or card payment (some months only with
+  `months`, starting later with `from`, paying a card with `paysCard`).
+
+### Changed
+- Bills & Income: a card payment set from its statement shows "Statement" and the amount due next
+  month instead of a fixed usual amount.
+
 ## [0.103.2]
 
 ### Changed
