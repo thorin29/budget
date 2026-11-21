@@ -53,3 +53,8 @@ export async function setBudgetAction(groupId: string, cents: number): Promise<P
   const { setLimits } = await import("@/server/envelopes");
   return run(() => setLimits({ [String(groupId)]: Math.round(Number(cents)) }), "Budget set.");
 }
+
+export async function snoozeOverAction(groupId: string, limitCents: number): Promise<PayState> {
+  const { snoozeOver } = await import("@/server/budget-changes");
+  return run(() => snoozeOver(String(groupId), Math.round(Number(limitCents))), "Hidden for 3 months");
+}

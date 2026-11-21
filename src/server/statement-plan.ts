@@ -229,10 +229,10 @@ export async function statementDueIn(env: Env, st: Status, closeDay: number, ym:
   const last = Number(monthEnd(closeYm).slice(8, 10));
   const close = `${closeYm}-${String(Math.min(closeDay, last)).padStart(2, "0")}`;
   if (close < st.lastClose) return null;
-  if (close === st.lastClose) {
-    const set = (await plannedPayments())[paymentKey.card(st.id, close)];
-    return set ? set.cents : st.statementCents;
-  }
+  // A payment set on the Payments page wins.
+  const set = (await plannedPayments())[paymentKey.card(st.id, close)];
+  if (set) return set.cents;
+  if (close === st.lastClose) return st.statementCents;
   const w = windowClosing(close, closeDay);
   const planned = await planCycle(env, st.id, w.from, w.to);
   return Math.max(planned.plannedCents, w.from <= env.plan.today ? st.newChargesCents : 0);

@@ -10,7 +10,7 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import type { CashEvent, PaymentChoice, PaymentsView, Tier } from "@/server/payments";
 import type { BudgetChange } from "@/server/budget-changes";
-import { setBudgetAction, setPaymentAction } from "./actions";
+import { setBudgetAction, setPaymentAction, snoozeOverAction } from "./actions";
 import { changeUsualAmountAction, dismissAmountAction } from "../line-items/actions";
 
 const whole = (c: number) => `${c < 0 ? "−" : ""}$${Math.round(Math.abs(c) / 100).toLocaleString("en-US")}`;
@@ -33,8 +33,9 @@ const btn = "rounded-lg border border-line bg-surface px-3 py-1.5 text-xs font-s
 type Mode = "full" | "adjust" | "other";
 
 export function PaymentsBoard({ v }: { v: PaymentsView }) {
-  const [key, setKey] = useState(v.choices[0]?.key ?? "");
-  const c = v.choices.find((x) => x.key === key) ?? v.choices[0];
+  const chips = v.choices.filter((x) => x.preferred);
+  const [key, setKey] = useState(chips[0]?.key ?? "");
+  const c = v.choices.find((x) => x.key === key) ?? chips[0];
   const [periodIx, setPeriodIx] = useState(v.periods.length > 1 ? 1 : 0);
   const [typedChecking, setTypedChecking] = useState("");
   const [checkingOverride, setCheckingOverride] = useState<number | null>(null);
@@ -54,12 +55,12 @@ export function PaymentsBoard({ v }: { v: PaymentsView }) {
       <div className="flex flex-wrap items-center gap-3">
         <h1 className="font-heading text-[26px] font-bold tracking-tight">Payments</h1>
         <div className="flex flex-wrap gap-1.5">
-          {v.choices.map((x) => (
+          {chips.map((x) => (
             <button
               key={x.key}
               type="button"
               onClick={() => setKey(x.key)}
-              className={`rounded-full border px-3 py-1 text-xs font-semibold ${x.key === c.key ? "border-foreground bg-foreground text-surface" : "border-line bg-surface"}`}
+              className={`rounded-full border px-3 py-1 text-xs font-semibold ${x.group === c.group ? "border-foreground bg-foreground text-surface" : "border-line bg-surface"}`}
             >
               {x.name} <span className="font-normal opacity-75">{short(x.set?.on ?? x.dueOn)}</span>
             </button>
@@ -76,7 +77,7 @@ export function PaymentsBoard({ v }: { v: PaymentsView }) {
         ) : null}
       </div>
 
-      <Choice key={c.key} c={c} v={v} checking={checking}>
+      <Choice key={c.key} c={c} v={v} checking={checking} siblings={v.choices.filter((x) => x.group === c.group)} onCycle={setKey}>
         <div className={card}>
           <p className={step}>Checking balance</p>
           <p className="mt-1 text-xs text-muted">{checkingOverride !== null ? "Typed in" : v.checking.asOf ? `From the bank · ${new Date(v.checking.asOf).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : "From the bank"}</p>
@@ -110,7 +111,7 @@ export function PaymentsBoard({ v }: { v: PaymentsView }) {
 }
 
 /** The three columns for one payment. Keyed by the payment, so switching starts it fresh. */
-function Choice({ c, v, checking, children }: { c: PaymentChoice; v: PaymentsView; checking: number | null; children: React.ReactNode }) {
+function Choice({ c, v, checking, siblings, onCycle, children }: { c: PaymentChoice; v: PaymentsView; checking: number | null; siblings: PaymentChoice[]; onCycle: (key: string) => void; children: React.ReactNode }) {
   const [mode, setMode] = useState<Mode>("full");
   const [adjust, setAdjust] = useState("");
   const [other, setOther] = useState(c.set ? (c.set.cents / 100).toFixed(2) : "");
@@ -122,7 +123,8 @@ function Choice({ c, v, checking, children }: { c: PaymentChoice; v: PaymentsVie
   const left = (n: number) => Math.max(0, n - c.paidCents);
   const payCents = mode === "other" ? (toCentsInput(other) ?? 0) : left(statementCents);
   const isCard = c.kind === "card";
-  const fullLabel = isCard ? "Full statement" : c.kind === "debt" ? "Planned payment" : "Usual amount";
+  const open = c.cycle === "open";
+  const fullLabel = open ? "Planned statement" : isCard ? "Full statement" : c.kind === "debt" ? "Planned payment" : "Usual amount";
 
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
@@ -132,10 +134,20 @@ function Choice({ c, v, checking, children }: { c: PaymentChoice; v: PaymentsVie
           <div className="flex items-center gap-2">
             <p className={step}>What to pay</p>
             <span className="flex-1" />
-            {c.paidCents > 0 ? <span className="text-xs text-muted">{exact(c.paidCents)} paid</span> : null}
+            {open && c.balanceCents !== null ? <span className="text-xs text-muted">{exact(c.balanceCents)} so far</span> : c.paidCents > 0 ? <span className="text-xs text-muted">{c.paidCents >= c.fullCents ? "Paid" : `${exact(c.paidCents)} paid`}</span> : null}
           </div>
+          {siblings.length > 1 ? (
+            <div className="mt-2 inline-flex overflow-hidden rounded-lg border border-line text-xs font-semibold">
+              {siblings.map((x) => (
+                <button key={x.key} type="button" onClick={() => onCycle(x.key)} className={`px-2.5 py-1 ${x.key === c.key ? "bg-foreground text-surface" : ""}`}>
+                  {x.statement ? `${short(x.statement.from)} – ${short(x.statement.to)}` : short(x.dueOn)}
+                  {x.cycle === "closed" && x.paidCents >= x.fullCents ? " · Paid" : ""}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <Option on={mode === "full"} onPick={() => setMode("full")} label={fullLabel} right={<b className="tnum">{exact(c.fullCents)}</b>} />
-          {isCard ? (
+          {isCard && !open ? (
             <Option on={mode === "adjust"} onPick={() => setMode("adjust")} label="Adjust statement" sub="Use this if the full statement doesn't match the actual statement" right={<input className={input} inputMode="decimal" placeholder="$0.00" value={adjust} onFocus={() => setMode("adjust")} onChange={(e) => setAdjust(e.target.value)} aria-label="Actual statement" />} />
           ) : null}
           <Option on={mode === "other"} onPick={() => setMode("other")} label="Other amount" right={<input className={input} inputMode="decimal" placeholder="$0.00" value={other} onFocus={() => setMode("other")} onChange={(e) => setOther(e.target.value)} aria-label="Other amount" />} />
@@ -164,7 +176,7 @@ function Choice({ c, v, checking, children }: { c: PaymentChoice; v: PaymentsVie
       <Impacts c={c} v={v} checking={checking} payCents={payCents} on={on} />
 
       <div className="flex min-w-0 flex-col gap-3">
-        {c.statement ? <PlannedVsActual c={c} statementCents={statementCents} /> : null}
+        {c.statement ? <PlannedVsActual c={c} statementCents={open ? (c.balanceCents ?? 0) : statementCents} /> : null}
         <Changes changes={v.changes} />
       </div>
     </div>
@@ -281,7 +293,7 @@ function Impacts({ c, v, checking, payCents, on }: { c: PaymentChoice; v: Paymen
 
 function PlannedVsActual({ c, statementCents }: { c: PaymentChoice; statementCents: number }) {
   const s = c.statement!;
-  const other = s.otherCents + (statementCents - c.fullCents);
+  const other = s.otherCents + (c.cycle === "open" ? 0 : statementCents - c.fullCents);
   const rows: Array<{ label: string; planned: number | null; actual: number }> = [
     ...s.rows.map((r) => ({ label: TIER_NAME[r.tier], planned: r.plannedCents, actual: r.actualCents })),
     ...(other ? [{ label: "Other", planned: null, actual: other }] : []),
@@ -296,7 +308,7 @@ function PlannedVsActual({ c, statementCents }: { c: PaymentChoice; statementCen
         <p className={step}>Planned vs actual</p>
         <span className="flex-1" />
         <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${charges > s.plannedCents ? "bg-danger-soft text-danger" : "bg-ok-soft text-ok"}`}>
-          {charges > s.plannedCents ? `${whole(charges - s.plannedCents)} over` : `${whole(s.plannedCents - charges)} under`}
+          {charges > s.plannedCents ? `${whole(charges - s.plannedCents)} over` : `${whole(s.plannedCents - charges)} ${c.cycle === "open" ? "left" : "under"}`}
         </span>
       </div>
       <p className="mt-1 text-xs text-muted">
@@ -324,7 +336,7 @@ function PlannedVsActual({ c, statementCents }: { c: PaymentChoice; statementCen
             );
           })}
           <tr className="border-t border-line font-bold">
-            <td className="py-1">Statement</td>
+            <td className="py-1">{c.cycle === "open" ? "Balance so far" : "Statement"}</td>
             <td className="tnum py-1 text-right">{whole(s.plannedCents)}</td>
             <td className="tnum py-1 text-right">{whole(statementCents)}</td>
             <td className={`tnum py-1 text-right ${over > 0 ? "text-danger" : "text-ok"}`}>{over ? signed(over) : ""}</td>
@@ -390,9 +402,14 @@ function Changes({ changes }: { changes: BudgetChange[] }) {
                   Set {whole(ch.toCents)}
                 </button>
               ) : (
-                <Link href="/settings/budgets" className={btn}>
-                  Review
-                </Link>
+                <>
+                  <Link href="/settings/budgets" className={btn}>
+                    Review
+                  </Link>
+                  <button type="button" className={btn} disabled={busy} onClick={() => act(id, () => snoozeOverAction(ch.id, ch.limitCents))}>
+                    Skip
+                  </button>
+                </>
               )}
             </li>
           );

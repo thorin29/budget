@@ -21,7 +21,7 @@ import { isExtraIncome } from "@/lib/extra-income";
 import { portionBudget } from "@/lib/statement-portion";
 import { getMonthPlan, dueIso, billTypes, type BillItem, type CardRow as BillCardRow, type MonthPlanView } from "./month-plan";
 import type { MonthEntry } from "./month";
-import { CHECKING, nextClose } from "./card-view";
+import { CHECKING, dueAfter, nextClose } from "./card-view";
 import { statementEnv, planCycle, windowClosing, statementDueIn, cardTerms, type Env } from "./statement-plan";
 import { plannedPayments, paymentKey, type PlannedPayment } from "./planned-payments";
 import { checkingHistory } from "./checking-history";
@@ -49,6 +49,14 @@ export interface PaymentChoice {
   /** The planned-payment key (planned-payments.ts). */
   key: string;
   kind: "card" | "debt" | "bill";
+  /** The card (or the bill) it belongs to: a card has its closed statement and its open one. */
+  group: string;
+  /** Cards: "closed" for the last statement, "open" for the one building now. */
+  cycle: "closed" | "open" | null;
+  /** The one the page opens on for its card: the newest one not paid. */
+  preferred: boolean;
+  /** Open cycles: what the card owes now. */
+  balanceCents: number | null;
   name: string;
   dueOn: string;
   /** The full statement, the month's 0% payment, or the bill's amount. */
@@ -180,8 +188,6 @@ export async function paymentsView(): Promise<PaymentsView> {
     prisma.bankAccount.findMany({ where: { type: "CREDIT_CARD", hidden: false }, select: { id: true, balance: true, statementCloseDay: true } }) as Promise<BankCard[]>,
   ]);
   const { isCardPayment, isDebt } = billTypes(items, cardRows, today);
-  const { billTargets } = await import("./bill-amounts");
-  const targets = await billTargets();
   const debtCents = Math.max(0, plan.debt.cents - plan.debt.extraCents);
   const promo = statuses.filter((s) => s.promoEndsOn && s.promoEndsOn >= today);
   const regular = statuses.filter((s) => !(s.promoEndsOn && s.promoEndsOn >= today));
@@ -209,16 +215,30 @@ export async function paymentsView(): Promise<PaymentsView> {
         close = addDays(win.from, -1);
       }
     }
+    const paidUp = st.dueCents <= 0;
     choices.push({
-      key, kind: "card", name: st.name, dueOn: st.nextDue, fullCents: st.statementCents, paidCents: st.paidSinceCents, set: set[key] ?? null,
+      key, kind: "card", group: st.id, cycle: "closed", preferred: !paidUp, balanceCents: null, name: st.name, dueOn: st.nextDue, fullCents: st.statementCents, paidCents: st.paidSinceCents, set: set[key] ?? null,
       month: st.nextDue.slice(0, 7),
       statement: await statementCheck(env, card, w.from, w.to, st.statementCents),
       history,
     });
+    // The statement building now: its plan, against what's on the card so far.
+    const close = nextClose(st.lastClose);
+    const due = dueAfter(st.nextDue, close);
+    if (due) {
+      const openKey = paymentKey.card(st.id, close);
+      const plannedOpen = await planCycle(env, card.id, addDays(st.lastClose, 1), close);
+      choices.push({
+        key: openKey, kind: "card", group: st.id, cycle: "open", preferred: paidUp, balanceCents: st.owedNowCents, name: st.name, dueOn: due,
+        fullCents: Math.max(plannedOpen.plannedCents, st.owedNowCents), paidCents: 0, set: set[openKey] ?? null, month: due.slice(0, 7),
+        statement: await statementCheck(env, card, addDays(st.lastClose, 1), close, st.owedNowCents),
+        history,
+      });
+    }
   }
   for (const st of promo) {
     const key = paymentKey.debt(st.id, st.nextDue);
-    choices.push({ key, kind: "debt", name: st.name, dueOn: st.nextDue, fullCents: debtCents, paidCents: st.paidSinceCents, set: set[key] ?? null, month: st.nextDue.slice(0, 7), statement: null, history: [] });
+    choices.push({ key, kind: "debt", group: st.id, cycle: null, preferred: true, balanceCents: null, name: st.name, dueOn: st.nextDue, fullCents: debtCents, paidCents: st.paidSinceCents, set: set[key] ?? null, month: st.nextDue.slice(0, 7), statement: null, history: [] });
   }
 
   // ---- Month views through the furthest payday we need.
@@ -229,20 +249,10 @@ export async function paymentsView(): Promise<PaymentsView> {
   for (let ym = today.slice(0, 7); ym <= horizon.slice(0, 7); ym = nextYm(ym)) months.push(ym);
   const views = await Promise.all(months.map((ym) => env.view(ym)));
 
-  // Bills that vary, still to pay and due within a month: choices too.
-  for (const v of views) {
-    for (const e of [...v.halves[0].entries, ...v.halves[1].entries]) {
-      if (e.kind !== "BILL" || !targets.has(e.lineItemId) || e.skipped || e.actualCents !== null || e.carriedFrom) continue;
-      // One charged to a card is part of that card's statement.
-      if ((env.ctx.landing.get(e.lineItemId) ?? CHECKING) !== CHECKING) continue;
-      const due = dueIso(e.year, e.month, e.dueDay);
-      if (due < addDays(today, -3) || due > addDays(today, 31)) continue;
-      const key = paymentKey.bill(e.lineItemId, due);
-      if (choices.some((c) => c.key === key)) continue;
-      choices.push({ key, kind: "bill", name: e.name, dueOn: due, fullCents: e.budgetedCents, paidCents: 0, set: set[key] ?? null, month: due.slice(0, 7), statement: null, history: [] });
-    }
-  }
-  choices.sort((a, b) => (a.kind === "card" ? 0 : a.kind === "debt" ? 1 : 2) - (b.kind === "card" ? 0 : b.kind === "debt" ? 1 : 2) || a.dueOn.localeCompare(b.dueOn));
+  // Cards planned by cycle first, then the other cards by statement, then the 0% card.
+  const rank = (c: PaymentChoice) => (c.kind === "card" ? (cycleCards.has(c.group) ? 0 : 1) : 2);
+  const size = new Map(choices.filter((c) => c.cycle === "closed").map((c) => [c.group, c.fullCents]));
+  choices.sort((a, b) => rank(a) - rank(b) || (size.get(b.group) ?? 0) - (size.get(a.group) ?? 0) || a.group.localeCompare(b.group) || (a.cycle === "closed" ? -1 : 1));
 
   // ---- Cash events from today.
   const events: CashEvent[] = [];
@@ -269,7 +279,7 @@ export async function paymentsView(): Promise<PaymentsView> {
     for (const e of [...v.halves[0].entries, ...v.halves[1].entries]) add(e);
     if (i === 0) for (const e of v.carried) add(e);
   });
-  for (const c of choices.filter((x) => x.kind === "card")) {
+  for (const c of choices.filter((x) => x.cycle === "closed")) {
     const left = Math.max(0, c.fullCents - c.paidCents);
     const cents = c.set?.cents ?? left;
     if (cents > 0) events.push({ date: c.set?.on ?? (c.dueOn < today ? today : c.dueOn), cents: -cents, kind: "card", name: c.name, key: c.key });
@@ -277,10 +287,11 @@ export async function paymentsView(): Promise<PaymentsView> {
   for (const t of terms) {
     // Each card's open statement, at its plan, when it's due before the horizon.
     const close = nextClose(t.st.lastClose);
-    const due = (await import("./card-view")).dueAfter(t.st.nextDue, close);
+    const due = dueAfter(t.st.nextDue, close);
     if (!due || due > horizon) continue;
+    const key = paymentKey.card(t.st.id, close);
     const cents = await statementDueIn(env, t.st, t.closeDay, due.slice(0, 7));
-    if (cents) events.push({ date: due, cents: -cents, kind: "card", name: t.st.name });
+    if (cents) events.push({ date: set[key]?.on ?? due, cents: -cents, kind: "card", name: t.st.name, ...(choices.some((c) => c.key === key) ? { key } : {}) });
   }
   for (const st of promo) {
     let first = true;

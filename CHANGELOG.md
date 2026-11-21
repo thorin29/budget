@@ -3,6 +3,17 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.103.1]
+
+### Changed
+- Payments: a card has two statements to pick from, the last one and the one building now. Once
+  the last one is paid, the page opens on the one building now: its plan as the amount, what's on
+  the card so far, and the month it's due.
+- Payments: cards planned by cycle come first, then the other cards by statement, then the 0% card.
+  Bills are no longer listed (they're paid on their own).
+- Budget changes: a budget isn't called over until three full months after its amount was set.
+  Skip on one hides it for three months, or until its amount changes.
+
 ## [0.103.0]
 
 No migration.
