@@ -1,4 +1,4 @@
-# Budget
+# Ledger
 
 Self-hosted budget planning for recurring bills and income.
 
@@ -11,7 +11,7 @@ Everything runs on your own server against your own PostgreSQL database. Fonts
 are bundled. The only outside requests are optional bank sync's, once you turn it
 on.
 
-> **Status:** v0.99.2. Month view, cash projection, line items, year reports,
+> **Status:** v0.100.0. Month view, cash projection, line items, year reports,
 > import, export, sign-in for up to two people, and a token-secured API for a
 > phone app all work. See `CHANGELOG.md`.
 
@@ -41,7 +41,7 @@ on.
   download.
 - **Import.** Load past years from a converted workbook, reviewed before anything
   is written, and undoable as a batch.
-- **Bank sync (optional).** Connect a SimpleFIN bridge and Budget pulls
+- **Bank sync (optional).** Connect a SimpleFIN bridge and Ledger pulls
   balances and transactions every four hours, read-only. Each account is marked
   Spending, Balance only or Hidden; a bank account can keep the bills balance
   current. Merchant names are cleaned up, transfers between your own accounts
@@ -153,7 +153,7 @@ container runs as an unprivileged user. `DECISIONS.md` has the reasoning.
 
 ### Exposing it
 
-If you put Budget on the internet behind an authenticating proxy, let only
+If you put Ledger on the internet behind an authenticating proxy, let only
 the phone API through without the proxy's sign-in, and nothing else:
 
 ```
@@ -222,7 +222,7 @@ works; SimpleFIN Bridge is allowed by default.
    connecting again.
 2. In your bridge account, connect your institutions, then create a setup token
    for a new app.
-3. In Budget, Settings → Bank sync → paste the token → Connect.
+3. In Ledger, Settings → Bank sync → paste the token → Connect.
 4. Accounts sort themselves by type on the Accounts page. Correct a wrong type
    or hide an account that isn't yours. Under Settings → Planning, choose which
    bank account the bills balance comes from (picked for you when it's clear).

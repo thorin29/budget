@@ -3,6 +3,25 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.100.0]
+
+No migration. The phone app is unchanged.
+
+### Changed
+- **The app is called Ledger:** the sidebar, sign-in page, browser tab and home-screen name. The
+  repo, the Docker image and the phone app keep their names for now.
+- **Bills paid at the bank but not recorded yet:** a bill whose payment is already in the bank feed
+  (still pending, or posted and waiting to be matched) shows "Pending" instead of due or overdue,
+  and that charge isn't counted as "Needs a category" too. It's found by the merchants that paid
+  the bill before and an amount within 10%.
+- **Overdue** only two days past the due day ("Due yesterday", "Due 2 days ago" before that): the
+  bank feed is often a day or two behind.
+- **Trends:** the "Partial before…" note is gone.
+
+### Fixed
+- A pending loan payment from checking showed as "Needs a category": past payments of the bill had
+  been paired as transfers, so they weren't seen when looking for what pays it.
+
 ## [0.99.2]
 
 No migration. The phone app is unchanged.

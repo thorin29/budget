@@ -33,6 +33,7 @@ import {
   type MonthHalf,
 } from "@/lib/month-model";
 import { getSettings } from "./settings";
+import { attachPendingCharges } from "./bill-pending";
 
 export interface MonthEntry {
   lineItemId: string;
@@ -66,6 +67,8 @@ export interface MonthEntry {
   autoPaid?: boolean;
   /** The payment is tied to a bank charge. */
   bankLinked?: boolean;
+  /** Unpaid, but its payment is already in the bank feed (pending, or waiting to be matched). */
+  pendingCharge?: { txnId: string; cents: number; postedOn: string; pending: boolean };
 }
 
 export interface HalfSummary {
@@ -474,6 +477,7 @@ async function buildMonthView(year: number, month: number): Promise<MonthView> {
   }
 
   const carriedCents = carried.reduce((sum, e) => sum + e.budgetedCents, 0);
+  await attachPendingCharges([...carried, ...thisMonth, ...surplus], new Intl.DateTimeFormat("en-CA", { timeZone: process.env.TZ || "UTC" }).format(new Date()));
 
   const billsBalanceCents = balance ? toCents(balance.amount) : null;
   const billsBalanceFrom = balance ? { year: balance.year, month: balance.month } : null;

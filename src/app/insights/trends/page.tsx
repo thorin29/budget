@@ -15,7 +15,6 @@ import { recentPlans, trendMonth, type TrendMonth } from "@/server/plan-charts";
 import { MonthPicker, TabHeading, monthLabel, monthParam, pickMonth } from "../shared";
 import { formatCents } from "@/lib/money";
 import { Card } from "@/components/ui";
-import { historyStarts } from "@/server/history-coverage";
 
 export const dynamic = "force-dynamic";
 
@@ -397,18 +396,7 @@ export default async function TrendsPage({ searchParams }: { searchParams: Promi
     const months = (await recentPlans(plan, 12)).map(trendMonth);
     const first = months.findIndex((x) => x.incomeCents || x.expensesCents);
     const shown = months.slice(Math.max(0, first));
-    // Accounts whose history starts partway through the months shown: those months are missing their spending.
-    const late = (await historyStarts().catch(() => [])).filter((a) => shown.length && a.firstMonth > shown[0].month);
-    body = (
-      <>
-        {late.length ? (
-          <p className="rounded-xl bg-warn-soft px-3.5 py-2 text-xs text-warn">
-            Partial before {late.map((a) => `${monthLabel(Number(a.firstMonth.slice(0, 4)), Number(a.firstMonth.slice(5, 7)), "short")} (${a.name})`).join(", ")}: no bank history yet for {late.length === 1 ? "that account" : "those accounts"}.
-          </p>
-        ) : null}
-        <MonthsView months={shown} selected={ym} everydayOnly={out === "everyday"} />
-      </>
-    );
+    body = <MonthsView months={shown} selected={ym} everydayOnly={out === "everyday"} />;
   }
 
   const tab = (k: View) => `/insights/trends?view=${k}&m=${ym}`;

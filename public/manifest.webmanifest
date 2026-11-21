@@ -1,6 +1,6 @@
 {
-  "name": "Budget",
-  "short_name": "Budget",
+  "name": "Ledger",
+  "short_name": "Ledger",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#f4f6f8",

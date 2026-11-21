@@ -15,6 +15,7 @@ export const monthName = (ym: string) => new Date(`${ym}-01T00:00:00Z`).toLocale
 export const STATUS: Record<string, { label: string; cls: string }> = {
   paid: { label: "Paid", cls: "bg-ok-soft text-ok" },
   due: { label: "Due", cls: "bg-neutral-soft text-muted ring-1 ring-line" },
+  pending: { label: "Pending", cls: "bg-info-soft text-info" },
   overdue: { label: "Overdue", cls: "bg-danger-soft text-danger" },
   skipped: { label: "Not this month", cls: "bg-neutral-soft text-muted" },
 };

@@ -8,7 +8,7 @@ import { Sidebar } from "@/components/sidebar";
 import { currentUser } from "@/server/auth";
 
 export const metadata: Metadata = {
-  title: "Budget",
+  title: "Ledger",
   manifest: "/manifest.webmanifest",
 };
 

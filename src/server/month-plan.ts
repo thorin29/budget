@@ -18,7 +18,6 @@ import { billCharge } from "./bill-merchants";
 import { ensureGroups, debtSetting, reserveSetting, extraToDebtSetting } from "./envelopes";
 import { cache } from "react";
 import { keepUntilChanged } from "@/lib/data-version";
-import { billLookalike } from "@/lib/bill-lookalike";
 import { isExtraIncome } from "@/lib/extra-income";
 import { loadPaydays } from "./pay-split";
 import { usualFor } from "@/lib/usual";
@@ -59,7 +58,8 @@ export interface PlanBill {
   cents: number;
   /** The bill's budget for the month. */
   budgetedCents: number;
-  status: "paid" | "due" | "overdue" | "skipped";
+  /** "pending": unpaid, but its payment is already in the bank feed. */
+  status: "paid" | "due" | "pending" | "overdue" | "skipped";
   paidOn: string | null;
   /** The month it's from, when it's an unpaid bill carried from an earlier month. */
   from: string | null;
@@ -297,8 +297,10 @@ async function buildMonthPlan(y: number, m: number): Promise<MonthPlanView> {
   const extraIncomeCents = income.filter((e) => e.extra).reduce((s, e) => s + e.cents, 0);
 
   // ---- bills: everything due this month, whole, plus unpaid ones carried from before
+  // Overdue only two days past the due day: the bank feed is often a day or two behind.
+  const lateAfter = new Date(Date.parse(`${today}T00:00:00Z`) - 2 * 86_400_000).toISOString().slice(0, 10);
   const status = (e: MonthEntry): PlanBill["status"] =>
-    e.skipped ? "skipped" : e.actualCents !== null ? "paid" : dueIso(e.year, e.month, e.dueDay) < today ? "overdue" : "due";
+    e.skipped ? "skipped" : e.actualCents !== null ? "paid" : e.pendingCharge ? "pending" : dueIso(e.year, e.month, e.dueDay) < lateAfter ? "overdue" : "due";
   const billItems: PlanBill[] = [];
   const debtEntries: MonthEntry[] = [];
   let cardPaymentsCents = 0;
@@ -320,7 +322,7 @@ async function buildMonthPlan(y: number, m: number): Promise<MonthPlanView> {
   for (const e of closed ? [] : view.carried) {
     if (e.kind === "INCOME" || isCardPayment(e.lineItemId) || e.actualCents !== null || e.skipped) continue;
     billItems.push({
-      lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: e.budgetedCents, budgetedCents: e.budgetedCents, status: "overdue", paidOn: null,
+      lineItemId: e.lineItemId, name: e.name, dueOn: dueIso(e.year, e.month, e.dueDay), cents: e.budgetedCents, budgetedCents: e.budgetedCents, status: e.pendingCharge ? "pending" : "overdue", paidOn: null,
       from: `${e.year}-${String(e.month).padStart(2, "0")}`, category: e.categoryName,
     });
   }
@@ -373,9 +375,9 @@ async function buildMonthPlan(y: number, m: number): Promise<MonthPlanView> {
     m.set(g, inner);
   };
   const monthN = ymn(monthStart);
-  // Charges that look like a bill's payment not matched yet count as the bill (still due), not as spending.
-  const lookalike = billLookalike(txns.filter((t) => t.actual).map((t) => ({ merchant: t.merchant, cents: Math.abs(toCents(t.amount)) })));
-  const billOrLookalike = (t: Txn) => isBill(t) || lookalike({ merchant: t.merchant, cents: toCents(t.amount), categoryId: t.categoryId, linked: !!t.actual });
+  // A bill's payment already in the feed but not recorded counts as the bill (still owed in the plan), not as spending.
+  const billPayments = new Set([...view.halves[0].entries, ...view.halves[1].entries, ...view.carried, ...view.surplusItems].flatMap((e) => (e.pendingCharge ? [e.pendingCharge.txnId] : [])));
+  const billOrLookalike = (t: Txn) => isBill(t) || billPayments.has(t.id);
   for (const t of txns) {
     const parts = everydayParts(t, billOrLookalike, cardNames);
     if (!parts) continue;

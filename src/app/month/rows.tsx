@@ -150,6 +150,8 @@ function statusPill(row: RowEntry): { tone: PillTone; label: string } {
       return { tone: "info", label: "Expected" };
     case "carried":
       return { tone: "danger", label: `Unpaid from ${shortMonth(row.month)}` };
+    case "pending":
+      return { tone: "info", label: row.pendingCharge?.pending ? "Pending" : "Waiting to match" };
     case "overdue":
       return { tone: "danger", label: "Overdue" };
     case "soon":
@@ -158,9 +160,13 @@ function statusPill(row: RowEntry): { tone: PillTone; label: string } {
         label:
           row.daysUntilDue === 0
             ? "Due today"
-            : row.daysUntilDue === 1
-              ? "Due tomorrow"
-              : `Due in ${row.daysUntilDue} days`,
+            : row.daysUntilDue === -1
+              ? "Due yesterday"
+              : (row.daysUntilDue ?? 0) < 0
+                ? `Due ${-(row.daysUntilDue ?? 0)} days ago`
+                : row.daysUntilDue === 1
+                  ? "Due tomorrow"
+                  : `Due in ${row.daysUntilDue} days`,
       };
     default:
       return { tone: "neutral", label: "Upcoming" };

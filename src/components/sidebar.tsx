@@ -82,7 +82,7 @@ function Mark() {
           <rect x="10" y="30" width="16" height="6" rx="3" opacity="0.5" />
         </svg>
       </span>
-      <span className="font-heading text-[17px] font-bold tracking-tight">Budget</span>
+      <span className="font-heading text-[17px] font-bold tracking-tight">Ledger</span>
     </Link>
   );
 }

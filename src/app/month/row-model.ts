@@ -11,6 +11,7 @@ export type RowStatus =
   | "received"
   | "expected"
   | "carried"
+  | "pending"
   | "overdue"
   | "soon"
   | "upcoming";
@@ -37,6 +38,8 @@ export interface RowEntry {
   autoPaid?: boolean;
   bankLinked?: boolean;
   status: RowStatus;
+  /** Unpaid, but its payment is already in the bank feed. */
+  pendingCharge?: { cents: number; postedOn: string; pending: boolean } | null;
   /** Whole days until due; negative when past. Null without a due day. */
   daysUntilDue: number | null;
   /** A bank transaction that probably paid this, waiting for the person to confirm. */
@@ -80,9 +83,12 @@ export function toRow(entry: MonthEntry, today: string): RowEntry {
     status = entry.actualCents === null ? "expected" : "received";
   } else if (entry.actualCents !== null) {
     status = "paid";
+  } else if (entry.pendingCharge) {
+    status = "pending";
   } else if (entry.carriedFrom) {
     status = "carried";
-  } else if (daysUntilDue !== null && daysUntilDue < 0) {
+  } else if (daysUntilDue !== null && daysUntilDue < -2) {
+    // Overdue only two days past due: the bank feed is often a day or two behind.
     status = "overdue";
   } else if (daysUntilDue !== null && daysUntilDue <= 7) {
     status = "soon";
@@ -113,6 +119,7 @@ export function toRow(entry: MonthEntry, today: string): RowEntry {
     autoPaid: entry.autoPaid ?? false,
     bankLinked: entry.bankLinked ?? false,
     status,
+    pendingCharge: entry.pendingCharge ? { cents: entry.pendingCharge.cents, postedOn: entry.pendingCharge.postedOn, pending: entry.pendingCharge.pending } : null,
     daysUntilDue,
   };
 }
