@@ -1,6 +1,6 @@
 /**
  * Review in two columns: action items (bills that look paid, due days the bank moved, bill
- * amounts the payments say changed, charges that repeat) on the left, and bill payments recorded automatically from the bank feed on the right,
+ * charges that repeat; bill amounts that changed are on Payments) on the left, and bill payments recorded automatically from the bank feed on the right,
  * grouped by bill (open one for each month, each with its Undo).
  */
 
@@ -8,8 +8,7 @@ import { getReview } from "@/server/review";
 import { Card } from "@/components/ui";
 import { recentAutomation } from "@/server/bills-auto";
 import { formatCents } from "@/lib/money";
-import { AmountCard, AutoRecordedRow, DueDayRow, LooksPaidCard, RepeatCard } from "./cards";
-import { amountSuggestions } from "@/server/bill-amounts";
+import { AutoRecordedRow, DueDayRow, LooksPaidCard, RepeatCard } from "./cards";
 import { listCategories } from "@/server/categories";
 import { needsCategory } from "@/server/needs-category";
 import { CategoryCell } from "../transactions/category-cell";
@@ -19,10 +18,10 @@ export const dynamic = "force-dynamic";
 const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 export default async function ReviewPage() {
-  const [review, auto, amounts, categoryRows, uncategorized] = await Promise.all([getReview(), recentAutomation(), amountSuggestions().catch(() => []), listCategories(), needsCategory().catch(() => [])]);
+  const [review, auto, categoryRows, uncategorized] = await Promise.all([getReview(), recentAutomation(), listCategories(), needsCategory().catch(() => [])]);
   const categories = categoryRows.map((c) => ({ id: c.id, name: c.name }));
   const options = categoryRows.map((c) => ({ id: c.id, name: c.name, managedForOthers: c.managedForOthers }));
-  const waiting = review.count + auto.moved.length + amounts.length + uncategorized.length;
+  const waiting = review.count + auto.moved.length + uncategorized.length;
 
   // Recorded payments grouped by bill, newest month first, bills with the newest payment first.
   const byBill = new Map<string, typeof auto.recorded>();
@@ -60,16 +59,6 @@ export default async function ReviewPage() {
               <ul className="divide-y divide-line rounded-xl border border-line">
                 {auto.moved.map((m) => (
                   <DueDayRow key={m.lineItemId} item={m} />
-                ))}
-              </ul>
-            </section>
-          ) : null}
-          {amounts.length ? (
-            <section>
-              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Amounts That Changed</h3>
-              <ul className="space-y-2">
-                {amounts.map((item) => (
-                  <AmountCard key={item.lineItemId} item={item} />
                 ))}
               </ul>
             </section>

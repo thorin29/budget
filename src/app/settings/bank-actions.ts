@@ -269,6 +269,8 @@ export interface AccountEdit {
   color: string;
   /** Checking or savings only: this account holds the bills money. */
   billsSource: boolean;
+  /** Cards only: plan it by statement cycle on the Payments page. */
+  cyclePlan?: boolean;
 }
 
 /** Everything in the Accounts editor saved together: name, type, card details, and the bills money. */
@@ -291,6 +293,10 @@ export async function saveAccountAction(id: string, edit: AccountEdit): Promise<
         color: String(edit.color ?? "") || null,
         nickname: String(edit.nickname ?? ""),
       });
+      if (edit.cyclePlan !== undefined) {
+        const { setCyclePlan } = await import("@/server/cycle-cards");
+        await setCyclePlan(accountId, Boolean(edit.cyclePlan));
+      }
     } else {
       await prisma.bankAccount.update({ where: { id: accountId }, data: { nickname: String(edit.nickname ?? "").trim().slice(0, 60) || null } });
     }

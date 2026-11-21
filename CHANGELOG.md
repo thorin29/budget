@@ -3,6 +3,42 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.103.0]
+
+No migration.
+
+### Added
+- **Payments** (side menu): every payment coming up (card statements, the 0% payment, bills that
+  vary), and what each does before it's made.
+  - **Checking balance** from the bank, or a figure typed in for this page only (Reset puts the
+    bank's back).
+  - **What to pay:** the full statement, an adjusted statement (when the real one doesn't match),
+    or another amount, and the day it comes out of checking. **Set payment** saves it: the
+    Tracker's card-payment line uses it, and a 0% payment or bill gets that month's amount.
+  - **Planned vs actual:** the closed statement against its plan by section, with what the budgets
+    don't explain (Other), a balance carried from the statement before, and what was paid during
+    the statement, so the rows add up to the statement.
+  - **Payment impacts:** the month's income less its bills, the 0% payment, the other cards and
+    this payment; and checking until the payday after the payment, with its lowest day and a
+    warning when a payment would leave checking short.
+  - **The period:** this month, or a card's statement cycle, set out like a month (income, bills,
+    the 0% payment, Essentials, Extras, Unplanned, what's left) with checking at the start and
+    projected at the end.
+  - **Budget changes:** the one list of suggested changes (bill amounts that moved, budgets with no
+    amount, budgets over three months running). Nothing changes until it's accepted.
+  - **History:** the last six statements against their plans, and average checking per cycle.
+- **Plan by statement cycle:** an option on a card in Settings › Accounts.
+
+### Changed
+- Review no longer shows bill amounts that changed: they're under Budget changes on Payments.
+
+## [0.102.1]
+
+### Changed
+- Settings: "Import & Export" is now "Data Imports & Exports".
+- Insights › Budget › By card: the "See this card by statement" link is gone (the statement is its own tab).
+- A statement section with no charges says so when opened.
+
 ## [0.102.0]
 
 No migration. The phone app is unchanged (it picks up the new card-payment amounts on its own).

@@ -45,6 +45,7 @@ export interface EditorAccount {
   promoEndsOn: string | null;
   color: string | null;
   isBillsSource: boolean;
+  cyclePlan: boolean;
 }
 
 const field = "w-full rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm";
@@ -59,6 +60,7 @@ export function AccountEditor({ a, types }: { a: EditorAccount; types: Array<{ v
     promoEndsOn: a.promoEndsOn ?? "",
     color: a.color ?? "",
     billsSource: a.isBillsSource,
+    cyclePlan: a.cyclePlan,
   };
   const [v, setV] = useState<AccountEdit>(start0);
   const [note, setNote] = useState<{ ok: boolean; message?: string } | null>(null);
@@ -160,6 +162,12 @@ export function AccountEditor({ a, types }: { a: EditorAccount; types: Array<{ v
             </label>
           </div>
         </div>
+      ) : null}
+      {card ? (
+        <label className="flex items-start gap-2 text-sm">
+          <input type="checkbox" checked={v.cyclePlan} onChange={(e) => set({ cyclePlan: e.target.checked })} className="mt-0.5" />
+          <span>Plan by statement cycle</span>
+        </label>
       ) : null}
       {cash ? (
         <label className="flex items-start gap-2 text-sm">

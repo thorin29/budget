@@ -24,6 +24,7 @@ import { isExtraIncome } from "@/lib/extra-income";
 import { portionBudget } from "@/lib/statement-portion";
 import { everydayParts, getMonthPlan, dueIso, billTypes, type BillItem, type CardRow as BillCardRow, type MonthPlanView, type Txn } from "./month-plan";
 import { billCharge } from "./bill-merchants";
+import { plannedPayments, paymentKey } from "./planned-payments";
 import { getMonthView, type MonthEntry, type MonthView } from "./month";
 import { CHECKING, TIER_OF, context, shares, nextClose, dueAfter, reserveHome, type CardBill, type CardSection, type CardTier } from "./card-view";
 
@@ -96,7 +97,7 @@ export interface StatementView {
 type Group = { id: string; name: string; tier: GroupTier; limitCents: number | null };
 
 /** Everything the plans share: worked out once per request. */
-async function setup(plan: MonthPlanView) {
+export async function statementEnv(plan: MonthPlanView) {
   const ctx = await context(plan.today);
   const shareOf = shares(plan.byAccount.usual, ctx.keyOf);
   const [groups, categories, isBill, cardList] = await Promise.all([
@@ -153,7 +154,7 @@ async function setup(plan: MonthPlanView) {
 
   return { plan, ctx, shareOf, groups, tierOf, reserveCents, view, spending, home: reserveHome(plan, shareOf) };
 }
-type Env = Awaited<ReturnType<typeof setup>>;
+export type Env = Awaited<ReturnType<typeof statementEnv>>;
 
 /** Bills that land on [cardId] with a due date from [from] to [to] (charged before [from]: on the statement before). */
 async function cycleBills(env: Env, cardId: string, from: string, to: string): Promise<CardBill[]> {
@@ -209,7 +210,7 @@ export async function planCycle(env: Env, cardId: string, from: string, to: stri
 }
 
 /** The statement window that closes on [close]. */
-function windowClosing(close: string, closeDay: number): { from: string; to: string } {
+export function windowClosing(close: string, closeDay: number): { from: string; to: string } {
   const prev = addMonth(close.slice(0, 7) + "-01", -1);
   const last = Number(monthEnd(prev.slice(0, 7)).slice(8, 10));
   const prevClose = `${prev.slice(0, 7)}-${String(Math.min(closeDay, last)).padStart(2, "0")}`;
@@ -223,18 +224,21 @@ type Status = { id: string; lastClose: string; statementCents: number; newCharge
  * amount. Still open or to come: its plan, or what's on it when that's more. Null for a statement
  * before the last one.
  */
-async function statementDueIn(env: Env, st: Status, closeDay: number, ym: string): Promise<number | null> {
+export async function statementDueIn(env: Env, st: Status, closeDay: number, ym: string): Promise<number | null> {
   const closeYm = addMonth(`${ym}-01`, -1).slice(0, 7);
   const last = Number(monthEnd(closeYm).slice(8, 10));
   const close = `${closeYm}-${String(Math.min(closeDay, last)).padStart(2, "0")}`;
   if (close < st.lastClose) return null;
-  if (close === st.lastClose) return st.statementCents;
+  if (close === st.lastClose) {
+    const set = (await plannedPayments())[paymentKey.card(st.id, close)];
+    return set ? set.cents : st.statementCents;
+  }
   const w = windowClosing(close, closeDay);
   const planned = await planCycle(env, st.id, w.from, w.to);
   return Math.max(planned.plannedCents, w.from <= env.plan.today ? st.newChargesCents : 0);
 }
 
-async function cardTerms(today: string) {
+export async function cardTerms(today: string) {
   const { listCardPayments } = await import("./card-payments");
   const statuses = (await listCardPayments(today).catch(() => [])).filter((s) => !(s.promoEndsOn && s.promoEndsOn >= today));
   const accounts = (await prisma.bankAccount.findMany({ where: { type: "CREDIT_CARD", hidden: false }, select: { id: true, linkedAccountId: true, statementCloseDay: true } })) as Array<{ id: string; linkedAccountId: string | null; statementCloseDay: number | null }>;
@@ -253,7 +257,7 @@ export async function cardPaymentLines(year: number, month: number): Promise<Map
   const plan = await getMonthPlan();
   const terms = await cardTerms(plan.today);
   if (!terms.length) return out;
-  const env = await setup(plan);
+  const env = await statementEnv(plan);
   const ym = `${year}-${String(month).padStart(2, "0")}`;
   const lines = env.ctx.items.filter((i) => i.kind === "SETTLEMENT" && i.paysCardId);
   for (const t of terms) {
@@ -266,7 +270,7 @@ export async function cardPaymentLines(year: number, month: number): Promise<Map
 }
 
 /** The money check for [cardId]'s statement due on [dueOn] (see MoneyCheck). */
-async function moneyCheck(env: Env, cardId: string, dueOn: string, plannedCents: number): Promise<MoneyCheck> {
+export async function moneyCheck(env: Env, cardId: string, dueOn: string, plannedCents: number): Promise<MoneyCheck> {
   const { plan, ctx } = env;
   const ym = dueOn.slice(0, 7);
   const [y, m] = [Number(ym.slice(0, 4)), Number(ym.slice(5, 7))];
@@ -311,7 +315,7 @@ async function moneyCheck(env: Env, cardId: string, dueOn: string, plannedCents:
  */
 export async function statementView(cardId: string): Promise<StatementView | null> {
   const plan = await getMonthPlan();
-  const env = await setup(plan);
+  const env = await statementEnv(plan);
   const card = env.ctx.accounts.find((a) => a.id === cardId && a.type === "CREDIT_CARD");
   if (!card) return null;
   const { listCardPayments } = await import("./card-payments");

@@ -22,6 +22,12 @@ const MAIN: NavItem[] = [
     icon: "table",
   },
   {
+    href: "/payments",
+    label: "Payments",
+    match: ["/payments"],
+    icon: "credit-card",
+  },
+  {
     href: "/review",
     label: "Review",
     match: ["/review"],

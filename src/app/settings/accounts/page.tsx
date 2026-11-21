@@ -1,3 +1,4 @@
+import { cyclePlanCards } from "@/server/cycle-cards";
 import Link from "next/link";
 import { applyTypeGuesses, listBankAccounts, type BankAccountView } from "@/server/bank/accounts";
 import { getConnection } from "@/server/bank/sync";
@@ -33,7 +34,7 @@ const BY_HAND = "By hand";
 export default async function AccountsSettings({ searchParams }: { searchParams: Promise<{ g?: string; edit?: string }> }) {
   const { g, edit } = await searchParams;
   if (configuredKey()) await applyTypeGuesses();
-  const [accounts, connection, ledger, cushion, plan] = await Promise.all([listBankAccounts(), getConnection(), listAccounts({ includeInactive: true }), cushionSetting(), getMonthPlan().catch(() => null)]);
+  const [accounts, connection, ledger, cushion, plan, cycleCards] = await Promise.all([listBankAccounts(), getConnection(), listAccounts({ includeInactive: true }), cushionSetting(), getMonthPlan().catch(() => null), cyclePlanCards()]);
   const debt = { cents: plan?.debt.cents ?? 0, automatic: (plan?.debt.source ?? "auto") !== "set", targetCents: plan?.debt.targetCents ?? null, shortCents: plan?.debt.shortCents ?? 0 };
   const typed = ledger.filter((a) => a.origin !== "bank");
 
@@ -153,6 +154,7 @@ export default async function AccountsSettings({ searchParams }: { searchParams:
               promoEndsOn: editing.promoEndsOn,
               color: editing.cardColor,
               isBillsSource: editing.isBillsSource,
+              cyclePlan: cycleCards.has(editing.id),
             }}
           />
         </div>
