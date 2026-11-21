@@ -3,6 +3,15 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.103.2]
+
+### Changed
+- Payments, the statement building now: the amount is the statement so far (what's on the card,
+  rising as charges come in), with the plan beside it. The month's income shows the statement so
+  far and what the plan still expects; checking until payday and Set payment use the plan, so the
+  Tracker's line stays a realistic goal.
+- Payments: checking at the end of the period follows the payment as picked (amount and day).
+
 ## [0.103.1]
 
 ### Changed
