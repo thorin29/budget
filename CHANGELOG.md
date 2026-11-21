@@ -3,6 +3,20 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.101.0]
+
+No migration. For phone app 0.21.0.
+
+### Added
+- **Phone views** under `/api/v1/phone/`: `today` (available to spend on the main card's
+  statement, checking, the month's budget left, what needs you, the next bills), `budget` (the
+  month, each card's statement or by card, as on the web's Budget tab), `overview` (income vs
+  expenses, the outlook, last month, debt) and `alerts` (everything that could notify, each with a
+  stable key; the phone keeps the kinds it's set to).
+- **Transactions for the phone:** `GET /api/v1/transactions` (filters: needs a category, pending,
+  money in; search) and `PUT /api/v1/transactions/:id` to set a category (one or every charge from
+  the merchant) or mark a transfer.
+
 ## [0.100.1]
 
 No migration. The phone app is unchanged.
