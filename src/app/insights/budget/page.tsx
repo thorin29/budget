@@ -9,8 +9,9 @@ import { ForecastCards, ForecastTable } from "./forecast";
 import { MonthPicker, TabHeading, pickMonth } from "../shared";
 import Link from "next/link";
 import { reserveSetting } from "@/server/envelopes";
-import { monthByCard, statementView, type CardRow, type Check } from "@/server/card-view";
-import { CardsTable, ChecksLine, PeriodBar, StatementCards, StatementTable } from "./cards";
+import { monthByCard, type CardRow, type Check } from "@/server/card-view";
+import { statementView } from "@/server/statement-plan";
+import { CardsTable, ChecksLine, PeriodBar, StatementCards, StatementPlan, StatementTable } from "./cards";
 
 export const dynamic = "force-dynamic";
 
@@ -76,6 +77,7 @@ export default async function BudgetPage({ searchParams }: { searchParams: Promi
         <>
           <PeriodBar from={statement.from} to={statement.to} day={statement.day} days={statement.days} />
           <StatementCards v={statement} />
+          <StatementPlan v={statement} />
           <StatementTable v={statement} />
           <ChecksLine checks={split.checks} />
         </>

@@ -38,6 +38,8 @@ export interface RowEntry {
   autoPaid?: boolean;
   bankLinked?: boolean;
   status: RowStatus;
+  /** A card payment set from the statement: not adjusted by hand. */
+  fromStatement?: boolean;
   /** Unpaid, but its payment is already in the bank feed. */
   pendingCharge?: { cents: number; postedOn: string; pending: boolean } | null;
   /** Whole days until due; negative when past. Null without a due day. */
@@ -119,6 +121,7 @@ export function toRow(entry: MonthEntry, today: string): RowEntry {
     autoPaid: entry.autoPaid ?? false,
     bankLinked: entry.bankLinked ?? false,
     status,
+    fromStatement: entry.fromStatement ?? false,
     pendingCharge: entry.pendingCharge ? { cents: entry.pendingCharge.cents, postedOn: entry.pendingCharge.postedOn, pending: entry.pendingCharge.pending } : null,
     daysUntilDue,
   };

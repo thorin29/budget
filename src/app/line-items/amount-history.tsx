@@ -12,8 +12,9 @@ import { changeUsualAmountAction, matchPastToPaymentsAction, type AmountState } 
 export interface AmountHistoryView {
   id: string;
   usualCents: number;
+  target?: boolean;
   runs: Array<{ from: string; to: string; months: string[]; cents: number }>;
-  suggestion: { kind: "steady" | "varies"; cents: number; since: string | null; count: number } | null;
+  suggestion: { kind: "steady" | "drift" | "varies"; cents: number; since: string | null; count: number } | null;
   startsFrom: string;
   payments: number;
   escrowCents: number | null;
@@ -37,7 +38,9 @@ export function AmountHistory({ h }: { h: AmountHistoryView }) {
           <p>
             {s.kind === "steady"
               ? `The last ${s.count} payments were about ${formatCents(s.cents)} (since ${monthLabel(s.since!)}); the usual amount is ${formatCents(h.usualCents)}.`
-              : `It varies; the last ${s.count} payments averaged ${formatCents(s.cents)} against a usual ${formatCents(h.usualCents)}.`}
+              : s.kind === "drift"
+                ? `The last 3 payments kept landing off the budget; their middle is about ${formatCents(s.cents)} against ${formatCents(h.usualCents)}.`
+                : `It varies; the typical of the last ${s.count} payments is ${formatCents(s.cents)} against a target of ${formatCents(h.usualCents)}.`}
           </p>
           <div className="mt-1.5 flex flex-wrap items-center gap-3">
             <button

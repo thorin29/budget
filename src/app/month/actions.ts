@@ -4,6 +4,7 @@ import { requireUser, type SessionUser } from "@/server/auth";
 import { revalidatePath } from "next/cache";
 import { adjustMonth, clearActual, recordActual, recordBillsBalance } from "@/server/month";
 import { linkActual } from "@/server/review";
+import { setAmountFrom } from "@/server/bill-amounts";
 import { ValidationError } from "@/server/errors";
 import { parseCents } from "@/lib/money";
 
@@ -115,6 +116,11 @@ export async function adjustMonthAction(
   const skipped = str(form, "skipped") === "true";
 
   return run(year, month, async () => {
+    // From now on: the usual amount changes from this month, and this month's override goes.
+    if (!skipped && raw !== "" && str(form, "scope") === "ongoing") {
+      await setAmountFrom(str(form, "lineItemId"), year, month, parseCents(raw));
+      return;
+    }
     await adjustMonth(str(form, "lineItemId"), year, month, {
       amountCents: skipped || raw === "" ? null : parseCents(raw),
       skipped,

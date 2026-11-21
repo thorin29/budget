@@ -12,7 +12,8 @@ import { cushionSetting } from "@/server/envelopes";
 import { getOutlook, type OutlookView } from "@/server/outlook";
 import { MonthPicker, TabHeading, monthLabel, pickMonth, shiftMonth } from "./shared";
 import { planForecastRows } from "@/server/plan-charts";
-import { monthByCard, statementView, type StatementView } from "@/server/card-view";
+import { monthByCard } from "@/server/card-view";
+import { statementView, type StatementView } from "@/server/statement-plan";
 import { reserveSetting } from "@/server/envelopes";
 
 export const dynamic = "force-dynamic";

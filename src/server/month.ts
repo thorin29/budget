@@ -69,6 +69,8 @@ export interface MonthEntry {
   bankLinked?: boolean;
   /** Unpaid, but its payment is already in the bank feed (pending, or waiting to be matched). */
   pendingCharge?: { txnId: string; cents: number; postedOn: string; pending: boolean };
+  /** A card-payment line set from the card's statement (tracker-month.ts). */
+  fromStatement?: boolean;
 }
 
 export interface HalfSummary {

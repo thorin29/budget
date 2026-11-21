@@ -244,7 +244,9 @@ export function AmountCard({ item }: { item: AmountReviewItem }) {
           <p className="text-sm text-muted">
             {s.kind === "steady"
               ? `${s.count} payments in a row at about this since ${ymLabel(s.since!)}`
-              : `Varies; the last ${s.count} payments averaged this`}
+              : s.kind === "drift"
+                ? `The last 3 payments were off the budget; their middle, rounded up`
+                : `Varies; the typical of the last ${s.count} payments`}
             {" · "}budget {formatCents(item.usualCents)}
           </p>
         </div>

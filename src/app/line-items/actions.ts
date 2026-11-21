@@ -4,7 +4,7 @@ import { requireUser } from "@/server/auth";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createLineItem, deleteLineItemForGood, getLineItem, mergeLineItem, updateLineItem } from "@/server/line-items";
-import { changeUsualAmount, dismissAmountSuggestion, keepEarlierAmount, matchPastToPayments } from "@/server/bill-amounts";
+import { changeUsualAmount, dismissAmountSuggestion, keepEarlierAmount, matchPastToPayments, setBillTarget } from "@/server/bill-amounts";
 import { ValidationError } from "@/server/errors";
 import { parseCents } from "@/lib/money";
 
@@ -105,6 +105,7 @@ export async function updateLineItemAction(
       await keepEarlierAmount(id, before.plannedAmountCents, from);
     }
     await updateLineItem(id, input);
+    if (form.has("amountTargetShown")) await setBillTarget(id, str(form, "amountTarget") === "on");
   } catch (error) {
     return toState(error);
   }

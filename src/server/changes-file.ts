@@ -46,10 +46,17 @@ const Op = z.discriminatedUnion("op", [
     endMonth: z.number().int().min(1).max(12).nullable().optional(),
     paidFromId: id.nullable().optional(),
     chargedToId: id.nullable().optional(),
+    /** Every month ("MONTHLY") or some months ("CUSTOM" with `months`). A paycheck tied to a payday shows only in months with that payday. */
+    scheduleKind: z.enum(["MONTHLY", "CUSTOM"]).optional(),
+    months: z.array(z.number().int().min(1).max(12)).min(1).max(12).optional(),
   }),
   z.object({ op: z.literal("mergeBill"), fromId: id, intoId: id }),
   z.object({ op: z.literal("linkLoan"), lineItemId: id, bankAccountId: id }),
   z.object({ op: z.literal("linkPaycheck"), lineItemId: id, scheduleId: id.nullable() }),
+  /** A new usual amount from a month on (the months before keep the old one); from the next unpaid month when left out. */
+  z.object({ op: z.literal("setAmount"), lineItemId: id, cents: z.number().int().min(1).max(10_000_000_00), from: z.string().regex(/^\d{4}-\d{2}$/).optional() }),
+  /** A bill whose amount moves every month (water, power): only its typical payment is checked. */
+  z.object({ op: z.literal("setTarget"), lineItemId: id, on: z.boolean() }),
   z.object({ op: z.literal("categorize"), transactionIds: ids, category: ref.nullable() }),
   z.object({ op: z.literal("markTransfer"), transactionIds: ids }),
   z.object({ op: z.literal("unlinkPayment"), actualIds: ids }),
@@ -238,6 +245,7 @@ export async function previewChanges(text: string): Promise<{ note: string | nul
           op.endYear !== undefined ? `ends ${op.endYear ?? "never"}${op.endMonth ? `-${String(op.endMonth).padStart(2, "0")}` : ""}` : null,
           op.paidFromId !== undefined ? `paid from ${op.paidFromId === null ? "—" : (account.get(op.paidFromId) ?? "?")}` : null,
           op.chargedToId !== undefined ? `on card ${op.chargedToId === null ? "none" : (account.get(op.chargedToId) ?? "?")}` : null,
+          op.scheduleKind ? (op.scheduleKind === "MONTHLY" ? "every month" : `months ${(op.months ?? []).join(", ")}`) : null,
         ].filter(Boolean);
         if (op.paidFromId) need(account.has(op.paidFromId), "Account");
         if (op.chargedToId) need(account.has(op.chargedToId), "Card");
@@ -256,6 +264,12 @@ export async function previewChanges(text: string): Promise<{ note: string | nul
       case "linkPaycheck":
         if (op.scheduleId) need(schedule.has(op.scheduleId), "Pay schedule");
         text = op.scheduleId ? `${bill(op.lineItemId)} comes on the ${schedule.get(op.scheduleId)} schedule` : `${bill(op.lineItemId)} off its pay schedule`;
+        break;
+      case "setAmount":
+        text = `${bill(op.lineItemId)}: usual amount $${(op.cents / 100).toFixed(2)}${op.from ? ` from ${op.from}` : " from the next unpaid month"}`;
+        break;
+      case "setTarget":
+        text = `${bill(op.lineItemId)}: ${op.on ? "varies month to month (a target)" : "a set amount"}`;
         break;
       case "categorize":
         text = `Set ${count(op.transactionIds.length, "transaction")} to ${op.category === null ? "no category" : cat(op.category)}`;
@@ -386,6 +400,8 @@ export async function applyChanges(text: string, choices: Record<string, string>
           if (op.kind) data.kind = op.kind;
           if (op.active !== undefined) data.active = op.active;
           for (const k of ["startYear", "startMonth", "endYear", "endMonth", "paidFromId", "chargedToId"] as const) if (op[k] !== undefined) data[k] = op[k];
+          if (op.scheduleKind === "MONTHLY") Object.assign(data, { scheduleKind: "MONTHLY", months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] });
+          else if (op.scheduleKind === "CUSTOM" && op.months) Object.assign(data, { scheduleKind: "CUSTOM", months: [...new Set(op.months)].sort((a, b) => a - b) });
           await prisma.lineItem.update({ where: { id: op.lineItemId }, data });
           break;
         }
@@ -400,6 +416,16 @@ export async function applyChanges(text: string, choices: Record<string, string>
         case "linkPaycheck": {
           const { linkPaycheck } = await import("./pay-schedule");
           await linkPaycheck(op.lineItemId, op.scheduleId);
+          break;
+        }
+        case "setAmount": {
+          const { changeUsualAmount, billAmountHistory } = await import("./bill-amounts");
+          await changeUsualAmount(op.lineItemId, op.cents, op.from ?? (await billAmountHistory(op.lineItemId)).startsFrom);
+          break;
+        }
+        case "setTarget": {
+          const { setBillTarget } = await import("./bill-amounts");
+          await setBillTarget(op.lineItemId, op.on);
           break;
         }
         case "categorize": {

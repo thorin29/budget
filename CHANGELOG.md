@@ -3,6 +3,34 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.102.0]
+
+No migration. The phone app is unchanged (it picks up the new card-payment amounts on its own).
+
+### Changed
+- **Card statements are planned by month portions.** A statement holds the end of one month and
+  the start of the next, and its budget is made of those parts: the end of a month that has
+  started gets what that month's budgets still have left (spending before it on every account
+  taken out, at the card's share, never below zero); the start of a month gets the month's budgets
+  by days. Bills landing on the card inside the statement are added. Budgets are the same every
+  month, so money carried over never adds to a statement. The statement page shows each part.
+- **Money for the statement:** the month it's due, as the Tracker sees it: pay, less bills paid
+  from checking, the 0% payment and the other cards' statements due that month. What's left is the
+  most the statement can be; the page shows what's to spare, or how short it is. Extra pay that
+  goes to the 0% card isn't counted, and neither is money already in checking.
+- **Card payments on the Tracker come from the statement:** a closed statement's amount, or the
+  plan for one still open or to come. They aren't set by hand any more.
+- **One amount for each bill.** The Tracker's budget box asks "This month only" or "From now on";
+  from now on changes the usual amount from that month and removes one-month amounts after it.
+  Bills & Income shows this month's amount under the usual one when they differ.
+- **Amount suggestions:** a bill whose last three payments have all moved the same way is flagged
+  ("has gone up"). A bill marked "Varies month to month" (water, energy) is a target: it's
+  flagged when the last six payments' middle amount is off by more than 10%.
+
+### Added
+- **Changes file:** `setAmount` (the usual amount from a month on), `setTarget`, and `setBill`
+  takes `scheduleKind` and `months`.
+
 ## [0.101.0]
 
 No migration. For phone app 0.21.0.

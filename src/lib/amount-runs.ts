@@ -63,8 +63,12 @@ export function monthsFromTo(from: string, to: string): string[] {
 }
 
 export interface AmountSuggestion {
-  /** "steady": the latest payments agree; "varies": no stretch, so the last year's average. */
-  kind: "steady" | "varies";
+  /**
+   * "steady": the latest payments agree; "drift": the last three keep landing off the budget (the
+   * middle of them, rounded up to a dollar); "varies": a bill set as a target whose typical payment
+   * moved; or, with no stretch, the last year's average.
+   */
+  kind: "steady" | "drift" | "varies";
   cents: number;
   /** Steady: the month the stretch began. */
   since: string | null;
@@ -78,11 +82,35 @@ export interface AmountSuggestion {
  * its last payment is the newest one and within two months of `nowYm` (YYYY-MM); otherwise, with
  * six or more payments in the last 12 months, their average.
  */
-export function suggestAmount(payments: Payment[], usualCents: number, nowYm: string): AmountSuggestion | null {
+export function suggestAmount(payments: Payment[], usualCents: number, nowYm: string, target = false): AmountSuggestion | null {
   const paid = payments.filter((p) => p.cents > 0);
+  const newestFirst = [...paid].sort((a, b) => b.ym.localeCompare(a.ym));
+  const newest = newestFirst[0];
+  const middle = (xs: number[]) => [...xs].sort((a, b) => a - b)[Math.floor(xs.length / 2)];
+  const upToDollar = (c: number) => Math.ceil(c / 100) * 100;
+  // A target (water, power): only the typical payment of the last six counts, never one month.
+  if (target) {
+    const recent = newestFirst.filter((p) => p.ym > shiftYm(nowYm, -7)).slice(0, 6);
+    if (recent.length < 3) return null;
+    const m = middle(recent.map((p) => p.cents));
+    return Math.abs(m - usualCents) > Math.max(500, usualCents * 0.1) ? { kind: "varies", cents: upToDollar(m), since: null, count: recent.length } : null;
+  }
   const runs = amountRuns(paid);
   const last = runs[runs.length - 1];
-  const newest = [...paid].sort((a, b) => b.ym.localeCompare(a.ym))[0];
+  if (last && newest && last.to === newest.ym && last.to >= shiftYm(nowYm, -2) && last.months.length >= 3) {
+    return sameAmount(last.cents, usualCents) ? null : { kind: "steady", cents: last.cents, since: last.from, count: last.months.length };
+  }
+  // Drift: the last three payments (within four months) land off the budget by more than 5%, and
+  // the newest is off the same way. Suggests their middle, rounded up to a dollar.
+  const three = newestFirst.filter((p) => p.ym > shiftYm(nowYm, -5)).slice(0, 3);
+  if (three.length === 3) {
+    const m = middle(three.map((p) => p.cents));
+    const off = m - usualCents;
+    const newestOff = three[0].cents - usualCents;
+    if (Math.abs(off) > Math.max(200, usualCents * 0.05) && Math.sign(off) === Math.sign(newestOff)) {
+      return { kind: "drift", cents: upToDollar(m), since: three[2].ym, count: 3 };
+    }
+  }
   if (last && newest && last.to === newest.ym && last.to >= shiftYm(nowYm, -2)) {
     return sameAmount(last.cents, usualCents) ? null : { kind: "steady", cents: last.cents, since: last.from, count: last.months.length };
   }

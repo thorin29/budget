@@ -442,27 +442,37 @@ function EntryPanel({ row, onClose }: { row: RowEntry; onClose: () => void }) {
 
       {more ? (
         <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-dashed border-line-strong p-4">
-          <form action={adjust} className="flex items-end gap-2">
-            {hidden}
-            <label className="w-44">
-              <span className="mb-1.5 block text-[13px] font-semibold">This month&rsquo;s budget</span>
-              <TextInput
-                name="amount"
-                inputMode="decimal"
-                defaultValue={toDecimalString(row.budgetedCents)}
-                placeholder="Empty uses the plan"
-                className="tnum"
-              />
-            </label>
-            <button type="submit" disabled={adjusting} className={buttonClass("quiet")}>
-              Set
-            </button>
-          </form>
+          {row.fromStatement ? (
+            <p className="pb-2 text-xs text-muted">Set from the card&rsquo;s statement</p>
+          ) : (
+            <>
+              <form action={adjust} className="flex flex-wrap items-end gap-2">
+                {hidden}
+                <label className="w-44">
+                  <span className="mb-1.5 block text-[13px] font-semibold">Budget</span>
+                  <TextInput
+                    name="amount"
+                    inputMode="decimal"
+                    defaultValue={toDecimalString(row.budgetedCents)}
+                    placeholder="Empty uses the usual"
+                    className="tnum"
+                  />
+                </label>
+                <select name="scope" aria-label="Applies to" defaultValue="month" className="rounded-lg border border-line bg-surface px-2 py-2 text-sm">
+                  <option value="month">This month only</option>
+                  <option value="ongoing">From now on</option>
+                </select>
+                <button type="submit" disabled={adjusting} className={buttonClass("quiet")}>
+                  Set
+                </button>
+              </form>
 
-          <p className="pb-2 text-xs text-muted">
-            Usual amount {formatCents(row.plannedCents)}
-            {row.adjusted ? " — this month differs" : ""}
-          </p>
+              <p className="pb-2 text-xs text-muted">
+                Usual {formatCents(row.plannedCents)}
+                {row.adjusted ? " · this month differs" : ""}
+              </p>
+            </>
+          )}
 
           <span className="flex-1" />
 

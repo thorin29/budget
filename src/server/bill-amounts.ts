@@ -14,6 +14,22 @@ import { NotFoundError, ValidationError } from "./errors";
 /** Marks a month's stored amount as the rate back then, not a one-month change. */
 export const RATE_NOTE = "rate";
 
+const KEY_TARGETS = "billTargets";
+
+/** Bills set as targets (water, power): their amount moves every month, so only the typical payment is checked. */
+export async function billTargets(): Promise<Set<string>> {
+  const row = (await prisma.setting.findUnique({ where: { key: KEY_TARGETS } })) as { value: unknown } | null;
+  return new Set(Array.isArray(row?.value) ? (row!.value as unknown[]).filter((x): x is string => typeof x === "string") : []);
+}
+
+export async function setBillTarget(id: string, on: boolean): Promise<void> {
+  const ids = await billTargets();
+  if (on === ids.has(id)) return;
+  if (on) ids.add(id);
+  else ids.delete(id);
+  await prisma.setting.upsert({ where: { key: KEY_TARGETS }, create: { key: KEY_TARGETS, value: [...ids] as never }, update: { value: [...ids] as never } });
+}
+
 const ymOf = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}`;
 const nowYm = () => new Date().toISOString().slice(0, 7);
 
@@ -72,6 +88,8 @@ async function firstOpenMonth(item: Item, payments?: Payment[]): Promise<string>
 
 export interface BillAmountHistory {
   usualCents: number;
+  /** Set as a target: only the typical payment is checked. */
+  target: boolean;
   /** Stretches of about-the-same payments, newest first. */
   runs: AmountRun[];
   suggestion: AmountSuggestion | null;
@@ -85,10 +103,12 @@ export async function billAmountHistory(id: string): Promise<BillAmountHistory> 
   const item = await getItem(id);
   const payments = await paymentsOf(id);
   const usualCents = toCents(item.plannedAmount);
+  const target = (await billTargets()).has(id);
   return {
     usualCents,
+    target,
     runs: amountRuns(payments).reverse(),
-    suggestion: suggestAmount(payments, usualCents, nowYm()),
+    suggestion: suggestAmount(payments, usualCents, nowYm(), target),
     startsFrom: await firstOpenMonth(item, payments),
     payments: payments.length,
     escrowCents: item.payoffEscrowCents,
@@ -124,6 +144,7 @@ export async function amountSuggestions(): Promise<AmountReviewItem[]> {
     Array<{ key: string }>,
   ];
   const skip = new Set(dismissed.map((d) => d.key));
+  const targets = await billTargets();
   const byItem = new Map<string, Payment[]>();
   for (const a of actuals) byItem.set(a.lineItemId, [...(byItem.get(a.lineItemId) ?? []), { ym: ymOf(a.year, a.month), cents: toCents(a.amount) }]);
   const planned = new Map(plans.map((p) => [`${p.lineItemId}:${ymOf(p.year, p.month)}`, p.amount === null ? null : toCents(p.amount)]));
@@ -132,7 +153,7 @@ export async function amountSuggestions(): Promise<AmountReviewItem[]> {
     const payments = byItem.get(item.id) ?? [];
     if (payments.length < 3) continue;
     const usualCents = toCents(item.plannedAmount);
-    const suggestion = suggestAmount(payments, usualCents, nowYm());
+    const suggestion = suggestAmount(payments, usualCents, nowYm(), targets.has(item.id));
     if (!suggestion || skip.has(`${item.id}:${suggestion.cents}`)) continue;
     const pastToFix = amountRuns(payments)
       .slice(0, -1)
@@ -196,6 +217,17 @@ export async function changeUsualAmount(id: string, cents: number, from: string 
   }
   const escrow = escrowFollows && item.payoffEscrowCents ? Math.max(0, item.payoffEscrowCents + delta) : undefined;
   await prisma.lineItem.update({ where: { id }, data: { plannedAmount: toDecimalString(Math.round(cents)), ...(escrow !== undefined ? { payoffEscrowCents: escrow } : {}) } });
+}
+
+/**
+ * The Tracker's "from now on": the usual amount changes from [year]-[month], and one-month amounts
+ * set by hand in that month and later go, so the one amount shows everywhere.
+ */
+export async function setAmountFrom(id: string, year: number, month: number, cents: number): Promise<void> {
+  const plans = (await prisma.monthlyPlan.findMany({ where: { lineItemId: id }, select: { id: true, year: true, month: true, note: true, skipped: true } })) as Array<{ id: string; year: number; month: number; note: string | null; skipped: boolean }>;
+  const later = plans.filter((p) => p.year * 12 + p.month >= year * 12 + month && !p.skipped && p.note !== RATE_NOTE);
+  if (later.length) await prisma.monthlyPlan.deleteMany({ where: { id: { in: later.map((p) => p.id) } } });
+  await changeUsualAmount(id, cents, ymOf(year, month));
 }
 
 /**

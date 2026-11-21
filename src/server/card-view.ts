@@ -8,7 +8,7 @@
  *  - A card's share of a budget is where that budget's spending went over the twelve months
  *    before (Groceries all on one card, Shopping mostly on another). Its budget and the rest of
  *    the budget's projection follow that share; what it has spent is exact.
- *  - The statement view does the same for one card from its last statement date to its next.
+ *  - The statement view (statement-plan.ts) plans one card from statement date to statement date.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -17,9 +17,7 @@ import { displayAccountName, type AccountType } from "@/lib/account-type";
 import { forecastGroups, type ForecastRow } from "@/lib/budget-forecast";
 import { OTHER_GROUP } from "@/lib/envelope-defaults";
 import { planTier, type GroupTier } from "@/lib/month-plan";
-import { everydayParts, getMonthPlan, dueIso, type MonthPlanView, type Txn } from "./month-plan";
-import { billCharge } from "./bill-merchants";
-import { getMonthView } from "./month";
+import { type MonthPlanView } from "./month-plan";
 
 export type CardTier = "BILLS" | "ESSENTIAL" | "FLEXIBLE" | "UNPLANNED";
 export interface CardGroup { id: string; name: string; spentCents: number; budgetCents: number | null; projectedCents: number; sharePct: number }
@@ -43,14 +41,14 @@ export interface CardRow {
 }
 export interface Check { name: string; ok: boolean; detail: string }
 
-const CHECKING = "checking";
+export const CHECKING = "checking";
 const iso = (d: Date) => d.toISOString().slice(0, 10);
-const TIER_OF = (t: string): CardTier => (t === "ESSENTIAL" || t === "FLEXIBLE" ? t : t === "BILLS" ? "BILLS" : "UNPLANNED");
+export const TIER_OF = (t: string): CardTier => (t === "ESSENTIAL" || t === "FLEXIBLE" ? t : t === "BILLS" ? "BILLS" : "UNPLANNED");
 
 type Acct = { id: string; name: string; nickname: string | null; type: AccountType; promoEndsOn: Date | null; statementCloseDay: number | null; linkedAccountId: string | null };
 
 /** Accounts, how each maps to a row, and where each bill lands. */
-async function context(today: string) {
+export async function context(today: string) {
   const accounts = (await prisma.bankAccount.findMany({
     where: { hidden: false, type: { in: ["CHECKING", "CREDIT_CARD"] } },
     select: { id: true, name: true, nickname: true, type: true, promoEndsOn: true, statementCloseDay: true, linkedAccountId: true },
@@ -74,7 +72,7 @@ async function context(today: string) {
 }
 
 /** Each budget's share per row, from the twelve months before; budgets with no history follow the overall split. */
-function shares(usual: MonthPlanView["byAccount"]["usual"], keyOf: (id: string) => string) {
+export function shares(usual: MonthPlanView["byAccount"]["usual"], keyOf: (id: string) => string) {
   const per = new Map<string, Map<string, number>>();
   const overall = new Map<string, number>();
   for (const [g, accts] of Object.entries(usual)) {
@@ -97,7 +95,7 @@ function shares(usual: MonthPlanView["byAccount"]["usual"], keyOf: (id: string) 
 }
 
 /** Splits an amount across rows by share, so the parts add up exactly (the largest share takes the rounding). */
-function split(total: number, share: Map<string, number>): Map<string, number> {
+export function split(total: number, share: Map<string, number>): Map<string, number> {
   const out = new Map<string, number>();
   let given = 0;
   const entries = [...share].sort((a, b) => b[1] - a[1]);
@@ -207,6 +205,9 @@ export async function monthByCard(plan: MonthPlanView, rows: ForecastRow[], rese
 
   // Totals, the typical month and the card-payment line.
   const paymentLines = ctx.items.filter((i) => i.kind === "SETTLEMENT" && i.paysCardId);
+  // The lines as the Tracker shows them: set from each card's statement.
+  const { cardPaymentLines } = await import("./statement-plan");
+  const fromStatement = await cardPaymentLines(y, m).catch(() => new Map<string, number>());
   for (const r of out.values()) {
     for (const s of r.sections) {
       s.groups.sort((a, b) => b.spentCents - a.spentCents || (b.budgetCents ?? 0) - (a.budgetCents ?? 0));
@@ -219,7 +220,7 @@ export async function monthByCard(plan: MonthPlanView, rows: ForecastRow[], rese
       const usual = plan.groups.reduce((t, g) => t + Math.round(g.usualCents * (shareOf(g.id).get(r.key) ?? 0)), 0);
       r.typicalCents = usual + (sec(r, "BILLS").budgetCents ?? 0);
       const ledger = ctx.accounts.find((a) => a.id === r.key)?.linkedAccountId;
-      const line = paymentLines.filter((i) => i.paysCardId === ledger).reduce((t, i) => t + toCents(i.plannedAmount), 0);
+      const line = paymentLines.filter((i) => i.paysCardId === ledger).reduce((t, i) => t + (fromStatement.get(i.id) ?? toCents(i.plannedAmount)), 0);
       r.paymentLineCents = line || null;
     }
   }
@@ -266,172 +267,14 @@ async function checksFor(
 }
 
 /** The day after a statement date, a month on (the next statement date). */
-function nextClose(lastClose: string): string {
+export function nextClose(lastClose: string): string {
   const [y, m, d] = lastClose.split("-").map(Number);
   const last = new Date(Date.UTC(y, m + 1, 0)).getUTCDate();
   return iso(new Date(Date.UTC(y, m, Math.min(d, last))));
 }
 
-export interface StatementView {
-  card: { id: string; name: string };
-  /** YYYY-MM-DD, the first and last day of the statement. */
-  from: string;
-  to: string;
-  dueOn: string | null;
-  day: number;
-  days: number;
-  daysLeft: number;
-  chargedCents: number;
-  billsToComeCents: number;
-  roomCents: number;
-  projectedCents: number;
-  sections: CardSection[];
-  totals: { spentCents: number; budgetCents: number; projectedCents: number };
-  /** The card's budgets (Essentials, Extras, the reserve) less spending (unplanned too): today, and at the projection. */
-  budgetLeftCents: number;
-  budgetLeftEndCents: number;
-}
-
-/**
- * One card from its last statement date to its next: what's been charged, the bills still to land
- * on it, and the month's budgets (its share of them) counted from the statement date.
- */
-export async function statementView(cardId: string): Promise<StatementView | null> {
-  const plan = await getMonthPlan();
-  const ctx = await context(plan.today);
-  const card = ctx.accounts.find((a) => a.id === cardId && a.type === "CREDIT_CARD");
-  if (!card) return null;
-  const { listCardPayments } = await import("./card-payments");
-  const st = (await listCardPayments(plan.today).catch(() => [])).find((c) => c.id === cardId);
-  if (!st?.lastClose) return null;
-  const from = iso(new Date(Date.parse(`${st.lastClose}T00:00:00Z`) + 86_400_000));
-  const to = nextClose(st.lastClose);
-  const days = Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1;
-  const day = Math.min(days, Math.max(1, Math.round((Date.parse(`${plan.today}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000) + 1));
-  const shareOf = shares(plan.byAccount.usual, ctx.keyOf);
-
-  // Charges on the card since the statement date, by budget, counted the same way as the month.
-  const [groups, categories, isBill] = await Promise.all([
-    prisma.categoryGroup.findMany({ select: { id: true, name: true, tier: true, limitCents: true } }) as Promise<Array<{ id: string; name: string; tier: GroupTier; limitCents: number | null }>>,
-    prisma.category.findMany({ select: { id: true, groupId: true } }) as Promise<Array<{ id: string; groupId: string | null }>>,
-    billCharge(),
-  ]);
-  const txns = (await prisma.bankTransaction.findMany({
-    where: { accountId: cardId, postedOn: { gte: new Date(`${from}T00:00:00Z`), lte: new Date(`${to}T00:00:00Z`) }, kind: "NORMAL" },
-    select: {
-      id: true, accountId: true, postedOn: true, amount: true, merchant: true, description: true, categoryId: true, pending: true,
-      category: { select: { name: true, managedForOthers: true } }, account: { select: { type: true } }, actual: { select: { id: true } }, splits: { select: { categoryId: true, amount: true } },
-    },
-  })) as Txn[];
-  const cards = await prisma.bankAccount.findMany({ where: { type: "CREDIT_CARD" }, select: { id: true, name: true, nickname: true, institution: true } }) as Array<{ id: string; name: string; nickname: string | null; institution: string | null }>;
-  const cardNames = cards.map((c) => ({ id: c.id, names: [c.nickname ?? "", c.name, c.institution ?? ""] }));
-  const groupOf = new Map(categories.map((c) => [c.id, c.groupId]));
-  const tierOf = new Map(groups.map((g) => [g.id, planTier(g.tier)]));
-  const spentBy = new Map<string, number>();
-  let billCharges = 0;
-  let charged = 0;
-  for (const t of txns) {
-    const cents = toCents(t.amount);
-    if (isBill(t) && cents < 0) {
-      billCharges += -cents;
-      charged += -cents;
-      continue;
-    }
-    const parts = everydayParts(t, isBill, cardNames);
-    if (!parts) continue;
-    for (const p of parts) {
-      const g = p.categoryId ? (groupOf.get(p.categoryId) ?? OTHER_GROUP.id) : "uncategorized";
-      if (tierOf.get(g) === "BILLS") billCharges += p.cents;
-      else spentBy.set(g, (spentBy.get(g) ?? 0) + p.cents);
-      charged += p.cents;
-    }
-  }
-
-  // Bills that land on this card with a due date in the statement, from the months it spans.
-  const bills: CardBill[] = [];
-  const months = new Set([from.slice(0, 7), to.slice(0, 7)]);
-  for (const ym of months) {
-    const v = await getMonthView(Number(ym.slice(0, 4)), Number(ym.slice(5, 7)));
-    for (const e of [...v.halves[0].entries, ...v.halves[1].entries]) {
-      if (e.kind === "INCOME" || e.skipped || ctx.landing.get(e.lineItemId) !== cardId) continue;
-      const due = dueIso(e.year, e.month, e.dueDay);
-      if (due < from || due > to) continue;
-      // Charged before the statement began: it was on the last statement.
-      if (e.actualCents !== null && e.paidOn && e.paidOn < from) continue;
-      bills.push({ lineItemId: e.lineItemId, name: e.name, dueOn: due, cents: e.actualCents ?? e.budgetedCents, budgetedCents: e.budgetedCents, paid: e.actualCents !== null });
-    }
-  }
-  bills.sort((a, b) => a.dueOn.localeCompare(b.dueOn));
-  const toCome = bills.filter((b) => !b.paid).reduce((t, b) => t + b.cents, 0);
-
-  const { reserveSetting } = await import("./envelopes");
-  const reserveCents = await reserveSetting();
-  // Budgets: this month's limits, this card's share; projected at the pace so far, as the month does.
-  const limitOf = new Map(plan.groups.map((g) => [g.id, g.limitCents]));
-  const usualOf = new Map(plan.groups.map((g) => [g.id, g.usualCents]));
-  const ids = new Set([...spentBy.keys(), ...plan.groups.filter((g) => (shareOf(g.id).get(cardId) ?? 0) > 0 && (g.limitCents ?? 0) > 0).map((g) => g.id)]);
-  const forecast = forecastGroups(
-    [...ids].map((id) => {
-      const g = groups.find((x) => x.id === id);
-      const share = shareOf(id).get(cardId) ?? 0;
-      const tier = id === "uncategorized" || id === OTHER_GROUP.id ? "SORT" : (planTier(g?.tier ?? "UNPLANNED") as "ESSENTIAL" | "FLEXIBLE" | "UNPLANNED");
-      const limit = limitOf.get(id);
-      return {
-        id, name: g?.name ?? (id === "uncategorized" ? "Needs a category" : OTHER_GROUP.name), tier,
-        spentCents: spentBy.get(id) ?? 0, limitCents: limit === null || limit === undefined ? null : Math.round(limit * share),
-        usualCents: Math.round((usualOf.get(id) ?? 0) * share), charges: 2,
-      };
-    }),
-    day, days, false,
-  );
-  const sections: CardSection[] = (["BILLS", "ESSENTIAL", "FLEXIBLE", "UNPLANNED"] as CardTier[]).map((tier) => {
-    if (tier === "BILLS") {
-      const budget = bills.reduce((t, b) => t + b.budgetedCents, 0);
-      return { tier, spentCents: billCharges, budgetCents: budget, projectedCents: billCharges + toCome, groups: [], bills };
-    }
-    const list = forecast.filter((f) => TIER_OF(f.tier === "SORT" ? "UNPLANNED" : f.tier) === tier);
-    const groupsOut = list.map((f) => ({ id: f.id, name: f.name, spentCents: f.spentCents, budgetCents: f.limitCents, projectedCents: f.forecastCents, sharePct: Math.round((shareOf(f.id).get(cardId) ?? 0) * 100) }));
-    groupsOut.sort((a, b) => b.spentCents - a.spentCents || (b.budgetCents ?? 0) - (a.budgetCents ?? 0));
-    const budgeted = tier !== "UNPLANNED";
-    const spentHere = groupsOut.reduce((t, g) => t + g.spentCents, 0);
-    // The unplanned reserve, whole, when this is the card unplanned spending usually lands on.
-    const reserveHere = tier === "UNPLANNED" && reserveHome(plan, shareOf) === cardId ? reserveCents : 0;
-    return {
-      tier,
-      spentCents: spentHere,
-      budgetCents: budgeted ? groupsOut.reduce((t, g) => t + (g.budgetCents ?? 0), 0) : reserveHere || null,
-      projectedCents: groupsOut.reduce((t, g) => t + g.projectedCents, 0) + Math.max(0, reserveHere - spentHere),
-      groups: groupsOut,
-      bills: [],
-    };
-  });
-  const room = Math.max(
-    0,
-    sections.filter((s) => s.tier === "ESSENTIAL" || s.tier === "FLEXIBLE").reduce((t, s) => t + s.groups.reduce((n, g) => n + Math.max(0, (g.budgetCents ?? 0) - g.spentCents), 0), 0) -
-      // Unplanned spending past this card's share of the reserve comes out of the room.
-      sections.filter((s) => s.tier === "UNPLANNED").reduce((t, s) => t + Math.max(0, s.spentCents - (s.budgetCents ?? 0)), 0),
-  );
-  const totals = {
-    spentCents: sections.reduce((t, s) => t + s.spentCents, 0),
-    budgetCents: sections.reduce((t, s) => t + (s.budgetCents ?? 0), 0),
-    projectedCents: sections.reduce((t, s) => t + s.projectedCents, 0),
-  };
-  const spendSections = sections.filter((x) => x.tier !== "BILLS");
-  const spendBudget = spendSections.reduce((t, x) => t + (x.budgetCents ?? 0), 0);
-  const budgetLeftCents = spendBudget - spendSections.reduce((t, x) => t + x.spentCents, 0);
-  const budgetLeftEndCents = spendBudget - spendSections.reduce((t, x) => t + x.projectedCents, 0);
-  return {
-    budgetLeftCents,
-    budgetLeftEndCents,
-    card: { id: card.id, name: card.nickname || displayAccountName(card.name) },
-    from, to, dueOn: dueAfter(st.nextDue, to),
-    day, days, daysLeft: days - day,
-    chargedCents: charged, billsToComeCents: toCome, roomCents: room, projectedCents: totals.projectedCents, sections, totals,
-  };
-}
-
 /** The due date of the statement closing on [close]: the current due date's day, the month after the close. */
-function dueAfter(nextDue: string | null, close: string): string | null {
+export function dueAfter(nextDue: string | null, close: string): string | null {
   if (!nextDue) return null;
   const day = Number(nextDue.slice(8, 10));
   const [y, m] = close.split("-").map(Number);
@@ -449,7 +292,7 @@ export async function statementCards(today: string): Promise<Array<{ id: string;
 }
 
 /** The account unplanned spending usually lands on (weighted by each unplanned budget's usual month), or null. */
-function reserveHome(plan: MonthPlanView, shareOf: (id: string) => Map<string, number>): string | null {
+export function reserveHome(plan: MonthPlanView, shareOf: (id: string) => Map<string, number>): string | null {
   const weight = new Map<string, number>();
   for (const g of plan.groups.filter((x) => x.tier === "UNPLANNED")) {
     const usual = Math.max(1, g.usualCents ?? 0);

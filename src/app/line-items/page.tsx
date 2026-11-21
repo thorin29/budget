@@ -1,6 +1,7 @@
 import { monthSplit } from "@/server/pay-split";
 import Link from "next/link";
 import { getLineItem, lineItemHistory, listLineItems } from "@/server/line-items";
+import { getTrackerMonth } from "@/server/tracker-month";
 import { sameNameTags } from "@/lib/same-names";
 import { listAccounts } from "@/server/accounts";
 import { listCategories } from "@/server/categories";
@@ -144,6 +145,15 @@ export default async function LineItemsPage({
   // Halves follow this month's split, which may come from the pay calendar.
   const now = new Date();
   const { splitDay } = await monthSplit(now.getUTCFullYear(), now.getUTCMonth() + 1, settings);
+  // This month's amount where it isn't the usual one (a one-month change, or a card's statement).
+  const tracker = await getTrackerMonth(now.getUTCFullYear(), now.getUTCMonth() + 1).catch(() => null);
+  const thisMonth = new Map(
+    tracker
+      ? [...tracker.halves[0].entries, ...tracker.halves[1].entries, ...tracker.surplusItems, ...tracker.income]
+          .filter((e) => !e.carriedFrom && !e.skipped && e.year === tracker.year && e.month === tracker.month)
+          .map((e) => [e.lineItemId, e] as const)
+      : [],
+  );
   const categoryName = new Map(categories.map((c) => [c.id, c.name]));
   const inactiveCount = items.filter((i) => !i.active).length;
   const shownName = sameNameTags(items);
@@ -227,8 +237,13 @@ export default async function LineItemsPage({
                       )}
                       {item.active ? null : <Pill tone="warn">Inactive</Pill>}
                     </span>
-                    <span className="tnum w-24 shrink-0 text-right text-sm font-semibold">
-                      {formatCents(item.plannedAmountCents)}
+                    <span className="w-28 shrink-0 text-right">
+                      <span className="tnum block text-sm font-semibold">{formatCents(item.plannedAmountCents)}</span>
+                      {(() => {
+                        const e = thisMonth.get(item.id);
+                        if (!e || !item.active || e.budgetedCents === item.plannedAmountCents) return null;
+                        return <span className="tnum block text-xs text-muted">{formatCents(e.budgetedCents)} {e.fromStatement ? "statement" : "this month"}</span>;
+                      })()}
                     </span>
                   </Link>
                 );

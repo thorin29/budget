@@ -228,6 +228,13 @@ export function LineItemForm({
                 required
               />
             </div>
+            {kind === "BILL" ? (
+              <label className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
+                <input type="hidden" name="amountTargetShown" value="1" />
+                <input type="checkbox" name="amountTarget" defaultChecked={!!amountHistory?.target} />
+                Varies month to month (a target)
+              </label>
+            ) : null}
             {amountChanged ? (
               <label className="mt-1.5 flex items-center gap-1.5 text-xs text-muted">
                 Starting

@@ -3,7 +3,7 @@ import { CardDeck, CardTable, type DeckCard } from "../../card-deck";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getMonthView } from "@/server/month";
+import { getTrackerMonth } from "@/server/tracker-month";
 import { getMonthPlan } from "@/server/month-plan";
 import { getProjection } from "@/server/projection-view";
 import { formatCents } from "@/lib/money";
@@ -52,7 +52,7 @@ export default async function MonthPage({
   if (accountCount === 0) return <Welcome />;
 
   const [view, projection, review, plan] = await Promise.all([
-    getMonthView(year, month),
+    getTrackerMonth(year, month),
     getProjection().catch(() => null),
     getReview().catch((error) => {
       console.error("Review:", error instanceof Error ? error.message : error);

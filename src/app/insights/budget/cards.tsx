@@ -7,7 +7,8 @@
 
 import Link from "next/link";
 import { Card } from "@/components/ui";
-import type { CardRow, CardSection, Check, StatementView } from "@/server/card-view";
+import type { CardRow, CardSection, Check } from "@/server/card-view";
+import type { StatementView } from "@/server/statement-plan";
 import { Bar, COLOR, GRID, Legend, SUMMARY, TableHead, billResult, day, left, money, tone } from "./forecast";
 
 const SECTION: Record<CardSection["tier"], { name: string; color: string }> = {
@@ -198,6 +199,74 @@ export function StatementCards({ v }: { v: StatementView }) {
           </div>
         </dl>
         <p className="mt-2 text-xs text-muted">{v.dueOn ? `Due ${day(v.dueOn)}.` : ""}</p>
+      </Card>
+    </div>
+  );
+}
+
+/** How the statement's budget is made (its month portions), and whether checking can pay it on its due date. */
+export function StatementPlan({ v }: { v: StatementView }) {
+  const m = v.money;
+  const spare = m ? m.ceilingCents - m.plannedCents : null;
+  const parts = m
+    ? ([
+        ["Pay", m.payCents, 1],
+        ["bills from checking", m.billsCents, -1],
+        ["0% payment", m.debtCents, -1],
+        ["other cards", m.otherCardsCents, -1],
+      ] as Array<[string, number, 1 | -1]>).filter(([, c], i) => i === 0 || c > 0)
+    : [];
+  const monthName = m ? new Date(`${m.month}-01T00:00:00Z`).toLocaleString("en-US", { month: "long", timeZone: "UTC" }) : "";
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Card>
+        <p className="text-sm text-muted">Statement budget</p>
+        <p className="tnum mt-2 text-3xl font-bold">{money(v.plannedCents)}</p>
+        <ul className="mt-3 space-y-1 text-sm">
+          {v.portions.map((p) => (
+            <li key={p.from} className="flex gap-3">
+              <span className="w-28 shrink-0 tnum text-muted">
+                {day(p.from)} – {day(p.to)}
+              </span>
+              <span className="tnum min-w-0 flex-1 truncate text-muted">
+                {[
+                  p.billsCents ? `bills ${money(p.billsCents)}` : "",
+                  p.essentialCents ? `essentials ${money(p.essentialCents)}` : "",
+                  p.extrasCents ? `extras ${money(p.extrasCents)}` : "",
+                  p.reserveCents ? `reserve ${money(p.reserveCents)}` : "",
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+              <span className="tnum font-semibold">{money(p.totalCents)}</span>
+            </li>
+          ))}
+        </ul>
+      </Card>
+      <Card>
+        <p className="text-sm text-muted">{m ? `${monthName} money for it` : "Money for it"}{v.dueOn ? ` · due ${day(v.dueOn)}` : ""}</p>
+        {m ? (
+          <>
+            <p className={`tnum mt-2 text-3xl font-bold ${spare !== null && spare < 0 ? "text-danger" : "text-ok"}`}>
+              {spare !== null && spare < 0 ? `${money(-spare)} short` : `${money(spare ?? 0)} to spare`}
+            </p>
+            <p className="tnum mt-3 text-sm text-muted">
+              {parts.map(([label, c, sign], i) => (
+                <span key={label} className="whitespace-nowrap">
+                  {i ? (sign > 0 ? " + " : " − ") : ""}
+                  {label} {money(c)}
+                </span>
+              ))}
+              <span className="whitespace-nowrap">
+                {" = "}
+                <b className="text-foreground">{money(m.ceilingCents)}</b>
+              </span>
+            </p>
+            <p className="tnum mt-1 text-sm text-muted">Statement budget {money(m.plannedCents)}</p>
+          </>
+        ) : (
+          <p className="mt-2 text-sm text-muted">No due date set for this card.</p>
+        )}
       </Card>
     </div>
   );
