@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.106.4]
+
+### Added
+- Transactions: a charge split by item (from the Amazon extension or Order History.csv) shows
+  "Split" with its categories instead of the charge's own category; click it to see each part,
+  its items and amount. Split charges no longer count under Guessed.
+
+### Changed
+- The phone's 0% payoff card (the payment needed to clear the card by the offer's end) is off;
+  the 0% card's payment comes from Bills & Income.
+- Tracker card summary: "Payment by …" and "0% · N payments left" on a 0% card.
+
 ## [0.106.3]
 
 ### Fixed

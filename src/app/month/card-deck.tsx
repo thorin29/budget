@@ -92,7 +92,7 @@ function CardFace({ card }: { card: DeckCard }) {
     ? { label: "Balance", cents: card.owedNowCents }
     : s.plan === "paid"
       ? { label: `Nothing due · next ${short(s.nextDue)}`, cents: 0 }
-      : { label: `${s.plan === "payoff" ? "Payoff payment" : "Pay"} by ${short(s.nextDue)}`, cents: s.suggestedCents };
+      : { label: `${s.plan === "payoff" ? "Payment" : "Pay"} by ${short(s.nextDue)}`, cents: s.suggestedCents };
   return (
     <div className={`flex h-full flex-col justify-between p-4 ${ink}`} style={{ background: color.background }}>
       <div className="flex items-start justify-between gap-2">
@@ -282,7 +282,7 @@ export function CardTable({ cards }: { cards: DeckCard[] }) {
                         <span className="block font-semibold">{s.plan === "paid" ? "—" : money(s.suggestedCents)}</span>
                         <span className="block text-xs text-muted">
                           {s.plan === "payoff" && s.paymentsLeft !== null
-                            ? `0% payoff · ${s.paymentsLeft} left`
+                            ? `0% · ${s.paymentsLeft} payments left`
                             : s.plan === "statement"
                               ? "in full, no interest"
                               : "nothing due"}

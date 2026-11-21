@@ -27,7 +27,9 @@ export async function GET(request: Request) {
       getInsights(y, m),
       getSuggestions(),
       getUpcoming(),
-      payoffTrackers(),
+      // The 0% pace card (what each payment would need to be to clear the card by the offer's end)
+      // is off: the debt payment is set in Bills & Income, and the phone shows that instead.
+      Promise.resolve([] as Awaited<ReturnType<typeof payoffTrackers>>),
       atNow ? getMonthView(y, m).catch(() => null) : Promise.resolve(null),
     ]);
     const limit = atNow ? await getAllowance().catch(() => null) : null;

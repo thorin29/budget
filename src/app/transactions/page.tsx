@@ -45,12 +45,12 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     accounts.length ? listBankTransactions({ accountId, query: sp.q, category: quick === "none" ? "none" : categoryFilter, take: 1000, from: `${month}-01`, to: last }) : Promise.resolve([]),
     getMonthPlan(Number(month.slice(0, 4)), Number(month.slice(5, 7))).catch(() => null),
   ]);
-  const rows = all.filter((r) => (quick === "guessed" ? r.categorySource === "guess" && r.kind === "NORMAL" : quick === "in" ? r.amountCents > 0 && r.kind === "NORMAL" : quick === "transfer" ? r.kind === "TRANSFER" : true));
+  const rows = all.filter((r) => (quick === "guessed" ? r.categorySource === "guess" && r.kind === "NORMAL" && !r.splits.length : quick === "in" ? r.amountCents > 0 && r.kind === "NORMAL" : quick === "transfer" ? r.kind === "TRANSFER" : true));
   const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
   const page = Math.min(pages, Math.max(1, Number(sp.p) || 1));
   const shown = rows.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const options = categories.map((c) => ({ id: c.id, name: c.name, managedForOthers: c.managedForOthers }));
-  const counts = { none: all.filter((r) => r.kind === "NORMAL" && r.amountCents < 0 && !r.categoryId).length, guessed: all.filter((r) => r.categorySource === "guess" && r.kind === "NORMAL").length };
+  const counts = { none: all.filter((r) => r.kind === "NORMAL" && r.amountCents < 0 && !r.categoryId).length, guessed: all.filter((r) => r.categorySource === "guess" && r.kind === "NORMAL" && !r.splits.length).length };
   const href = (over: Record<string, string | undefined>) => {
     const q = new URLSearchParams();
     const merged = { account: accountId, q: sp.q, category: categoryFilter, m: month === thisMonth ? undefined : month, f: quick || undefined, ...over };
@@ -149,7 +149,23 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                         </td>
                         <td className="w-40 truncate pr-3 text-xs text-muted">{r.accountName}</td>
                         <td className="w-56 pr-3">
-                          {r.kind === "NORMAL" || r.kind === "TRANSFER" || r.categorySource === "person" ? (
+                          {r.splits.length ? (
+                            <details className="group">
+                              <summary className="flex cursor-pointer list-none items-center gap-2 text-xs">
+                                <Pill tone="info">Split {r.splits.length}</Pill>
+                                <span className="truncate text-muted">{r.splits.map((x) => x.categoryName ?? "No category").join(" · ")}</span>
+                              </summary>
+                              <ul className="mt-1 space-y-0.5 text-xs">
+                                {r.splits.map((x, i) => (
+                                  <li key={i} className="flex gap-2">
+                                    <span className="w-24 shrink-0 truncate font-semibold">{x.categoryName ?? "No category"}</span>
+                                    <span className="min-w-0 flex-1 truncate text-muted" title={x.note ?? ""}>{x.note}</span>
+                                    <span className="tnum">{formatCents(x.amountCents)}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </details>
+                          ) : r.kind === "NORMAL" || r.kind === "TRANSFER" || r.categorySource === "person" ? (
                             <CategoryCell txn={{ id: r.id, merchant: r.merchant, categoryId: r.categoryId, categorySource: r.categorySource, peer: r.peer, transfer: r.kind === "TRANSFER" }} categories={options} />
                           ) : null}
                         </td>

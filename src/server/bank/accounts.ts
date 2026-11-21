@@ -186,6 +186,8 @@ export interface BankTransactionView {
   categorySource: string;
   /** A payment app: categories are set one transaction at a time. */
   peer: boolean;
+  /** Parts of the charge in other categories (an Amazon order split by item), largest first. */
+  splits: Array<{ categoryName: string | null; amountCents: number; note: string | null }>;
 }
 
 export async function listBankTransactions({
@@ -217,7 +219,10 @@ export async function listBankTransactions({
     },
     orderBy: [{ postedOn: "desc" }, { createdAt: "desc" }],
     take: text ? 20_000 : limit,
-    include: { account: { select: { name: true, nickname: true, institution: true } } },
+    include: {
+      account: { select: { name: true, nickname: true, institution: true } },
+      splits: { select: { amount: true, note: true, category: { select: { name: true } } } },
+    },
   });
   return (rows as Array<{
     id: string;
@@ -231,6 +236,7 @@ export async function listBankTransactions({
     categoryId: string | null;
     categorySource: string;
     account: { name: string; nickname: string | null; institution: string | null };
+    splits: Array<{ amount: { toString(): string }; note: string | null; category: { name: string } | null }>;
   }>)
     .filter((r) => !text || r.merchant.toLowerCase().includes(text) || r.description.toLowerCase().includes(text))
     .slice(0, limit)
@@ -248,5 +254,8 @@ export async function listBankTransactions({
     categoryId: r.categoryId,
     categorySource: r.categorySource,
     peer: isPeerPayment(r.merchant),
+    splits: r.splits
+      .map((x) => ({ categoryName: x.category?.name ?? null, amountCents: toCents(x.amount), note: x.note }))
+      .sort((a, b) => a.amountCents - b.amountCents),
   }));
 }
