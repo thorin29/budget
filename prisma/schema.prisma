@@ -450,6 +450,8 @@ model Device {
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   /// What the person called it, e.g. "Pixel".
   name   String
+  /// "full", or "amazon": an Amazon extension token, refused outside /api/v1/amazon.
+  scope  String @default("full")
 
   tokenHash String @unique
   /// The user's credentialVersion when the token was issued. A password change
@@ -721,4 +723,21 @@ model NetWorthSnapshot {
   ownCents  BigInt
   oweCents  BigInt
   updatedAt DateTime @updatedAt
+}
+
+/// The Amazon extension's last run, one row for the household (id "default"). Written by the
+/// extension's routes (src/app/api/v1/amazon). Nothing from Amazon is kept here: just how the last
+/// sync went and two counts.
+model AmazonSync {
+  id               String    @id @default("default")
+  lastRunAt        DateTime?
+  lastSuccessAt    DateTime?
+  /// ok | amazon_signed_out | captcha | parse_failed | ledger_error
+  lastStatus       String?
+  /// Which part failed, as a short code (e.g. "orders_list"), or null.
+  failedSection    String?
+  extensionVersion String?
+  chargesSplit     Int       @default(0)
+  ordersWaiting    Int       @default(0)
+  updatedAt        DateTime  @updatedAt
 }

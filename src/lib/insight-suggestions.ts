@@ -63,9 +63,9 @@ export interface Suggestion {
 }
 
 /** Categories people can usually turn down without missing a bill. */
-const FLEXIBLE = /^(target & walmart|fast food|restaurants|coffee & treats|kohl's|clothing|hobbies|outdoors & sports|alcohol|gifts & occasions|aquarium|dining|restaurants|eating out|dining out|shopping|household|general|entertainment|fun|recreation|travel|vacation|personal care|personal|subscriptions?|streaming|hobbies|coffee|alcohol)$/i;
+const FLEXIBLE = /\b(dining|dining out|eating out|restaurants?|fast food|takeout|coffee|treats|clothing|apparel|shoes|shopping|household|general|entertainment|fun|recreation|hobb(y|ies)|outdoors|sports|alcohol|gifts?|occasions|travel|vacation|personal( care)?|subscriptions?|streaming)\b/i;
 /** Spending that repeats by nature and isn't a subscription. */
-const NOT_SUBSCRIPTION = /^(fast food|restaurants|coffee & treats|groceries|grocery|food|target & walmart|costco & sam's club|fuel|gas|gasoline|dining|restaurants|eating out|dining out|cash|atm)$/i;
+const NOT_SUBSCRIPTION = /\b(groceries|grocery|supermarket|food|dining|dining out|eating out|restaurants?|fast food|coffee|treats|warehouse club|big box|fuel|gas|gasoline|cash|atm)\b/i;
 
 /** Groceries, fuel and the like repeat by nature; they aren't subscriptions. */
 export function isSteadyEveryday(categoryName: string | null | undefined): boolean {

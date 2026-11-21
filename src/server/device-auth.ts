@@ -39,7 +39,8 @@ export type DeviceAuthCode =
   | "invalid_token"
   | "device_revoked"
   | "device_expired"
-  | "reauth_required";
+  | "reauth_required"
+  | "wrong_scope";
 
 export class DeviceAuthError extends Error {
   readonly code: DeviceAuthCode;
@@ -52,12 +53,26 @@ export class DeviceAuthError extends Error {
 
 export interface DeviceAuth {
   user: { id: string; username: string };
-  device: { id: string; name: string; expiresAt: Date };
+  device: { id: string; name: string; expiresAt: Date; scope: DeviceScope };
+}
+
+export const DEVICE_SCOPES = ["full", "amazon"] as const;
+export type DeviceScope = (typeof DEVICE_SCOPES)[number];
+
+/** Where an "amazon" token may go: its own routes, plus refresh and logout. */
+export function scopeAllows(scope: string, pathname: string): boolean {
+  if (scope === "full") return true;
+  if (scope === "amazon") {
+    const path = pathname.replace(/\/+$/, "");
+    return path === "/api/v1/amazon" || path.startsWith("/api/v1/amazon/") || path === "/api/v1/auth/refresh" || path === "/api/v1/auth/logout";
+  }
+  return false;
 }
 
 interface DeviceRow {
   id: string;
   name: string;
+  scope: string;
   credentialVersion: number;
   expiresAt: Date;
   lastSeenAt: Date | null;
@@ -81,6 +96,9 @@ export async function requireDevice(request: Request, now = new Date()): Promise
   if (device.credentialVersion !== device.user.credentialVersion) {
     throw new DeviceAuthError("reauth_required", "The password changed; sign this device in again");
   }
+  if (!scopeAllows(device.scope, new URL(request.url, "http://local").pathname)) {
+    throw new DeviceAuthError("wrong_scope", "This device's token can't be used here");
+  }
 
   if (!device.lastSeenAt || now.getTime() - device.lastSeenAt.getTime() > LAST_SEEN_MINUTES * 60_000) {
     await prisma.device.update({ where: { id: device.id }, data: { lastSeenAt: now } });
@@ -88,7 +106,7 @@ export async function requireDevice(request: Request, now = new Date()): Promise
 
   return {
     user: { id: device.user.id, username: device.user.username },
-    device: { id: device.id, name: device.name, expiresAt: device.expiresAt },
+    device: { id: device.id, name: device.name, expiresAt: device.expiresAt, scope: device.scope as DeviceScope },
   };
 }
 
@@ -128,7 +146,10 @@ export async function enrollDevice(input: {
   proof: unknown;
   code: unknown;
   name: unknown;
-}): Promise<{ token: string; expiresAt: Date; device: { id: string; name: string }; userId: string }> {
+  scope?: unknown;
+}): Promise<{ token: string; expiresAt: Date; device: { id: string; name: string; scope: DeviceScope }; userId: string }> {
+  const scope = input.scope === undefined || input.scope === null ? "full" : input.scope;
+  if (!DEVICE_SCOPES.includes(scope as DeviceScope)) throw new ValidationError({ scope: ['Use "full" or "amazon"'] });
   const proof = decodeLoginProof(input.proof, await sessionSecret());
   if (!proof) throw new ValidationError({ proof: ["Sign in again; that step expired"] });
 
@@ -168,16 +189,17 @@ export async function enrollDevice(input: {
       data: {
         userId: user.id,
         name: cleanDeviceName(input.name),
+        scope: scope as DeviceScope,
         tokenHash: hashToken(token),
         credentialVersion: user.credentialVersion,
         expiresAt,
         lastSeenAt: new Date(),
       },
-      select: { id: true, name: true },
+      select: { id: true, name: true, scope: true },
     });
   });
 
-  return { token, expiresAt, device, userId: user.id };
+  return { token, expiresAt, device: device as { id: string; name: string; scope: DeviceScope }, userId: user.id };
 }
 
 /**
@@ -226,11 +248,11 @@ export async function revokeDevice(userId: string, deviceId: unknown): Promise<v
 }
 
 export async function listDevices(userId: string): Promise<
-  Array<{ id: string; name: string; createdAt: Date; lastSeenAt: Date | null; expiresAt: Date }>
+  Array<{ id: string; name: string; scope: string; createdAt: Date; lastSeenAt: Date | null; expiresAt: Date }>
 > {
   return prisma.device.findMany({
     where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
-    select: { id: true, name: true, createdAt: true, lastSeenAt: true, expiresAt: true },
+    select: { id: true, name: true, scope: true, createdAt: true, lastSeenAt: true, expiresAt: true },
     orderBy: { createdAt: "desc" },
   });
 }

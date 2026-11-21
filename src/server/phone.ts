@@ -314,7 +314,7 @@ export type AlertKind =
   | "cardDue" | "statementClosed"
   | "payday" | "short" | "largeCharge"
   | "budgetOver" | "reserveUsed" | "weekly"
-  | "review" | "syncStopped";
+  | "review" | "syncStopped" | "amazonSync";
 
 export interface PhoneAlert {
   /** Stable: the phone posts each key once. */
@@ -381,6 +381,9 @@ export async function phoneAlerts(): Promise<PhoneAlert[]> {
   if (toReview) out.push({ key: `review:${today}`, kind: "review", title: `${toReview} ${toReview === 1 ? "item" : "items"} to review`, body: "Open Review to check them", open: "review" });
   const lastSync = conn?.lastSuccessAt ?? null;
   if (lastSync && Date.now() - lastSync.getTime() > 24 * 3_600_000) out.push({ key: `sync:${lastSync.toISOString()}`, kind: "syncStopped", title: "No new bank data for a day", body: "Check the bank connection on the web", open: "today" });
+  const { amazonAlert } = await import("./amazon-alert");
+  const amazon = await amazonAlert().catch(() => null);
+  if (amazon) out.push({ key: amazon.key, kind: "amazonSync", title: amazon.title, body: amazon.body, open: "today" });
   // The weekly summary: the phone posts it on Sunday evening.
   const week = isoWeek(today);
   const left = forecastTotals(planForecastRows(plan));

@@ -12,6 +12,8 @@
  *    through, so a route that forgets is open to the internet.
  * 3. Other route handlers (outside /api) must call requireUser(), unless on
  *    PUBLIC_OTHER.
+ * 4. requireDevice() must keep its scope check, so an "amazon" token stays on
+ *    /api/v1/amazon/*, auth/refresh and auth/logout.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
@@ -91,6 +93,18 @@ for (const file of files(src)) {
       if (PUBLIC_OTHER.has(routePath) || body.includes("requireUser(")) continue;
       problems.push(`${rel}: ${name} never calls requireUser()`);
     }
+  }
+}
+
+{
+  const deviceAuth = readFileSync(join(src, "server", "device-auth.ts"), "utf8");
+  const start = deviceAuth.indexOf("export async function requireDevice(");
+  const end = deviceAuth.indexOf("\nexport ", start + 1);
+  const body = start >= 0 ? deviceAuth.slice(start, end < 0 ? undefined : end) : "";
+  if (!body.includes("scopeAllows(")) problems.push("src/server/device-auth.ts: requireDevice() no longer checks the token's scope");
+  const allows = deviceAuth.slice(deviceAuth.indexOf("export function scopeAllows("), deviceAuth.indexOf("interface DeviceRow"));
+  for (const path of ['"/api/v1/amazon/"', '"/api/v1/auth/refresh"', '"/api/v1/auth/logout"']) {
+    if (!allows.includes(path)) problems.push(`src/server/device-auth.ts: scopeAllows() is missing ${path}`);
   }
 }
 

@@ -37,6 +37,10 @@ export function created<T>(data: T): NextResponse {
 
 /** Translates a domain error into a response. Anything unexpected is a 500. */
 export function fail(error: unknown): NextResponse {
+  if (error instanceof DeviceAuthError && error.code === "wrong_scope") {
+    // Signed in fine, just not allowed here: 403, so the client doesn't sign in again.
+    return NextResponse.json<ApiError>({ error: { code: error.code, message: error.message } }, { status: 403, headers: { "Cache-Control": "no-store" } });
+  }
   if (error instanceof DeviceAuthError) {
     return NextResponse.json<ApiError>(
       { error: { code: error.code, message: error.message } },

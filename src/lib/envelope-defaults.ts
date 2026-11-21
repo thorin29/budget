@@ -14,18 +14,18 @@ export interface DefaultGroup {
   match: RegExp;
 }
 
-const SPORTS = "hockey|soccer|baseball|softball|football|basketball|lacrosse|volleyball|swim|dance|gymnastics|sports?";
+const SPORTS = "baseball|basketball|dance|football|gymnastics|hockey|lacrosse|soccer|softball|swim|tennis|volleyball|sports?";
 
 export const DEFAULT_GROUPS: DefaultGroup[] = [
   // Spending in these categories is paid through the bills.
-  { name: "Paid as bills", tier: "BILLS", match: /housing|mortgage|\brent\b|utilit|phone|internet|insurance|\bloans?\b|\btaxes\b|\bdebt\b|^payments?$|^giving$|^church$|tithe|donat|charit|saving|invest|crypto|retirement|subscriptions?|streaming|autopay/ },
+  { name: "Paid as bills", tier: "BILLS", match: /housing|mortgage|\brent\b|utilit|phone|internet|insurance|\bloans?\b|\btaxes\b|\bdebt\b|^payments?$|giving|tithe|donat|charit|saving|invest|crypto|retirement|subscriptions?|streaming|autopay/ },
   // Needed every month.
-  { name: "Groceries & household", tier: "ESSENTIAL", match: /grocer|supermarket|warehouse|costco|sam's|target|walmart|^food$|household|toiletr|personal care/ },
+  { name: "Groceries & household", tier: "ESSENTIAL", match: /grocer|supermarket|warehouse club|big box|^food$|household|toiletr|personal care/ },
   { name: "Fuel", tier: "ESSENTIAL", match: /^fuel$|^gas$|gasoline|\bfuel\b|transit|parking|\btolls?\b|car ?wash|car care/ },
   // Extras.
   { name: "Sports gear", tier: "FLEXIBLE", match: new RegExp(`(${SPORTS}).*(gear|equipment|store)|(gear|equipment)`) },
   { name: "Eating out", tier: "FLEXIBLE", match: /fast food|restaurants?|dining|eating out|coffee|treats|takeout|bars?$/ },
-  { name: "Clothing", tier: "FLEXIBLE", match: /cloth|apparel|shoes|kohl/ },
+  { name: "Clothing", tier: "FLEXIBLE", match: /cloth|apparel|shoes/ },
   { name: "Shopping", tier: "FLEXIBLE", match: /shopping|^home$|electronics|furniture|decor/ },
   { name: "Fitness", tier: "FLEXIBLE", match: /fitness|gym/ },
   { name: "Gifts & trips", tier: "FLEXIBLE", match: /gifts?|occasions?|holiday|christmas|travel|vacation|trips?/ },
@@ -38,7 +38,7 @@ export const DEFAULT_GROUPS: DefaultGroup[] = [
   { name: "Home upkeep", tier: "UNPLANNED", match: /home repair|home upkeep|maintenance|pest|lawn|yard/ },
   { name: "Fees & interest", tier: "UNPLANNED", match: /\bfees?\b|\binterest\b|penalt|late charge/ },
   // Extras that match broadly, last.
-  { name: "Fun", tier: "FLEXIBLE", match: /entertain|hobb|outdoors|alcohol|aquarium|cash|games?|toys?|books?|music|recreation|activit/ },
+  { name: "Fun", tier: "FLEXIBLE", match: /entertain|hobb|outdoors|alcohol|cash|games?|toys?|books?|music|recreation|activit/ },
 ];
 
 /** The name of the default group a category starts in, or null. Earlier groups win. */

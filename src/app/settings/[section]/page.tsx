@@ -50,6 +50,7 @@ import { formatCents } from "@/lib/money";
 import { getConnection } from "@/server/bank/sync";
 import { listBankAccounts } from "@/server/bank/accounts";
 import { amazonStatus } from "@/server/amazon-import";
+import { amazonAlert, amazonSyncState } from "@/server/amazon-alert";
 import { listCsvImports } from "@/server/bank/csv-import";
 import { SLOT_MINUTE, syncHours } from "@/lib/bank-schedule";
 import { AmazonImporter, BillsSource, CombinedImporter, ConnectBank, CsvImporter, LinkAccountToBank, DeleteBankData, RawFeed, RevertImport, SyncControls } from "../bank";
@@ -114,6 +115,7 @@ async function Security() {
               <li key={d.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
                 <span>
                   <span className="font-semibold">{d.name}</span>
+                  <span className="ml-2 rounded-full border border-line px-2 py-0.5 text-xs text-muted">{d.scope === "amazon" ? "Amazon only" : "Full access"}</span>
                   <span className="block text-xs text-muted">
                     Added {dateFormat.format(d.createdAt)}
                     {d.lastSeenAt ? ` · last used ${dateFormat.format(d.lastSeenAt)}` : ""} · sign-in lasts until{" "}
@@ -341,9 +343,11 @@ async function Pay() {
 // ---------------------------------------------------------------- data
 
 async function Data() {
-  const [batches, years] = await Promise.all([
+  const [batches, years, amazonSync, amazonIssue] = await Promise.all([
     listImportBatches(),
     prisma.actualEntry.findMany({ distinct: ["year"], select: { year: true }, orderBy: { year: "desc" } }),
+    amazonSyncState().catch(() => null),
+    amazonAlert().catch(() => null),
   ]);
 
   return (
@@ -352,6 +356,33 @@ async function Data() {
         <SectionHeading title="Data Imports & Exports" />
         <Importer batches={batches} />
       </div>
+
+      {amazonSync || amazonIssue ? (
+        <Card>
+          <div id="amazon" className="scroll-mt-20" />
+          <h3 className="font-sans text-base font-bold">Amazon Extension</h3>
+          {amazonIssue ? (
+            <p className="mt-1 text-sm font-semibold text-warn">
+              {amazonIssue.title} · {amazonIssue.body}
+            </p>
+          ) : null}
+          <dl className="mt-3 grid grid-cols-3 gap-3 text-sm">
+            <div>
+              <dt className="text-muted">Last sync</dt>
+              <dd className="font-semibold">{amazonSync?.lastSuccessAt ? new Date(amazonSync.lastSuccessAt).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", timeZone: process.env.TZ || "UTC" }) : "Never"}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">Charges split</dt>
+              <dd className="tnum font-semibold">{(amazonSync?.chargesSplit ?? 0).toLocaleString()}</dd>
+            </div>
+            <div>
+              <dt className="text-muted">Orders waiting</dt>
+              <dd className="tnum font-semibold">{(amazonSync?.ordersWaiting ?? 0).toLocaleString()}</dd>
+            </div>
+          </dl>
+          {amazonSync?.extensionVersion ? <p className="mt-2 text-xs text-muted">Extension {amazonSync.extensionVersion}</p> : null}
+        </Card>
+      ) : null}
 
       <Card>
         <h3 className="font-sans text-base font-bold">Changes File</h3>

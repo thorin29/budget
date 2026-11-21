@@ -736,12 +736,16 @@ export async function applyChanges(
             ...(op.months && op.months.length < 12
               ? { months: op.months, anchorMonth: op.months[0] }
               : {}),
+            // A new line starts this month unless told otherwise, so earlier months aren't owed.
             ...(op.from
               ? {
                   startYear: Number(op.from.slice(0, 4)),
                   startMonth: Number(op.from.slice(5, 7)),
                 }
-              : {}),
+              : {
+                  startYear: new Date().getFullYear(),
+                  startMonth: new Date().getMonth() + 1,
+                }),
           });
           break;
         }

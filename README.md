@@ -80,7 +80,7 @@ docker run -d \
   -e DATABASE_URL="postgresql://budget:choose-a-strong-password@<postgres-host>:5432/budget?schema=public" \
   -e TZ="UTC" \
   -v /path/to/appdata/budget:/app/data \
-  ghcr.io/thorin29/budget:latest
+  ghcr.io/thorin29/ledger:latest
 ```
 
 Migrations apply automatically on start, so upgrading is pulling a newer image.
@@ -175,7 +175,7 @@ they hold every figure and the cookie-signing secret.
 | --- | --- |
 | `GET /api/v1/meta` | App name, version and API version |
 | `POST /api/v1/auth/login` | `{username, password}` → `{proof}`, valid five minutes |
-| `POST /api/v1/auth/enroll` | `{proof, code, name}` → `{token, expiresAt, device}` |
+| `POST /api/v1/auth/enroll` | `{proof, code, name, scope?}` → `{token, expiresAt, device}`. `scope` is `full` (default) or `amazon` (only `/api/v1/amazon/*`, refresh, logout) |
 
 The `code` comes from **Settings → Sign-in & people → Add a phone** on the web
 (text or QR; 15 minutes, one use). A password alone cannot add a phone. The

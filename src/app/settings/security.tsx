@@ -187,7 +187,7 @@ export function RevokeDevice({ deviceId, name }: { deviceId: string; name: strin
   if (!armed) {
     return (
       <button type="button" onClick={() => setArmed(true)} className={buttonClass("danger")}>
-        Sign out phone
+        Sign out
       </button>
     );
   }

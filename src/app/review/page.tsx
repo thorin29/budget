@@ -4,7 +4,9 @@
  * grouped by bill (open one for each month, each with its Undo).
  */
 
+import Link from "next/link";
 import { getReview } from "@/server/review";
+import { amazonAlert } from "@/server/amazon-alert";
 import { Card } from "@/components/ui";
 import { recentAutomation } from "@/server/bills-auto";
 import { formatCents } from "@/lib/money";
@@ -18,10 +20,10 @@ export const dynamic = "force-dynamic";
 const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "UTC" });
 
 export default async function ReviewPage() {
-  const [review, auto, categoryRows, uncategorized] = await Promise.all([getReview(), recentAutomation(), listCategories(), needsCategory().catch(() => [])]);
+  const [review, auto, categoryRows, uncategorized, amazon] = await Promise.all([getReview(), recentAutomation(), listCategories(), needsCategory().catch(() => []), amazonAlert().catch(() => null)]);
   const categories = categoryRows.map((c) => ({ id: c.id, name: c.name }));
   const options = categoryRows.map((c) => ({ id: c.id, name: c.name, managedForOthers: c.managedForOthers }));
-  const waiting = review.count + auto.moved.length + uncategorized.length;
+  const waiting = review.count + auto.moved.length + uncategorized.length + (amazon ? 1 : 0);
 
   // Recorded payments grouped by bill, newest month first, bills with the newest payment first.
   const byBill = new Map<string, typeof auto.recorded>();
@@ -43,6 +45,12 @@ export default async function ReviewPage() {
             {waiting ? <span className="rounded-full bg-warn-soft px-2.5 py-0.5 text-xs font-bold text-warn">{waiting}</span> : null}
           </div>
           {waiting === 0 ? <p className="text-sm text-muted">All caught up.</p> : null}
+          {amazon ? (
+            <Link href="/settings/data#amazon" className="flex items-center gap-3 rounded-xl border border-warn bg-warn-soft px-3 py-2.5 text-sm">
+              <span className="font-semibold text-warn">{amazon.title}</span>
+              <span className="text-muted">{amazon.body}</span>
+            </Link>
+          ) : null}
           {review.looksPaid.length ? (
             <section>
               <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Bills That Look Paid</h3>

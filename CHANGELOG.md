@@ -3,6 +3,29 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.105.0]
+
+**Migration 0027** (applied on start): adds `Device.scope` and the `AmazonSync` table. The Docker
+image is now `ghcr.io/thorin29/ledger` (the repo was renamed).
+
+### Added
+- **Scoped device tokens:** `POST /api/v1/auth/enroll` takes an optional `scope`, `full` (the
+  default) or `amazon`. An `amazon` token only works on `/api/v1/amazon/*`, `auth/refresh` and
+  `auth/logout`; anywhere else it gets 403 `wrong_scope`. Settings › Sign-in & people shows each
+  device's access, and `check-auth` fails the build if the scope check goes missing.
+- **Amazon extension status:** the extension's last sync (one row: when it ran, when it last
+  worked, its status, which part failed as a short code, its version, charges split, orders
+  waiting; no free text and nothing from Amazon). Once an Amazon-scoped device exists, a sync that
+  failed or none in three days shows on Review and as a phone alert (`amazonSync`, off until turned
+  on), and clears after the next good sync. Details are in Settings › Data Imports & Exports ›
+  Amazon Extension.
+
+### Changed
+- Changes file: a line added with `addBill` starts this month unless `from` says otherwise, so
+  earlier months aren't counted as owed.
+- Default budget groups and insight suggestions match generic category words instead of a
+  specific list of names.
+
 ## [0.104.2]
 
 ### Changed
