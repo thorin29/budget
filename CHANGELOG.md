@@ -3,6 +3,13 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.104.2]
+
+### Changed
+- Transactions: the button that applies a category or a transfer to every transaction from a
+  merchant reads "All from this merchant" (the merchant's name is in its tooltip), so it no longer
+  runs off the edge.
+
 ## [0.104.1]
 
 ### Changed

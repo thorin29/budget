@@ -113,8 +113,8 @@ export function CategoryCell({
           <button type="button" disabled={busy} onClick={() => (pendingChoice === TRANSFER ? transfer(false) : save(pendingChoice || null, false))} className="rounded-md border border-line px-2 py-0.5 font-semibold hover:bg-neutral-soft">
             This one
           </button>
-          <button type="button" disabled={busy} onClick={() => (pendingChoice === TRANSFER ? transfer(true) : save(pendingChoice || null, true))} className="max-w-48 truncate rounded-md bg-accent px-2 py-0.5 font-semibold text-on-accent">
-            All from {txn.merchant}
+          <button type="button" disabled={busy} onClick={() => (pendingChoice === TRANSFER ? transfer(true) : save(pendingChoice || null, true))} title={`Every transaction from ${txn.merchant}`} className="whitespace-nowrap rounded-md bg-accent px-2 py-0.5 font-semibold text-on-accent">
+            All from this merchant
           </button>
           <button
             type="button"
