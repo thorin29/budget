@@ -3,6 +3,12 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.106.2]
+
+### Changed
+- The "No Amazon sync in 3 days" alert now says "Open Chrome to let it sync", since the extension
+  syncs on its own.
+
 ## [0.106.1]
 
 ### Fixed
@@ -700,7 +706,7 @@ No migration. The phone app is unchanged.
 - **Calendar:** one month at a time (‹ › to move). Every day is the same size, with up to three
   lines and "+N more". Past days are one color (actual), days ahead another (forecast); a day
   forecast under the cushion is amber, below $0 red, with a legend. Same-named rows on a day are
-  one line ("Coinbase ×3"). The two explanation lines are gone; the accuracy line shows only once
+  one line ("Exchange ×3"). The two explanation lines are gone; the accuracy line shows only once
   there are saved forecasts to compare.
 - **Cash chart:** about six months of history load with the page, and "‹ Earlier", "Now" and
   "Later ›" slide the chart instead of reloading. All three stay on screen (greyed out at either

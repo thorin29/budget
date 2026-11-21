@@ -63,7 +63,7 @@ export async function amazonAlert(now = new Date()): Promise<AmazonAlert | null>
   }
   const since = row?.lastSuccessAt ?? device.createdAt;
   if (now.getTime() - since.getTime() > STALE_DAYS * 86_400_000) {
-    return { key: `amazonSync:stale:${since.toISOString().slice(0, 10)}`, title: `No Amazon sync in ${STALE_DAYS} days`, body: "Open Amazon with the extension on" };
+    return { key: `amazonSync:stale:${since.toISOString().slice(0, 10)}`, title: `No Amazon sync in ${STALE_DAYS} days`, body: "Open Chrome to let it sync" };
   }
   return null;
 }
