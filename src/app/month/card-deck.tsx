@@ -34,6 +34,8 @@ export interface DeckCard {
     plan: "statement" | "payoff" | "paid";
     paymentsLeft: number | null;
     promoEndsOn: string | null;
+    /** On a 0% card: each payment needed to clear it by the offer's end. */
+    monthlyCents: number | null;
   } | null;
 }
 
@@ -281,8 +283,8 @@ export function CardTable({ cards }: { cards: DeckCard[] }) {
                       <>
                         <span className="block font-semibold">{s.plan === "paid" ? "—" : money(s.suggestedCents)}</span>
                         <span className="block text-xs text-muted">
-                          {s.plan === "payoff" && s.paymentsLeft !== null
-                            ? `0% · ${s.paymentsLeft} payments left`
+                          {s.promoEndsOn && s.monthlyCents
+                            ? `${money(s.monthlyCents)}/mo clears it by ${long(s.promoEndsOn)}`
                             : s.plan === "statement"
                               ? "in full, no interest"
                               : "nothing due"}

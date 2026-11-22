@@ -3,6 +3,16 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.106.5]
+
+### Changed
+- Transactions: a charge split from an Amazon order shows its category ("Groceries · Amazon"), or
+  "3 categories · Amazon" when it's split across several; click it to see each item in a row under
+  the charge. Opening it no longer moves the columns.
+- 0% cards: the payment that clears the card by the offer's end is back, beside the planned
+  payment: on the phone's Insights and Cards, and on the Tracker's card summary
+  ("$1,867/mo clears it by Feb 11, 2028").
+
 ## [0.106.4]
 
 ### Added

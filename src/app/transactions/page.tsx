@@ -10,6 +10,7 @@ import { getMonthPlan } from "@/server/month-plan";
 import { formatCents } from "@/lib/money";
 import { listCategories } from "@/server/categories";
 import { CategoryCell } from "./category-cell";
+import { SplitRow } from "./split-row";
 import { Card, EmptyState, Pill, Select, TextInput, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -132,46 +133,39 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
             </form>
             {shown.length ? (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[640px] text-sm">
+                <table className="w-full min-w-[640px] table-fixed text-sm">
                   <tbody className="divide-y divide-line">
-                    {shown.map((r) => (
-                      <tr key={r.id}>
-                        <td className="tnum w-16 py-1.5 pl-4 text-xs text-muted">{day.format(r.postedOn)}</td>
-                        <td className="max-w-0 py-1.5 pr-3">
-                          <span className="flex items-center gap-2">
-                            <span className="truncate font-semibold" title={r.description}>
-                              {r.merchant}
+                    {shown.map((r) => {
+                      const cells = (
+                        <>
+                          <td className="tnum w-16 whitespace-nowrap py-1.5 pl-4 text-xs text-muted">{day.format(r.postedOn)}</td>
+                          <td className="max-w-0 py-1.5 pr-3">
+                            <span className="flex items-center gap-2">
+                              <span className="truncate font-semibold" title={r.description}>
+                                {r.merchant}
+                              </span>
+                              {r.kind === "TRANSFER" ? <Pill tone="neutral">Transfer</Pill> : null}
+                              {r.kind === "IGNORED" ? <Pill tone="neutral">Ignored</Pill> : null}
+                              {r.pending ? <Pill tone="warn">Pending</Pill> : null}
                             </span>
-                            {r.kind === "TRANSFER" ? <Pill tone="neutral">Transfer</Pill> : null}
-                            {r.kind === "IGNORED" ? <Pill tone="neutral">Ignored</Pill> : null}
-                            {r.pending ? <Pill tone="warn">Pending</Pill> : null}
-                          </span>
-                        </td>
-                        <td className="w-40 truncate pr-3 text-xs text-muted">{r.accountName}</td>
-                        <td className="w-56 pr-3">
-                          {r.splits.length ? (
-                            <details className="group">
-                              <summary className="flex cursor-pointer list-none items-center gap-2 text-xs">
-                                <Pill tone="info">Split {r.splits.length}</Pill>
-                                <span className="truncate text-muted">{r.splits.map((x) => x.categoryName ?? "No category").join(" · ")}</span>
-                              </summary>
-                              <ul className="mt-1 space-y-0.5 text-xs">
-                                {r.splits.map((x, i) => (
-                                  <li key={i} className="flex gap-2">
-                                    <span className="w-24 shrink-0 truncate font-semibold">{x.categoryName ?? "No category"}</span>
-                                    <span className="min-w-0 flex-1 truncate text-muted" title={x.note ?? ""}>{x.note}</span>
-                                    <span className="tnum">{formatCents(x.amountCents)}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </details>
-                          ) : r.kind === "NORMAL" || r.kind === "TRANSFER" || r.categorySource === "person" ? (
-                            <CategoryCell txn={{ id: r.id, merchant: r.merchant, categoryId: r.categoryId, categorySource: r.categorySource, peer: r.peer, transfer: r.kind === "TRANSFER" }} categories={options} />
-                          ) : null}
-                        </td>
-                        <td className={`tnum w-28 pr-4 text-right font-semibold ${r.amountCents > 0 ? "text-ok" : ""} ${r.kind !== "NORMAL" ? "text-muted" : ""}`}>{formatCents(r.amountCents)}</td>
-                      </tr>
-                    ))}
+                          </td>
+                          <td className="w-40 truncate pr-3 text-xs text-muted">{r.accountName}</td>
+                        </>
+                      );
+                      const amount = <td className={`tnum w-28 whitespace-nowrap pr-4 text-right font-semibold ${r.amountCents > 0 ? "text-ok" : ""} ${r.kind !== "NORMAL" ? "text-muted" : ""}`}>{formatCents(r.amountCents)}</td>;
+                      if (r.splits.length) return <SplitRow key={r.id} cells={cells} amount={amount} parts={r.splits} />;
+                      return (
+                        <tr key={r.id}>
+                          {cells}
+                          <td className="w-56 pr-3">
+                            {r.kind === "NORMAL" || r.kind === "TRANSFER" || r.categorySource === "person" ? (
+                              <CategoryCell txn={{ id: r.id, merchant: r.merchant, categoryId: r.categoryId, categorySource: r.categorySource, peer: r.peer, transfer: r.kind === "TRANSFER" }} categories={options} />
+                            ) : null}
+                          </td>
+                          {amount}
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

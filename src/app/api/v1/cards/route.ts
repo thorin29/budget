@@ -36,6 +36,8 @@ export async function GET(request: Request) {
                 newChargesCents: r.status.newChargesCents,
                 plan: r.status.plan,
                 paymentsLeft: r.status.paymentsLeft,
+                // On a 0% card: each payment needed to clear it by the offer's end.
+                monthlyCents: r.status.monthlyCents,
                 promoEndsOn: r.status.promoEndsOn,
               }
             : null,

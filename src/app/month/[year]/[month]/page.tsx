@@ -99,6 +99,7 @@ export default async function MonthPage({
           plan: r.status.plan,
           paymentsLeft: r.status.paymentsLeft,
           promoEndsOn: r.status.promoEndsOn,
+          monthlyCents: r.status.monthlyCents,
         }
       : null,
   }));
