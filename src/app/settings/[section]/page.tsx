@@ -49,11 +49,12 @@ import { allowedHosts } from "@/lib/simplefin";
 import { formatCents } from "@/lib/money";
 import { getConnection } from "@/server/bank/sync";
 import { listBankAccounts } from "@/server/bank/accounts";
+import { cardFileDue, cardFileLastAt, cardHolders } from "@/server/card-holders";
 import { amazonStatus } from "@/server/amazon-import";
 import { amazonAlert, amazonSyncState } from "@/server/amazon-alert";
 import { listCsvImports } from "@/server/bank/csv-import";
 import { SLOT_MINUTE, syncHours } from "@/lib/bank-schedule";
-import { AmazonImporter, BillsSource, CombinedImporter, ConnectBank, CsvImporter, LinkAccountToBank, DeleteBankData, RawFeed, RevertImport, SyncControls } from "../bank";
+import { AmazonImporter, CardHolders, BillsSource, CombinedImporter, ConnectBank, CsvImporter, LinkAccountToBank, DeleteBankData, RawFeed, RevertImport, SyncControls } from "../bank";
 
 export const dynamic = "force-dynamic";
 
@@ -343,12 +344,17 @@ async function Pay() {
 // ---------------------------------------------------------------- data
 
 async function Data() {
-  const [batches, years, amazonSync, amazonIssue] = await Promise.all([
+  const [batches, years, amazonSync, amazonIssue, bankAccounts, holders, cardFileLast, cardFile] = await Promise.all([
     listImportBatches(),
     prisma.actualEntry.findMany({ distinct: ["year"], select: { year: true }, orderBy: { year: "desc" } }),
     amazonSyncState().catch(() => null),
     amazonAlert().catch(() => null),
+    listBankAccounts(),
+    cardHolders(),
+    cardFileLastAt(),
+    cardFileDue(),
   ]);
+  const creditCards = bankAccounts.filter((a) => a.type === "CREDIT_CARD" && !a.hidden).map((a) => ({ id: a.id, label: a.displayName }));
 
   return (
     <div className="space-y-6">
@@ -356,6 +362,24 @@ async function Data() {
         <SectionHeading title="Data Imports & Exports" />
         <Importer batches={batches} />
       </div>
+
+      {creditCards.length ? (
+        <div id="card-file" className="scroll-mt-24">
+        <Card className="p-6">
+          <h3 className="font-sans text-base font-bold">Cards Used by Others</h3>
+          <p className="mb-4 mt-1 text-sm text-muted">
+            Their charges go to their own category, kept out of your spending. Load the card&rsquo;s CSV from the bank each month.
+          </p>
+          <CardHolders
+            holders={holders.map((h) => ({ id: h.id, name: h.name, last4: h.last4, account: creditCards.find((c) => c.id === h.accountId)?.label ?? "Card" }))}
+            cards={creditCards}
+            lastAt={cardFileLast}
+            due={cardFile.due}
+          />
+        </Card>
+        </div>
+      ) : null}
+
 
       {amazonSync || amazonIssue ? (
         <Card>

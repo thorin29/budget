@@ -313,3 +313,42 @@ export async function saveAccountAction(id: string, edit: AccountEdit): Promise<
     return failure(error);
   }
 }
+
+// ---------------------------------------------------------------- Cards used by others
+
+export async function addCardHolderAction(name: string, last4: string, accountId: string): Promise<BankActionState> {
+  try {
+    await requireUser();
+    const { addCardHolder } = await import("@/server/card-holders");
+    const h = await addCardHolder({ name, last4, accountId });
+    revalidatePath("/", "layout");
+    return { ok: true, message: `Added. ${h.name}'s charges go to the "${h.name}" category, kept out of your spending.` };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function removeCardHolderAction(id: string): Promise<BankActionState> {
+  try {
+    await requireUser();
+    const { removeCardHolder } = await import("@/server/card-holders");
+    await removeCardHolder(String(id));
+    revalidatePath("/", "layout");
+    return { ok: true, message: "Removed. Charges already moved stay where they are." };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+export async function applyCardFileAction(text: string): Promise<BankActionState> {
+  try {
+    await requireUser();
+    const { applyCardFile } = await import("@/server/card-holders");
+    const r = await applyCardFile(String(text));
+    revalidatePath("/", "layout");
+    const parts = r.moved.map((m) => `${m.count} to ${m.name} ($${(m.cents / 100).toFixed(2)})`);
+    return { ok: true, message: `${parts.length ? `Moved ${parts.join(", ")}.` : "No charges from their cards in this file."}${r.notFound ? ` ${r.notFound} not in the bank feed yet; load the next file to catch them.` : ""}` };
+  } catch (error) {
+    return failure(error);
+  }
+}

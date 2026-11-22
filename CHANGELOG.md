@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.109.0]
+
+### Added
+- **Cards used by others** (Settings › Data Imports & Exports): list who has their own card on
+  which of your accounts (name and last 4). Each person gets a "for others" category, kept out of
+  your spending and income. Each month, load the card's transactions file (CSV) from the bank's
+  site: Ledger matches each row to a charge it already has by amount and date, and moves the
+  listed cards' charges to their person's category. Their repayments go in the same category, so
+  Insights › Money shows what each still owes. The file is read and dropped.
+- When the month's card file is due (a statement closed since the last one): an Action Item on
+  Review, a Today item on the phone and a "Card file due" phone notification (`cardFile`).
+
 ## [0.108.0]
 
 ### Changed

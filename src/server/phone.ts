@@ -165,7 +165,7 @@ export interface PhoneToday {
   monthLeftCents: number;
   monthDaysLeft: number;
   statement: { cardId: string; name: string; from: string; to: string; day: number; days: number; chargedCents: number; billsToComeCents: number; projectedCents: number; dueOn: string | null } | null;
-  needsYou: Array<{ kind: "pending" | "overdue" | "review" | "over" | "short"; text: string; cents: number | null; target: "tracker" | "review" | "budget" | "insights" }>;
+  needsYou: Array<{ kind: "pending" | "overdue" | "review" | "over" | "short" | "cardFile"; text: string; cents: number | null; target: "tracker" | "review" | "budget" | "insights" | "today" }>;
   nextBills: Array<{ lineItemId: string; name: string; dueOn: string; cents: number; status: string }>;
   bankAsOf: string | null;
 }
@@ -205,6 +205,8 @@ export async function phoneToday(): Promise<PhoneToday> {
   const toReview = (review?.count ?? 0) + uncategorized.length;
   if (toReview) needsYou.push({ kind: "review", text: `${toReview} ${toReview === 1 ? "item" : "items"} to review`, cents: null, target: "review" });
   for (const g of plan.groups.filter((x) => x.overCents > 0 && x.tier !== "SORT")) needsYou.push({ kind: "over", text: `${g.name}, past its budget`, cents: g.overCents, target: "budget" });
+  const { cardFileDue } = await import("./card-holders");
+  if ((await cardFileDue(plan.today).catch(() => ({ due: false }))).due) needsYou.push({ kind: "cardFile", text: "Card file due · load it on the web", cents: null, target: "today" });
   if (cash && !cash.missing && cash.shortOn) needsYou.push({ kind: "short", text: `Checking runs short on ${cash.shortOn}`, cents: cash.lowCents, target: "insights" });
 
   const nextBills = plan.bills.items
@@ -314,7 +316,7 @@ export type AlertKind =
   | "cardDue" | "statementClosed"
   | "payday" | "short" | "largeCharge"
   | "budgetOver" | "reserveUsed" | "weekly"
-  | "review" | "syncStopped" | "amazonSync";
+  | "review" | "syncStopped" | "amazonSync" | "cardFile";
 
 export interface PhoneAlert {
   /** Stable: the phone posts each key once. */
@@ -384,6 +386,9 @@ export async function phoneAlerts(): Promise<PhoneAlert[]> {
   const { amazonAlert } = await import("./amazon-alert");
   const amazon = await amazonAlert().catch(() => null);
   if (amazon) out.push({ key: amazon.key, kind: "amazonSync", title: amazon.title, body: amazon.body, open: "today" });
+  const { cardFileDue } = await import("./card-holders");
+  const cardFile = await cardFileDue(today).catch(() => ({ due: false, since: null }));
+  if (cardFile.due) out.push({ key: `cardFile:${cardFile.since ?? "first"}`, kind: "cardFile", title: "Card file due", body: "Load this month's file on the web, under Data Imports & Exports", open: "today" });
   // The weekly summary: the phone posts it on Sunday evening.
   const week = isoWeek(today);
   const left = forecastTotals(planForecastRows(plan));

@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { getReview } from "@/server/review";
 import { amazonAlert } from "@/server/amazon-alert";
+import { cardFileDue } from "@/server/card-holders";
 import { Card } from "@/components/ui";
 import { recentAutomation } from "@/server/bills-auto";
 import { formatCents } from "@/lib/money";
@@ -21,9 +22,10 @@ const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("
 
 export default async function ReviewPage() {
   const [review, auto, categoryRows, uncategorized, amazon] = await Promise.all([getReview(), recentAutomation(), listCategories(), needsCategory().catch(() => []), amazonAlert().catch(() => null)]);
+  const cardFile = await cardFileDue().catch(() => ({ due: false, since: null }));
   const categories = categoryRows.map((c) => ({ id: c.id, name: c.name }));
   const options = categoryRows.map((c) => ({ id: c.id, name: c.name, managedForOthers: c.managedForOthers }));
-  const waiting = review.count + auto.moved.length + uncategorized.length + (amazon ? 1 : 0);
+  const waiting = review.count + auto.moved.length + uncategorized.length + (amazon ? 1 : 0) + (cardFile.due ? 1 : 0);
 
   // Recorded payments grouped by bill, newest month first, bills with the newest payment first.
   const byBill = new Map<string, typeof auto.recorded>();
@@ -49,6 +51,12 @@ export default async function ReviewPage() {
             <Link href="/settings/data#amazon" className="flex items-center gap-3 rounded-xl border border-warn bg-warn-soft px-3 py-2.5 text-sm">
               <span className="font-semibold text-warn">{amazon.title}</span>
               <span className="text-muted">{amazon.body}</span>
+            </Link>
+          ) : null}
+          {cardFile.due ? (
+            <Link href="/settings/data#card-file" className="flex items-center gap-3 rounded-xl border border-warn bg-warn-soft px-3 py-2.5 text-sm">
+              <span className="font-semibold text-warn">Card file due</span>
+              <span className="text-muted">Load this month&rsquo;s file for cards used by others</span>
             </Link>
           ) : null}
           {review.looksPaid.length ? (

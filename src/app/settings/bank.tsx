@@ -23,6 +23,9 @@ import {
   connectAccountAction,
   syncBankAction,
   rawFeedAction,
+  addCardHolderAction,
+  removeCardHolderAction,
+  applyCardFileAction,
   type BankActionState,
 } from "./bank-actions";
 import { slimOrderHistory } from "@/lib/amazon-orders";
@@ -755,6 +758,115 @@ export function RawFeed({ accounts }: { accounts: Array<{ id: string; label: str
               </tbody>
             </table>
           </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Cards used by others: who has a card on which account, and the monthly card file that moves
+ * their charges into their own category. The file is read and dropped.
+ */
+export function CardHolders({
+  holders,
+  cards,
+  lastAt,
+  due,
+}: {
+  holders: Array<{ id: string; name: string; last4: string; account: string }>;
+  cards: Array<{ id: string; label: string }>;
+  lastAt: string | null;
+  due: boolean;
+}) {
+  const [message, setMessage] = useState<BankActionState | null>(null);
+  const [pending, start] = useTransition();
+  const [name, setName] = useState("");
+  const [last4, setLast4] = useState("");
+  const [card, setCard] = useState(cards[0]?.id ?? "");
+  const input = "rounded-lg border border-line bg-surface px-2.5 py-1.5 text-sm";
+  return (
+    <div className="space-y-4">
+      <Notice state={message} />
+      {holders.length ? (
+        <ul className="divide-y divide-line rounded-xl border border-line text-sm">
+          {holders.map((h) => (
+            <li key={h.id} className="flex items-center gap-3 px-3 py-2">
+              <span className="font-semibold">{h.name}</span>
+              <span className="text-muted">
+                {h.account} · •••• {h.last4}
+              </span>
+              <button
+                type="button"
+                disabled={pending}
+                className="ml-auto text-xs font-semibold text-muted hover:text-danger"
+                onClick={() => start(async () => setMessage(await removeCardHolderAction(h.id)))}
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <form
+        className="flex flex-wrap items-end gap-2"
+        onSubmit={(e) => {
+          e.preventDefault();
+          start(async () => {
+            const r = await addCardHolderAction(name, last4, card);
+            setMessage(r);
+            if (r.ok) {
+              setName("");
+              setLast4("");
+            }
+          });
+        }}
+      >
+        <label className="text-[13px] font-semibold">
+          Name
+          <input className={`${input} mt-1 block w-40`} value={name} onChange={(e) => setName(e.target.value)} maxLength={40} />
+        </label>
+        <label className="text-[13px] font-semibold">
+          Card
+          <select className={`${input} mt-1 block`} value={card} onChange={(e) => setCard(e.target.value)}>
+            {cards.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="text-[13px] font-semibold">
+          Last 4
+          <input className={`${input} mt-1 block w-20`} value={last4} onChange={(e) => setLast4(e.target.value.replace(/\D/g, "").slice(0, 4))} inputMode="numeric" />
+        </label>
+        <Button type="submit" disabled={pending || !name || last4.length !== 4 || !card}>
+          Add
+        </Button>
+      </form>
+      {holders.length ? (
+        <div className="space-y-1">
+          <label className="block text-[13px] font-semibold">
+            Card file (CSV)
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              className="mt-1 block w-full text-sm text-muted file:mr-3 file:rounded-[10px] file:border file:border-line-strong file:bg-surface file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-foreground"
+              onChange={async (e) => {
+                setMessage(null);
+                const chosen = e.target.files?.[0];
+                if (!chosen) return;
+                if (chosen.size > 5 * 1024 * 1024) return setMessage({ ok: false, message: "The file is larger than 5 MB" });
+                const text = await chosen.text();
+                start(async () => setMessage(await applyCardFileAction(text)));
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <p className={`text-xs ${due ? "font-semibold text-warn" : "text-muted"}`}>
+            {due ? "This month's file is due. " : ""}
+            {lastAt ? `Last loaded ${new Date(lastAt).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}.` : "Not loaded yet."}
+          </p>
         </div>
       ) : null}
     </div>
