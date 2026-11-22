@@ -16,6 +16,8 @@ import { last4From, planSync, syncFrom, WAIT_DAYS, type BankCharge, type SyncOrd
 import { itemKeys, itemRules, ruleFor } from "./amazon-items";
 
 const AMAZON = /amazon|amzn|amz\b|amz\*|prime ?video|whole ?foods|wholefds/i;
+/** Charges with no order behind them (memberships, digital, AWS), as the Transactions page uses. */
+const AMAZON_DIGITAL = /prime|kindle|audible|digital|music|aws|web services/i;
 const DAY = 86_400_000;
 export const SYNC_STATUSES = ["ok", "amazon_signed_out", "captcha", "parse_failed", "ledger_error"] as const;
 export type SyncStatus = (typeof SYNC_STATUSES)[number];
@@ -182,4 +184,37 @@ export async function recordAmazonRun(report: RunReport, now = new Date()): Prom
     ...(ok ? { lastSuccessAt: now } : {}),
   };
   await prisma.amazonSync.upsert({ where: { id: "default" }, create: { id: "default", ...data }, update: data });
+}
+
+export interface UnsplitCharge {
+  /** YYYY-MM-DD */
+  date: string;
+  cents: number;
+  last4: string | null;
+}
+
+/**
+ * Amazon card charges in the last `days` that have no split yet, oldest first, so the extension
+ * reads only the orders it still needs. Digital and membership charges are left out.
+ */
+export async function unsplitAmazonCharges(days = 120, now = new Date()): Promise<UnsplitCharge[]> {
+  const rows = (await prisma.bankTransaction.findMany({
+    where: {
+      postedOn: { gte: new Date(now.getTime() - days * DAY) },
+      amount: { lt: 0 },
+      kind: "NORMAL",
+      pending: false,
+      account: { hidden: false },
+      splits: { none: {} },
+    },
+    orderBy: { postedOn: "asc" },
+    select: { postedOn: true, amount: true, merchant: true, description: true, account: { select: { name: true, nickname: true } } },
+  })) as Array<{ postedOn: Date; amount: { toString(): string }; merchant: string; description: string; account: { name: string; nickname: string | null } }>;
+  return rows
+    .filter((r) => {
+      const text = `${r.merchant} ${r.description}`;
+      return AMAZON.test(text) && !AMAZON_DIGITAL.test(text);
+    })
+    .slice(0, 300)
+    .map((r) => ({ date: iso(r.postedOn), cents: -toCents(r.amount), last4: last4From(r.account.nickname, r.account.name) }));
 }

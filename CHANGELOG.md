@@ -3,6 +3,13 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.110.0]
+
+### Added
+- `GET /api/v1/amazon/unsplit`: Amazon card charges from the last 120 days that aren't split yet
+  (date, amount, card's last 4; digital and membership charges left out). The Amazon extension
+  0.4.0 uses it to read only the orders it still needs and to say which charges it found.
+
 ## [0.109.1]
 
 ### Added
