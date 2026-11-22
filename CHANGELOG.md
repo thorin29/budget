@@ -3,6 +3,13 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.109.1]
+
+### Added
+- Transactions: an Amazon charge the extension hasn't matched to an order shows "No order match",
+  so it's clear its category wasn't set from the order. Prime, Kindle, Audible and other digital
+  charges don't, since they never have an order.
+
 ## [0.109.0]
 
 ### Added

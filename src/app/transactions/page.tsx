@@ -11,6 +11,11 @@ import { formatCents } from "@/lib/money";
 import { listCategories } from "@/server/categories";
 import { CategoryCell } from "./category-cell";
 import { SplitRow } from "./split-row";
+
+/** Charges the Amazon extension looks at (as src/server/amazon-sync.ts does). */
+const AMAZON = /amazon|amzn|amz\b|amz\*|whole ?foods|wholefds/i;
+/** Amazon charges that never have an order to match: Prime, Kindle, Audible and other digital. */
+const AMAZON_DIGITAL = /prime|kindle|audible|digital|music|aws|web services/i;
 import { Card, EmptyState, Pill, Select, TextInput, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -147,6 +152,11 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                               {r.kind === "TRANSFER" ? <Pill tone="neutral">Transfer</Pill> : null}
                               {r.kind === "IGNORED" ? <Pill tone="neutral">Ignored</Pill> : null}
                               {r.pending ? <Pill tone="warn">Pending</Pill> : null}
+                              {!r.pending && !r.splits.length && r.kind === "NORMAL" && r.amountCents < 0 && AMAZON.test(`${r.merchant} ${r.description}`) && !AMAZON_DIGITAL.test(`${r.merchant} ${r.description}`) ? (
+                                <span title="The Amazon extension hasn't matched this charge to an order, so it keeps the category shown">
+                                  <Pill tone="neutral">No order match</Pill>
+                                </span>
+                              ) : null}
                             </span>
                           </td>
                           <td className="w-40 truncate pr-3 text-xs text-muted">{r.accountName}</td>
