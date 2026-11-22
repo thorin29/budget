@@ -3,6 +3,23 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.107.0]
+
+**Migration 0028** (applied on start): `TransactionSplit.itemKey`.
+
+### Added
+- **Fix an Amazon item's category once.** Open a split charge in Transactions and pick a category
+  for any item. Ledger remembers it for that item (by a keyed hash, never the name) and changes
+  the same item in every other split, now and in later syncs.
+- Charges with an item that has no category show under Needs a category.
+- For the Amazon extension (`src/server/amazon-items.ts`, `src/lib/amazon-orders.ts`):
+  `itemKeys`, `itemRules`, `ruleFor`, `kindFromCategory` (Amazon's category path, e.g.
+  "Grocery & Gourmet Food › Produce", as a kind) and `splitByItem` (one part per item).
+
+### Changed
+- Item names now know common food words (produce, snacks, pantry and so on), so groceries without
+  Amazon's department aren't left in the charge's own category.
+
 ## [0.106.5]
 
 ### Changed

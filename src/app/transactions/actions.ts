@@ -7,6 +7,7 @@ import { requireUser, UnauthorizedError } from "@/server/auth";
 import { NotFoundError, ValidationError } from "@/server/errors";
 import { resetTransactionCategory, setTransactionCategory } from "@/server/categorize";
 import { setTransfer } from "@/server/transfer-mark";
+import { setSplitCategory } from "@/server/amazon-items";
 
 export type CategoryResult = { ok: true; others: number } | { ok: false; message: string };
 
@@ -47,6 +48,20 @@ export async function setTransferAction(txnId: string, on: boolean, forMerchant 
   try {
     await requireUser();
     const others = await setTransfer(String(txnId), Boolean(on), Boolean(forMerchant));
+    revalidatePath("/transactions");
+    revalidatePath("/insights");
+    revalidatePath("/review");
+    return { ok: true, others };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** One item of a split charge: its category, remembered for that item everywhere. */
+export async function setSplitCategoryAction(splitId: string, categoryId: string | null): Promise<CategoryResult> {
+  try {
+    await requireUser();
+    const others = await setSplitCategory(String(splitId), categoryId ? String(categoryId) : null);
     revalidatePath("/transactions");
     revalidatePath("/insights");
     revalidatePath("/review");

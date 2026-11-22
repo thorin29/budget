@@ -51,7 +51,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const page = Math.min(pages, Math.max(1, Number(sp.p) || 1));
   const shown = rows.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const options = categories.map((c) => ({ id: c.id, name: c.name, managedForOthers: c.managedForOthers }));
-  const counts = { none: all.filter((r) => r.kind === "NORMAL" && r.amountCents < 0 && !r.categoryId).length, guessed: all.filter((r) => r.categorySource === "guess" && r.kind === "NORMAL" && !r.splits.length).length };
+  const counts = { none: all.filter((r) => r.kind === "NORMAL" && r.amountCents < 0 && (r.splits.length ? r.splits.some((p) => !p.categoryId) : !r.categoryId)).length, guessed: all.filter((r) => r.categorySource === "guess" && r.kind === "NORMAL" && !r.splits.length).length };
   const href = (over: Record<string, string | undefined>) => {
     const q = new URLSearchParams();
     const merged = { account: accountId, q: sp.q, category: categoryFilter, m: month === thisMonth ? undefined : month, f: quick || undefined, ...over };
@@ -153,7 +153,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                         </>
                       );
                       const amount = <td className={`tnum w-28 whitespace-nowrap pr-4 text-right font-semibold ${r.amountCents > 0 ? "text-ok" : ""} ${r.kind !== "NORMAL" ? "text-muted" : ""}`}>{formatCents(r.amountCents)}</td>;
-                      if (r.splits.length) return <SplitRow key={r.id} cells={cells} amount={amount} parts={r.splits} />;
+                      if (r.splits.length) return <SplitRow key={r.id} cells={cells} amount={amount} parts={r.splits} categories={options} />;
                       return (
                         <tr key={r.id}>
                           {cells}

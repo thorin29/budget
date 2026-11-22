@@ -187,7 +187,7 @@ export interface BankTransactionView {
   /** A payment app: categories are set one transaction at a time. */
   peer: boolean;
   /** Parts of the charge in other categories (an Amazon order split by item), largest first. */
-  splits: Array<{ categoryName: string | null; amountCents: number; note: string | null }>;
+  splits: Array<{ id: string; categoryId: string | null; categoryName: string | null; amountCents: number; note: string | null }>;
 }
 
 export async function listBankTransactions({
@@ -214,14 +214,19 @@ export async function listBankTransactions({
   const rows = await prisma.bankTransaction.findMany({
     where: {
       ...(accountId ? { accountId } : {}),
-      ...(category === "none" ? { categoryId: null, kind: "NORMAL" as const, amount: { lt: 0 } } : category ? { categoryId: category } : {}),
+      // "none": money out with no category, or split with a part that has none.
+      ...(category === "none"
+        ? { kind: "NORMAL" as const, amount: { lt: 0 }, OR: [{ categoryId: null, splits: { none: {} } }, { splits: { some: { categoryId: null } } }] }
+        : category
+          ? { categoryId: category }
+          : {}),
       ...(from || to ? { postedOn: { ...(from ? { gte: new Date(`${from}T00:00:00Z`) } : {}), ...(to ? { lte: new Date(`${to}T00:00:00Z`) } : {}) } } : {}),
     },
     orderBy: [{ postedOn: "desc" }, { createdAt: "desc" }],
     take: text ? 20_000 : limit,
     include: {
       account: { select: { name: true, nickname: true, institution: true } },
-      splits: { select: { amount: true, note: true, category: { select: { name: true } } } },
+      splits: { select: { id: true, categoryId: true, amount: true, note: true, category: { select: { name: true } } } },
     },
   });
   return (rows as Array<{
@@ -236,7 +241,7 @@ export async function listBankTransactions({
     categoryId: string | null;
     categorySource: string;
     account: { name: string; nickname: string | null; institution: string | null };
-    splits: Array<{ amount: { toString(): string }; note: string | null; category: { name: string } | null }>;
+    splits: Array<{ id: string; categoryId: string | null; amount: { toString(): string }; note: string | null; category: { name: string } | null }>;
   }>)
     .filter((r) => !text || r.merchant.toLowerCase().includes(text) || r.description.toLowerCase().includes(text))
     .slice(0, limit)
@@ -255,7 +260,7 @@ export async function listBankTransactions({
     categorySource: r.categorySource,
     peer: isPeerPayment(r.merchant),
     splits: r.splits
-      .map((x) => ({ categoryName: x.category?.name ?? null, amountCents: toCents(x.amount), note: x.note }))
+      .map((x) => ({ id: x.id, categoryId: x.categoryId, categoryName: x.category?.name ?? null, amountCents: toCents(x.amount), note: x.note }))
       .sort((a, b) => a.amountCents - b.amountCents),
   }));
 }

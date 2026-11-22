@@ -63,6 +63,8 @@ const BY_NAME: Array<[ItemKind, RegExp]> = [
   ["gifts", w("gift card", "egift", "gift certificate", "greeting cards?", "thank you cards?", "gift wrap", "gift bags?")],
   ["auto", w("car", "automotive", "motor oil", "wiper", "tire", "truck")],
   ["clothing", w("shirt", "t-shirt", "pants", "jeans", "shorts", "dress", "skirt", "jacket", "coat", "hoodie", "sweater", "socks", "underwear", "shoes", "sneakers", "boots", "sandals", "hat", "cap", "gloves", "scarf", "belt", "leggings", "pajamas", "swimsuit", "tie")],
+  // Food last, so "water filter", "dog food" and "fish oil" are caught above.
+  ["groceries", w("produce", "fruit", "organic", "vegetables?", "potato(es)?", "sweet potatoes", "onions?", "garlic", "cucumbers?", "brussels sprouts", "broccoli", "carrots?", "lettuce", "spinach", "salad", "tomato(es)?", "peppers?", "avocados?", "apples?", "bananas?", "berries", "strawberries", "blueberries", "grapes", "lemons?", "limes?", "oranges?", "milk", "cheese", "yogurt", "butter", "eggs", "bread", "bagels?", "tortillas?", "pasta", "rice", "beans", "flour", "sugar", "cereal", "oatmeal", "oats", "granola", "snacks?", "chips", "crackers", "cookies", "candy", "chocolate", "marshmallows?", "gummies", "popcorn", "pretzels", "nuts", "almonds", "peanut butter", "jelly", "jam", "honey", "syrup", "sauce", "salsa", "ketchup", "mustard", "mayo", "dressing", "spices?", "seasoning", "salt", "olive oil", "cooking oil", "broth", "soup", "coffee", "k-cups?", "tea", "juice", "soda", "sparkling water", "drink mix", "chicken", "beef", "pork", "turkey", "bacon", "sausage", "ham", "salmon", "tuna", "ice cream", "grocery", "whole foods", "365 by")],
 ];
 
 /** Amazon's own department, used when the name says nothing. */
@@ -73,6 +75,33 @@ const BY_DEPARTMENT: Record<string, ItemKind> = {
   "ecard gift certificate": "gifts", "paper gift certificate": "gifts", "software download": "electronics", electronics: "electronics",
   toy: "toys", kitchen: "home", sports: "outdoors", "office product": "school", "pet products": "pets",
 };
+
+/**
+ * Amazon's own category path for a product ("Grocery & Gourmet Food › Produce"), as the kind of
+ * spending it is. Null when the path says nothing we know.
+ */
+export function kindFromCategory(path: string | null | undefined): ItemKind | null {
+  if (!path) return null;
+  const parts = path.split(/\s*[›>|/]\s*/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+  const top = parts[0] ?? "";
+  const all = parts.join(" > ");
+  if (/^grocery|gourmet food/.test(top)) return /pet food|dog food|cat food/.test(all) ? "pets" : "groceries";
+  if (/^pet supplies/.test(top)) return /fish|aquarium/.test(all) ? "aquarium" : "pets";
+  if (/^health & household|^health and household/.test(top))
+    return /vitamin|supplement|medic|first aid|health care|wellness|sexual|diet|sports nutrition/.test(all) ? "health" : "household";
+  if (/^beauty|personal care/.test(top)) return "personal";
+  if (/^clothing|shoes|jewelry|fashion/.test(top)) return "clothing";
+  if (/^toys|^games/.test(top)) return "toys";
+  if (/^electronics|^cell phones|^computers|^video games|^camera/.test(top)) return "electronics";
+  if (/^home & kitchen|^home and kitchen|^kitchen/.test(top)) return /cleaning|laundry|storage bag|trash|paper towel/.test(all) ? "household" : "home";
+  if (/^tools|home improvement|^appliances|^patio|^lawn|^garden/.test(top)) return "repair";
+  if (/^automotive/.test(top)) return "auto";
+  if (/^sports & outdoors|^sports and outdoors/.test(top)) return /hockey|team sports|skating/.test(all) ? "sports" : "outdoors";
+  if (/^office products|^books|^kindle|^arts, crafts|^arts & crafts/.test(top)) return "school";
+  if (/^gift cards/.test(top)) return "gifts";
+  if (/^baby/.test(top)) return /diaper|wipes/.test(all) ? "household" : "home";
+  return null;
+}
 
 /** What kind of spending an item is, from its name and Amazon's department. */
 export function itemKind(name: string, department = ""): ItemKind {
@@ -97,6 +126,8 @@ export interface OrderItem {
   department: string;
   cents: number;
   kind: ItemKind;
+  /** Amazon's product id (ASIN), when the extension sends it. */
+  productId?: string | null;
 }
 
 export interface Shipment {
@@ -237,6 +268,15 @@ function shiftDay(iso: string, days: number): string {
  * A charge's amount shared by kind, in proportion to the items' totals, so the
  * parts add up to the charge exactly. Notes list the item names.
  */
+/** Shares [chargeCents] across [items] by price, one part per item; the parts add up exactly. */
+export function splitByItem(chargeCents: number, items: OrderItem[]): Array<{ item: OrderItem; cents: number }> {
+  const total = items.reduce((s, it) => s + it.cents, 0);
+  const parts = items.map((item) => ({ item, cents: total > 0 ? Math.round((chargeCents * item.cents) / total) : Math.round(chargeCents / items.length) }));
+  const diff = chargeCents - parts.reduce((s, p) => s + p.cents, 0);
+  if (parts.length) [...parts].sort((a, b) => b.cents - a.cents)[0].cents += diff;
+  return parts;
+}
+
 export function splitByKind(chargeCents: number, items: OrderItem[]): Array<{ kind: ItemKind; cents: number; names: string[] }> {
   const byKind = new Map<ItemKind, { cents: number; names: string[] }>();
   for (const it of items) {

@@ -697,10 +697,14 @@ model TransactionSplit {
   note          String?
   source        String          @default("amazon")
   importId      String?
+  /// A keyed hash of the item (Amazon's product id, else its name), so a category fixed once
+  /// applies to the same item everywhere. Not reversible.
+  itemKey       String?
   createdAt     DateTime        @default(now())
 
   @@index([transactionId])
   @@index([importId])
+  @@index([itemKey])
 }
 
 /// Checking's forecast as it stood on a day (the last run that day wins): for each day ahead, the
