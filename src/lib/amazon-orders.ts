@@ -173,7 +173,7 @@ export function parseOrderHistory(text: string): OrderItem[] {
   const need = ["order id", "order date", "product name", "total amount"];
   if (need.some((n) => col(n) < 0)) throw new Error("This doesn't look like Amazon's Order History.csv");
   const [iOrder, iDate, iName, iTotal] = need.map(col);
-  const [iShip, iDept, iStatus, iTrack] = ["ship date", "department", "order status", "carrier name & tracking number"].map(col);
+  const [iShip, iDept, iStatus, iTrack, iAsin] = ["ship date", "department", "order status", "carrier name & tracking number", "asin"].map(col);
   const out: OrderItem[] = [];
   for (const r of rows.slice(1)) {
     if (!r[iOrder]) continue;
@@ -194,6 +194,7 @@ export function parseOrderHistory(text: string): OrderItem[] {
       department,
       cents,
       kind: itemKind(name, department),
+      productId: iAsin >= 0 && /^[A-Z0-9]{10}$/.test((r[iAsin] ?? "").trim()) ? r[iAsin].trim() : null,
     });
   }
   return out;

@@ -3,6 +3,14 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.111.0]
+
+### Changed
+- **Amazon Orders (CSV) import works like the extension's sync:** one split per item, a category
+  you fixed for an item wins (matched by Amazon's product id, which the file has, or the name),
+  and an item that can't be placed gets no category and shows under Needs a category instead of
+  taking the charge's own. Charges already split (by the extension) are left alone.
+
 ## [0.110.0]
 
 ### Added

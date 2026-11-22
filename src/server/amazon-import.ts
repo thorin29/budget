@@ -7,7 +7,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { toCents, toDecimalString } from "@/lib/money";
-import { KINDS, matchCharges, parseOrderHistory, shipments, splitByKind, type ItemKind } from "@/lib/amazon-orders";
+import { KINDS, matchCharges, parseOrderHistory, shipments, splitByItem, splitByKind, type ItemKind } from "@/lib/amazon-orders";
+import { itemKeys, itemRules, ruleFor } from "./amazon-items";
 import { ValidationError } from "./errors";
 
 const AMAZON = /amazon|amzn|amz\b|amz\*|prime ?video|whole ?foods|wholefds/i;
@@ -67,7 +68,7 @@ export async function previewAmazon(text: string): Promise<AmazonPreview> {
     matchedCents,
     alreadySplit,
     kinds: [...byKind.entries()]
-      .map(([kind, cents]) => ({ kind, name: KINDS.find((k) => k.kind === kind)?.name ?? "Left as it was", cents }))
+      .map(([kind, cents]) => ({ kind, name: KINDS.find((k) => k.kind === kind)?.name ?? "Needs a category", cents }))
       .sort((a, b) => b.cents - a.cents),
   };
 }
@@ -96,22 +97,24 @@ export async function importAmazon(text: string): Promise<{ importId: string; ch
   if (!matches.length) throw new ValidationError({ file: ["None of the orders matched a card charge. Bank history for those dates may not be loaded yet."] });
   const kinds = new Set<ItemKind>(matches.flatMap((m) => m.items.map((i) => i.kind)));
   const category = await categoriesForKinds(kinds);
-  const own = new Map(
-    ((await prisma.bankTransaction.findMany({ where: { id: { in: matches.map((m) => m.chargeId) } }, select: { id: true, categoryId: true } })) as Array<{ id: string; categoryId: string | null }>).map((t) => [t.id, t.categoryId]),
-  );
+  const rules = await itemRules();
   const importId = `amazon-${Date.now().toString(36)}`;
   let count = 0;
   for (const m of matches) {
-    const parts = splitByKind(centsOf.get(m.chargeId) ?? 0, m.items);
-    // "Other" items stay in the charge's own category.
-    const data = parts.map((p) => ({
-      transactionId: m.chargeId,
-      categoryId: p.kind === "other" ? (own.get(m.chargeId) ?? null) : (category.get(p.kind) ?? null),
-      amount: toDecimalString(-p.cents),
-      note: p.names.join("; ").slice(0, 500),
-      source: "amazon",
-      importId,
-    }));
+    // One part per item, as the extension's sync does: a category fixed earlier for the item wins,
+    // and an item we can't place gets none, so it shows under Needs a category.
+    const data = splitByItem(centsOf.get(m.chargeId) ?? 0, m.items).map((p) => {
+      const keys = itemKeys(p.item.name, p.item.productId);
+      return {
+        transactionId: m.chargeId,
+        categoryId: ruleFor(rules, keys) ?? (p.item.kind === "other" ? null : (category.get(p.item.kind) ?? null)),
+        amount: toDecimalString(-p.cents),
+        note: p.item.name.slice(0, 500),
+        source: "amazon",
+        importId,
+        itemKey: keys[0] ?? null,
+      };
+    });
     await prisma.$transaction(data.map((d) => prisma.transactionSplit.create({ data: d })));
     count += data.length;
   }
