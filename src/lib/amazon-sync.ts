@@ -7,12 +7,12 @@
  * within five days, then shared across the items of the shipment it paid for.
  * An order without a charge list falls back to matchCharges, as the CSV does.
  *
- * Only what's needed crosses the wire: item names, prices, quantities, ship
- * dates, and each charge's date, amount and card's last 4. Nothing else from
- * Amazon is accepted or kept.
+ * Only what's needed crosses the wire: item names, product ids, Amazon's
+ * category, prices, quantities, ship dates, and each charge's date, amount and
+ * card's last 4. Nothing else from Amazon is accepted or kept.
  */
 
-import { itemKind, matchCharges, shipments, type OrderItem } from "./amazon-orders";
+import { itemKind, kindFromCategory, matchCharges, shipments, type OrderItem } from "./amazon-orders";
 
 export interface SyncItem {
   name: string;
@@ -21,6 +21,10 @@ export interface SyncItem {
   quantity: number;
   shipmentKey: string;
   shipDate: string | null;
+  /** Amazon's product id (ASIN). */
+  productId?: string | null;
+  /** Amazon's category path, "Grocery & Gourmet Food › Produce". */
+  category?: string | null;
 }
 
 export interface SyncCharge {
@@ -63,6 +67,15 @@ export interface SyncPlan {
   waiting: string[];
   /** The oldest waiting order's date, so the extension starts there next time. */
   waitingSince: string | null;
+  /** Orders with a charge list whose charge was never found (too old to wait for). */
+  noMatch: number;
+  /** Orders without a charge list that item totals couldn't match either. */
+  noChargeList: number;
+  /**
+   * Positions (in the orders sent) of orders that are finished: every charge found, split now or
+   * before. The extension skips their pages next time. Positions only, never order numbers.
+   */
+  done: number[];
 }
 
 export const LIMITS = {
@@ -72,6 +85,7 @@ export const LIMITS = {
   name: 300,
   key: 120,
   orderId: 40,
+  category: 200,
   cents: 10_000_000,
   quantity: 999,
 } as const;
@@ -121,7 +135,10 @@ export function readOrders(body: unknown): { orders: SyncOrder[] } | { issues: R
       }
       const shipDate = it.shipDate == null ? null : isDay(it.shipDate) ? it.shipDate : undefined;
       if (shipDate === undefined) return void (issues[`${at}.items.${j}.shipDate`] = ["Use YYYY-MM-DD"]);
-      items.push({ name, cents: it.cents as number, quantity: quantity as number, shipmentKey: key, shipDate });
+      // Optional extras: a bad value is dropped, not an error.
+      const productId = typeof it.productId === "string" && /^[A-Z0-9]{10}$/.test(it.productId) ? it.productId : null;
+      const category = text(it.category, LIMITS.category);
+      items.push({ name, cents: it.cents as number, quantity: quantity as number, shipmentKey: key, shipDate, productId, category });
     }
     const outCharges: SyncCharge[] = [];
     for (const [j, r] of (charges as unknown[]).entries()) {
@@ -146,9 +163,10 @@ export function toOrderItems(order: SyncOrder): OrderItem[] {
     shipDate: it.shipDate,
     shipmentKey: `${order.orderId}|${it.shipmentKey}`,
     name: it.name,
-    department: "",
+    department: it.category ?? "",
     cents: it.cents * it.quantity,
-    kind: itemKind(it.name),
+    kind: kindFromCategory(it.category) ?? itemKind(it.name),
+    productId: it.productId ?? null,
   }));
 }
 
@@ -185,6 +203,7 @@ export function planSync(orders: SyncOrder[], bank: BankCharge[], today: string)
   const used = new Set<string>();
   const toSplit: SyncMatch[] = [];
   const waiting = new Set<string>();
+  const lost = new Set<string>();
   let matched = 0;
 
   const find = (cents: number, date: string, last4: string | null) =>
@@ -199,26 +218,34 @@ export function planSync(orders: SyncOrder[], bank: BankCharge[], today: string)
       )
       .sort((a, b) => gap(a.postedOn, date) - gap(b.postedOn, date) || Number(a.split) - Number(b.split))[0];
 
+  const done = new Set<string>();
   const listed = orders.filter((o) => o.charges.length);
   for (const order of listed) {
+    let all = true;
     for (const { charge, items } of itemsPerCharge(order)) {
       const hit = find(charge.cents, charge.date, charge.last4);
       if (!hit) {
+        all = false;
         if (gap(charge.date, today) <= WAIT_DAYS) waiting.add(order.orderId);
+        else lost.add(order.orderId);
         continue;
       }
       used.add(hit.id);
       matched++;
       if (!hit.split) toSplit.push({ chargeId: hit.id, cents: hit.cents, items });
     }
+    if (all) done.add(order.orderId);
   }
 
   // No charge list: amounts from the items, as the CSV import does.
-  const rest = orders.filter((o) => !o.charges.length).flatMap(toOrderItems);
+  const bare = orders.filter((o) => !o.charges.length);
+  const rest = bare.flatMap(toOrderItems);
+  const found = new Set<string>();
   if (rest.length) {
     const open = bank.filter((b) => !used.has(b.id));
     for (const m of matchCharges(shipments(rest), open.map((b) => ({ id: b.id, postedOn: b.postedOn, cents: b.cents })))) {
       const hit = open.find((b) => b.id === m.chargeId)!;
+      for (const i of m.items) found.add(i.orderId);
       used.add(hit.id);
       matched++;
       if (!hit.split) toSplit.push({ chargeId: hit.id, cents: hit.cents, items: m.items });
@@ -226,7 +253,9 @@ export function planSync(orders: SyncOrder[], bank: BankCharge[], today: string)
   }
 
   const since = orders.filter((o) => waiting.has(o.orderId)).map((o) => o.orderDate).sort()[0] ?? null;
-  return { toSplit, matched, waiting: [...waiting], waitingSince: since };
+  const noChargeList = bare.filter((o) => !found.has(o.orderId)).length;
+  for (const id of found) done.add(id);
+  return { toSplit, matched, waiting: [...waiting], waitingSince: since, noMatch: [...lost].filter((id) => !waiting.has(id)).length, noChargeList, done: orders.flatMap((o, i) => (done.has(o.orderId) ? [i] : [])) };
 }
 
 /**

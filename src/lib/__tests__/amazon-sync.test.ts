@@ -1,6 +1,6 @@
 // Invented orders, products, amounts and card digits only.
 import { describe, expect, it } from "vitest";
-import { itemsPerCharge, last4From, planSync, readOrders, syncFrom, type BankCharge, type SyncOrder } from "../amazon-sync";
+import { itemsPerCharge, last4From, planSync, readOrders, syncFrom, toOrderItems, type BankCharge, type SyncOrder } from "../amazon-sync";
 
 const order = (over: Partial<SyncOrder> = {}): SyncOrder => ({
   orderId: "111-0000000-0000001",
@@ -18,7 +18,7 @@ describe("readOrders", () => {
   it("accepts a good body and drops fields it doesn't know", () => {
     const r = readOrders({ orders: [{ ...order(), shippingAddress: "nope", items: [{ ...order().items[0], seller: "x" }] }] });
     expect("orders" in r).toBe(true);
-    if ("orders" in r) expect(Object.keys(r.orders[0].items[0]).sort()).toEqual(["cents", "name", "quantity", "shipDate", "shipmentKey"]);
+    if ("orders" in r) expect(Object.keys(r.orders[0].items[0]).sort()).toEqual(["category", "cents", "name", "productId", "quantity", "shipDate", "shipmentKey"]);
   });
 
   it("refuses bad dates, amounts, card digits and oversized batches", () => {
@@ -27,6 +27,32 @@ describe("readOrders", () => {
     expect(readOrders({ orders: [order({ charges: [{ date: "2026-03-02", cents: 100, last4: "12345" }] })] })).toHaveProperty("issues");
     expect(readOrders({ orders: Array.from({ length: 51 }, () => order()) })).toHaveProperty("issues");
     expect(readOrders({})).toHaveProperty("issues");
+  });
+});
+
+describe("product id and category", () => {
+  it("keeps a good product id and category, drops bad ones without failing", () => {
+    const r = readOrders({
+      orders: [
+        order({
+          items: [
+            { name: "Sweet Potatoes, 3 lb", cents: 399, quantity: 1, shipmentKey: "a", shipDate: null, productId: "B000000001", category: "Grocery & Gourmet Food › Produce" },
+            { name: "Mystery Item", cents: 100, quantity: 1, shipmentKey: "a", shipDate: null, productId: "not-an-asin", category: "x".repeat(201) },
+          ],
+        }),
+      ],
+    });
+    expect("orders" in r).toBe(true);
+    if (!("orders" in r)) return;
+    expect(r.orders[0].items[0]).toMatchObject({ productId: "B000000001", category: "Grocery & Gourmet Food › Produce" });
+    expect(r.orders[0].items[1]).toMatchObject({ productId: null, category: null });
+  });
+
+  it("sorts by Amazon's category before the name", () => {
+    const items = toOrderItems(
+      order({ items: [{ name: "Mini Marshmallows", cents: 250, quantity: 1, shipmentKey: "a", shipDate: null, productId: "B000000002", category: "Grocery & Gourmet Food › Snacks" }] }),
+    );
+    expect(items[0]).toMatchObject({ kind: "groceries", productId: "B000000002", department: "Grocery & Gourmet Food › Snacks" });
   });
 });
 
@@ -61,6 +87,17 @@ describe("planSync", () => {
     expect(recent.waiting).toEqual(["111-0000000-0000001"]);
     expect(recent.waitingSince).toBe("2026-03-01");
     expect(planSync([order()], [], "2026-04-30").waiting).toHaveLength(0);
+  });
+
+  it("counts orders whose charge never turned up, and bare orders that didn't match", () => {
+    expect(planSync([order()], [], "2026-04-30")).toMatchObject({ noMatch: 1, noChargeList: 0 });
+    expect(planSync([order({ charges: [] })], [], "2026-03-10")).toMatchObject({ noMatch: 0, noChargeList: 1 });
+    expect(planSync([order({ charges: [] })], [bank("t1", "2026-03-03", 5000)], "2026-03-10").noChargeList).toBe(0);
+  });
+
+  it("lists finished orders by position: all charges found, split now or before", () => {
+    const two = [order(), order({ orderId: "111-0000000-0000002", charges: [{ date: "2026-03-05", cents: 999, last4: null }] })];
+    expect(planSync(two, [bank("t1", "2026-03-03", 5400, { split: true })], "2026-03-10").done).toEqual([0]);
   });
 
   it("uses each bank charge once across orders", () => {

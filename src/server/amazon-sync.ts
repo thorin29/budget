@@ -3,15 +3,17 @@
  * charges and split by item (src/lib/amazon-sync.ts), and each sync's outcome is kept in the
  * one AmazonSync row (read by src/server/amazon-alert.ts).
  *
- * Kept: the split amounts, their categories and the item names (encrypted, as notes). Order
+ * Kept: one split per item with its amount, category, name (encrypted, as the note) and a keyed
+ * hash of the item (src/server/amazon-items.ts) so a category the person fixes sticks. Order
  * numbers, card digits, dates and anything else from Amazon are used for matching and dropped.
  * Answers carry counts only, because replayed answers are stored as they are.
  */
 
 import { prisma } from "@/lib/prisma";
 import { toCents, toDecimalString } from "@/lib/money";
-import { KINDS, splitByKind, type ItemKind } from "@/lib/amazon-orders";
+import { KINDS, splitByItem, type ItemKind } from "@/lib/amazon-orders";
 import { last4From, planSync, syncFrom, WAIT_DAYS, type BankCharge, type SyncOrder } from "@/lib/amazon-sync";
+import { itemKeys, itemRules, ruleFor } from "./amazon-items";
 
 const AMAZON = /amazon|amzn|amz\b|amz\*|prime ?video|whole ?foods|wholefds/i;
 const DAY = 86_400_000;
@@ -27,13 +29,12 @@ type Row = {
   amount: { toString(): string };
   merchant: string;
   description: string;
-  categoryId: string | null;
   account: { name: string; nickname: string | null };
   _count: { splits: number };
 };
 
 /** Amazon card charges around the orders' dates, split or not. */
-async function bankCharges(orders: SyncOrder[]): Promise<{ list: BankCharge[]; own: Map<string, string | null> }> {
+async function bankCharges(orders: SyncOrder[]): Promise<BankCharge[]> {
   const days = orders.flatMap((o) => [o.orderDate, ...o.charges.map((c) => c.date), ...o.items.flatMap((i) => (i.shipDate ? [i.shipDate] : []))]).sort();
   const rows = (await prisma.bankTransaction.findMany({
     where: {
@@ -49,22 +50,18 @@ async function bankCharges(orders: SyncOrder[]): Promise<{ list: BankCharge[]; o
       amount: true,
       merchant: true,
       description: true,
-      categoryId: true,
       account: { select: { name: true, nickname: true } },
       _count: { select: { splits: true } },
     },
   })) as Row[];
   const amazon = rows.filter((r) => AMAZON.test(r.merchant) || AMAZON.test(r.description));
-  return {
-    list: amazon.map((r) => ({
-      id: r.id,
-      postedOn: iso(r.postedOn),
-      cents: -toCents(r.amount),
-      last4: last4From(r.account.nickname, r.account.name),
-      split: r._count.splits > 0,
-    })),
-    own: new Map(amazon.map((r) => [r.id, r.categoryId])),
-  };
+  return amazon.map((r) => ({
+    id: r.id,
+    postedOn: iso(r.postedOn),
+    cents: -toCents(r.amount),
+    last4: last4From(r.account.nickname, r.account.name),
+    split: r._count.splits > 0,
+  }));
 }
 
 /** The category each kind goes to: an existing one by name, else one made for it (as the CSV import does). */
@@ -91,26 +88,36 @@ export interface SyncResult {
   split: number;
   waiting: number;
   waitingSince: string | null;
+  noMatch: number;
+  noChargeList: number;
+  /** Positions of finished orders in the batch (see planSync). */
+  done: number[];
 }
 
 /** Splits the orders' charges that aren't split yet. Sending the same orders again changes nothing. */
 export async function syncAmazonOrders(orders: SyncOrder[], now = new Date()): Promise<SyncResult> {
-  const { list, own } = await bankCharges(orders);
+  const list = await bankCharges(orders);
   const plan = planSync(orders, list, iso(now));
   let split = 0;
   if (plan.toSplit.length) {
     const category = await categoriesForKinds(new Set(plan.toSplit.flatMap((m) => m.items.map((i) => i.kind))));
     const importId = `amazon-ext-${now.getTime().toString(36)}`;
+    const rules = await itemRules();
     for (const m of plan.toSplit) {
-      const data = splitByKind(m.cents, m.items).map((p) => ({
-        transactionId: m.chargeId,
-        // "Other" items stay in the charge's own category.
-        categoryId: p.kind === "other" ? (own.get(m.chargeId) ?? null) : (category.get(p.kind) ?? null),
-        amount: toDecimalString(-p.cents),
-        note: p.names.join("; ").slice(0, 500),
-        source: "amazon",
-        importId,
-      }));
+      const data = splitByItem(m.cents, m.items).map((p) => {
+        const keys = itemKeys(p.item.name, p.item.productId);
+        return {
+          transactionId: m.chargeId,
+          // A category the person fixed for this item wins. An item that can't be placed gets no
+          // category (it shows under Needs a category) instead of the charge's guessed one.
+          categoryId: ruleFor(rules, keys) ?? (p.item.kind === "other" ? null : (category.get(p.item.kind) ?? null)),
+          amount: toDecimalString(-p.cents),
+          note: p.item.name.slice(0, 500),
+          source: "amazon",
+          importId,
+          itemKey: keys[0] ?? null,
+        };
+      });
       const wrote = await prisma.$transaction(async (tx) => {
         // Two syncs at once: the first one's splits stand.
         if ((await tx.transactionSplit.count({ where: { transactionId: m.chargeId } })) > 0) return false;
@@ -120,7 +127,7 @@ export async function syncAmazonOrders(orders: SyncOrder[], now = new Date()): P
       if (wrote) split++;
     }
   }
-  return { matched: plan.matched, split, waiting: plan.waiting.length, waitingSince: plan.waitingSince };
+  return { matched: plan.matched, split, waiting: plan.waiting.length, waitingSince: plan.waitingSince, noMatch: plan.noMatch, noChargeList: plan.noChargeList, done: plan.done };
 }
 
 /** What the extension's popup shows, and where its next sync should start. */

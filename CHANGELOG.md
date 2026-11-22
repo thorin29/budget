@@ -3,6 +3,17 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.108.0]
+
+### Changed
+- **Amazon extension sync splits per item:** each item gets its own split, placed by Amazon's
+  category (sent by the extension) before its name. A category you fixed for an item wins; an item
+  that can't be placed gets no category and shows under Needs a category, instead of taking the
+  charge's guessed one. Requires the extension 0.2.0 for categories.
+- `POST /api/v1/amazon/orders` takes optional `productId` and `category` per item (bad values are
+  dropped, not refused). It also answers `noMatch` and `noChargeList` counts, and `done`: the
+  positions of finished orders in the batch, so the extension stops rereading them.
+
 ## [0.107.0]
 
 **Migration 0028** (applied on start): `TransactionSplit.itemKey`.

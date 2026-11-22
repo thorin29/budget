@@ -9,9 +9,10 @@ export const dynamic = "force-dynamic";
 
 /**
  * Orders the Amazon extension read: `{ orders: [{ orderId, orderDate, items: [{ name, cents,
- * quantity, shipmentKey, shipDate }], charges: [{ date, cents, last4 }] }] }`, at most 50.
+ * quantity, shipmentKey, shipDate, productId?, category? }], charges: [{ date, cents, last4 }] }] }`, at most 50.
  * Splits matching Amazon card charges that aren't split yet; sending the same orders again
- * changes nothing. Answers `{ matched, split, waiting, waitingSince }` (counts only).
+ * changes nothing. Answers `{ matched, split, waiting, waitingSince, noMatch, noChargeList, done }`: counts, and
+ * `done` as positions in the batch, never order numbers.
  */
 export async function POST(request: Request) {
   try {
