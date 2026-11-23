@@ -3,6 +3,16 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.112.0]
+
+### Changed
+- **Amazon matching takes card digits as a hint.** The digits a bank shows for an account often
+  aren't the card number Amazon shows, which left matching charges unsplit. A charge on the card
+  with the same digits is still preferred; one showing other digits is taken when it's the only
+  charge with that amount and date.
+- `GET /api/v1/amazon/unsplit` leaves out Whole Foods in-store and Woot charges, which have no
+  Amazon order and kept every extension sync reading back to their dates.
+
 ## [0.111.0]
 
 ### Changed

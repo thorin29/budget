@@ -18,6 +18,8 @@ import { itemKeys, itemRules, ruleFor } from "./amazon-items";
 const AMAZON = /amazon|amzn|amz\b|amz\*|prime ?video|whole ?foods|wholefds/i;
 /** Charges with no order behind them (memberships, digital, AWS), as the Transactions page uses. */
 const AMAZON_DIGITAL = /prime|kindle|audible|digital|music|aws|web services/i;
+/** Amazon-owned stores whose charges never have an Amazon order: Whole Foods in store, Woot. */
+const AMAZON_NO_ORDER = /wholefds|whole ?foods|woot/i;
 const DAY = 86_400_000;
 export const SYNC_STATUSES = ["ok", "amazon_signed_out", "captcha", "parse_failed", "ledger_error"] as const;
 export type SyncStatus = (typeof SYNC_STATUSES)[number];
@@ -195,7 +197,8 @@ export interface UnsplitCharge {
 
 /**
  * Amazon card charges in the last `days` that have no split yet, oldest first, so the extension
- * reads only the orders it still needs. Digital and membership charges are left out.
+ * reads only the orders it still needs. Digital and membership charges, Whole Foods in store and
+ * Woot are left out: they have no Amazon order.
  */
 export async function unsplitAmazonCharges(days = 120, now = new Date()): Promise<UnsplitCharge[]> {
   const rows = (await prisma.bankTransaction.findMany({
@@ -213,7 +216,7 @@ export async function unsplitAmazonCharges(days = 120, now = new Date()): Promis
   return rows
     .filter((r) => {
       const text = `${r.merchant} ${r.description}`;
-      return AMAZON.test(text) && !AMAZON_DIGITAL.test(text);
+      return AMAZON.test(text) && !AMAZON_DIGITAL.test(text) && !AMAZON_NO_ORDER.test(text);
     })
     .slice(0, 300)
     .map((r) => ({ date: iso(r.postedOn), cents: -toCents(r.amount), last4: last4From(r.account.nickname, r.account.name) }));

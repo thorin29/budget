@@ -70,9 +70,12 @@ describe("planSync", () => {
     expect(planSync([order()], [bank("t1", "2026-03-03", 5402)], "2026-03-10").matched).toBe(0);
   });
 
-  it("leaves a card whose name shows other digits alone", () => {
-    expect(planSync([order()], [bank("t1", "2026-03-03", 5400, { last4: "9999" })], "2026-03-10").matched).toBe(0);
-    expect(planSync([order()], [bank("t1", "2026-03-03", 5400, { last4: "0000" })], "2026-03-10").matched).toBe(1);
+  it("prefers the card with the same digits, but takes the only charge of that amount even if the digits differ", () => {
+    const two = [bank("t1", "2026-03-03", 5400, { last4: "9999" }), bank("t2", "2026-03-04", 5400, { last4: "0000" })];
+    expect(planSync([order()], two, "2026-03-10").toSplit[0]!.chargeId).toBe("t2");
+    expect(planSync([order()], [bank("t1", "2026-03-03", 5400, { last4: "9999" })], "2026-03-10").matched).toBe(1);
+    const rivals = [bank("t1", "2026-03-03", 5400, { last4: "9999" }), bank("t2", "2026-03-04", 5400, { last4: "8888" })];
+    expect(planSync([order()], rivals, "2026-03-10").matched).toBe(0);
   });
 
   it("counts an already split charge as matched and writes nothing (re-sending is safe)", () => {

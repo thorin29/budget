@@ -206,17 +206,20 @@ export function planSync(orders: SyncOrder[], bank: BankCharge[], today: string)
   const lost = new Set<string>();
   let matched = 0;
 
-  const find = (cents: number, date: string, last4: string | null) =>
-    bank
-      .filter(
-        (b) =>
-          !used.has(b.id) &&
-          Math.abs(b.cents - cents) <= 1 &&
-          gap(b.postedOn, date) <= WINDOW_DAYS &&
-          // A card whose name shows other digits isn't the one Amazon charged.
-          !(last4 && b.last4 && b.last4 !== last4),
-      )
-      .sort((a, b) => gap(a.postedOn, date) - gap(b.postedOn, date) || Number(a.split) - Number(b.split))[0];
+  /**
+   * The bank charge for one of Amazon's charges: same amount (a cent either way) within five days.
+   * The card's last 4 is a preference, not a rule: the digits a bank shows for an account often
+   * aren't the card number Amazon shows (a replaced card, an account number). A charge on a card
+   * showing other digits is taken only when it's the only one with that amount and date.
+   */
+  const find = (cents: number, date: string, last4: string | null) => {
+    const near = bank
+      .filter((b) => !used.has(b.id) && Math.abs(b.cents - cents) <= 1 && gap(b.postedOn, date) <= WINDOW_DAYS)
+      .sort((a, b) => gap(a.postedOn, date) - gap(b.postedOn, date) || Number(a.split) - Number(b.split));
+    const sameCard = near.filter((b) => !(last4 && b.last4 && b.last4 !== last4));
+    if (sameCard.length) return sameCard[0];
+    return near.length === 1 ? near[0] : undefined;
+  };
 
   const done = new Set<string>();
   const listed = orders.filter((o) => o.charges.length);
