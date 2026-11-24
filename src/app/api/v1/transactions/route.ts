@@ -1,12 +1,14 @@
 import { requireDevice } from "@/server/device-auth";
 import { listBankTransactions } from "@/server/bank/accounts";
 import { fail, ok } from "@/server/http";
+import { isAmazonCharge } from "@/lib/amazon-orders";
 
 export const dynamic = "force-dynamic";
 
 /**
  * Recent transactions, newest first. `?filter=all|none|pending|in`, `?q=` to search merchants,
- * `?month=YYYY-MM` (this month and last by default).
+ * `?month=YYYY-MM` (this month and last by default). An Amazon charge is never "guessed": its
+ * order decides its category. A charge split by item lists its parts.
  */
 export async function GET(request: Request) {
   try {
@@ -29,8 +31,9 @@ export async function GET(request: Request) {
         pending: r.pending,
         kind: r.kind,
         categoryId: r.categoryId,
-        guessed: r.categorySource === "guess" && r.categoryId !== null,
+        guessed: r.categorySource === "guess" && r.categoryId !== null && !r.splits.length && !isAmazonCharge(r),
         peer: r.peer,
+        splits: r.splits.map((p) => ({ categoryId: p.categoryId, categoryName: p.categoryName, amountCents: p.amountCents, note: p.note })),
       })),
     });
   } catch (error) {

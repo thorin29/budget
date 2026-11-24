@@ -12,12 +12,7 @@ import { listCategories } from "@/server/categories";
 import { prisma } from "@/lib/prisma";
 import { CategoryCell } from "./category-cell";
 import { SplitRow } from "./split-row";
-
-/** Charges the Amazon extension looks at (as src/server/amazon-sync.ts does). */
-const AMAZON = /amazon|amzn|amz\b|amz\*|whole ?foods|wholefds/i;
-/** Amazon charges that never have an order to match: Prime, Kindle, Audible and other digital. */
-const AMAZON_DIGITAL = /prime|kindle|audible|digital|music|aws|web services/i;
-const isAmazon = (r: { merchant: string; description: string }) => AMAZON.test(`${r.merchant} ${r.description}`) && !AMAZON_DIGITAL.test(`${r.merchant} ${r.description}`);
+import { isAmazonCharge as isAmazon } from "@/lib/amazon-orders";
 import { Card, EmptyState, Pill, Select, TextInput, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";

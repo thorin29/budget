@@ -3,6 +3,13 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.114.1]
+
+### Fixed
+- **Phone transactions:** Amazon charges no longer come marked "guessed" (their order decides the
+  category, as on the web), and a charge split by item lists its items for the phone (Ledger app
+  0.23.0).
+
 ## [0.114.0]
 
 ### Changed

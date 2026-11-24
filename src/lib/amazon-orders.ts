@@ -292,3 +292,14 @@ export function splitByKind(chargeCents: number, items: OrderItem[]): Array<{ ki
   if (parts.length) parts.sort((a, b) => b.cents - a.cents)[0].cents += diff;
   return parts;
 }
+
+/** Charges the Amazon extension looks at (as src/server/amazon-sync.ts does). */
+const AMAZON_CHARGE = /amazon|amzn|amz\b|amz\*|whole ?foods|wholefds/i;
+/** Amazon charges that never have an order to match: Prime, Kindle, Audible and other digital. */
+const AMAZON_DIGITAL = /prime|kindle|audible|digital|music|aws|web services/i;
+
+/** An Amazon charge whose category comes from its order, not from the merchant guess. */
+export function isAmazonCharge(r: { merchant: string; description: string }): boolean {
+  const text = `${r.merchant} ${r.description}`;
+  return AMAZON_CHARGE.test(text) && !AMAZON_DIGITAL.test(text);
+}

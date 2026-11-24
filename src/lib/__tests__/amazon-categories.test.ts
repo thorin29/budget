@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { itemKind, kindFromCategory, splitByItem, type OrderItem } from "../amazon-orders";
+import { isAmazonCharge, itemKind, kindFromCategory, splitByItem, type OrderItem } from "../amazon-orders";
 
 describe("kindFromCategory", () => {
   it("reads Amazon's category path", () => {
@@ -44,5 +44,14 @@ describe("more names", () => {
     expect(itemKind("CORSAIR VENGEANCE LPX DDR4 RAM 64GB")).toBe("electronics");
     expect(itemKind("Wonder Powdered Mini Donuts, 10 oz Bag")).toBe("groceries");
     expect(itemKind("Drum Happy Birthday Cake Topper")).toBe("gifts");
+  });
+});
+
+describe("isAmazonCharge", () => {
+  it("takes orders, not digital", () => {
+    expect(isAmazonCharge({ merchant: "Amazon", description: "AMZN Mktp US*AB12" })).toBe(true);
+    expect(isAmazonCharge({ merchant: "Whole Foods", description: "WHOLEFDS MKT" })).toBe(true);
+    expect(isAmazonCharge({ merchant: "Amazon Prime", description: "Prime membership" })).toBe(false);
+    expect(isAmazonCharge({ merchant: "Grocer", description: "GROCER 12" })).toBe(false);
   });
 });
