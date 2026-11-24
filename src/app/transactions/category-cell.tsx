@@ -20,9 +20,12 @@ const TRANSFER = "__transfer";
 export function CategoryCell({
   txn,
   categories,
+  amazon = false,
 }: {
   txn: { id: string; merchant: string; categoryId: string | null; categorySource: string; peer: boolean; transfer?: boolean };
   categories: CategoryOption[];
+  /** An Amazon charge: its order decides, so no merchant guess to confirm. */
+  amazon?: boolean;
 }) {
   const [value, setValue] = useState(txn.transfer ? TRANSFER : (txn.categoryId ?? ""));
   const [pendingChoice, setPendingChoice] = useState<string | null>(null);
@@ -88,7 +91,18 @@ export function CategoryCell({
   return (
     <span className="flex flex-col items-end gap-1">
       <span className="flex items-center gap-1.5">
-        {!personSet && txn.categoryId && txn.categorySource === "guess" ? <span className="text-[11px] text-muted">guessed</span> : null}
+        {!personSet && !amazon && txn.categoryId && txn.categorySource === "guess" && pendingChoice === null ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setPendingChoice(txn.categoryId)}
+            title="Keep this category"
+            className="rounded-md border border-dashed border-line px-1.5 py-0.5 text-[11px] text-muted hover:border-accent hover:text-foreground"
+          >
+            guessed · Confirm
+          </button>
+        ) : null}
+        {txn.categorySource === "item" ? <span className="text-[11px] text-muted">returned item</span> : null}
         <select
           aria-label={`Category for ${txn.merchant}`}
           value={value}

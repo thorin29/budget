@@ -34,3 +34,15 @@ describe("splitByItem", () => {
     expect(parts.reduce((s, p) => s + p.cents, 0)).toBe(1000);
   });
 });
+
+describe("more names", () => {
+  it("places common Amazon items", () => {
+    expect(itemKind("Amazon Basics Thick Maxi Pads with Wings for Periods")).toBe("personal");
+    expect(itemKind("Seachem Flourish Iron 500ml")).toBe("aquarium");
+    expect(itemKind("Hikari Tropical Sinking Wafers for Catfish")).toBe("aquarium");
+    expect(itemKind("Xbox Wireless Headset")).toBe("electronics");
+    expect(itemKind("CORSAIR VENGEANCE LPX DDR4 RAM 64GB")).toBe("electronics");
+    expect(itemKind("Wonder Powdered Mini Donuts, 10 oz Bag")).toBe("groceries");
+    expect(itemKind("Drum Happy Birthday Cake Topper")).toBe("gifts");
+  });
+});

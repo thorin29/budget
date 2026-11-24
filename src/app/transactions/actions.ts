@@ -70,3 +70,24 @@ export async function setSplitCategoryAction(splitId: string, categoryId: string
     return failure(error);
   }
 }
+
+/** A new category from the item picker, in the budget picked, then used for that item. */
+export async function newCategoryForSplitAction(splitId: string, name: string, groupId: string | null): Promise<CategoryResult & { categoryId?: string; name?: string }> {
+  try {
+    await requireUser();
+    const { createCategory } = await import("@/server/categories");
+    const { prisma } = await import("@/lib/prisma");
+    const made = await createCategory({ name: String(name) });
+    if (groupId) {
+      const group = await prisma.categoryGroup.findUnique({ where: { id: String(groupId) }, select: { id: true } });
+      if (group) await prisma.category.update({ where: { id: made.id }, data: { groupId: group.id } });
+    }
+    const others = await setSplitCategory(String(splitId), made.id);
+    revalidatePath("/transactions");
+    revalidatePath("/insights");
+    revalidatePath("/settings/budgets");
+    return { ok: true, others, categoryId: made.id, name: made.name };
+  } catch (error) {
+    return failure(error);
+  }
+}

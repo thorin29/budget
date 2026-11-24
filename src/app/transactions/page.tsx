@@ -9,6 +9,7 @@ import { listBankAccounts, listBankTransactions } from "@/server/bank/accounts";
 import { getMonthPlan } from "@/server/month-plan";
 import { formatCents } from "@/lib/money";
 import { listCategories } from "@/server/categories";
+import { prisma } from "@/lib/prisma";
 import { CategoryCell } from "./category-cell";
 import { SplitRow } from "./split-row";
 
@@ -16,6 +17,7 @@ import { SplitRow } from "./split-row";
 const AMAZON = /amazon|amzn|amz\b|amz\*|whole ?foods|wholefds/i;
 /** Amazon charges that never have an order to match: Prime, Kindle, Audible and other digital. */
 const AMAZON_DIGITAL = /prime|kindle|audible|digital|music|aws|web services/i;
+const isAmazon = (r: { merchant: string; description: string }) => AMAZON.test(`${r.merchant} ${r.description}`) && !AMAZON_DIGITAL.test(`${r.merchant} ${r.description}`);
 import { Card, EmptyState, Pill, Select, TextInput, buttonClass } from "@/components/ui";
 
 export const dynamic = "force-dynamic";
@@ -42,7 +44,11 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const now = new Date();
   const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
   const month = sp.m && /^\d{4}-\d{2}$/.test(sp.m) && sp.m <= thisMonth ? sp.m : thisMonth;
-  const [accounts, categories] = await Promise.all([listBankAccounts(), listCategories()]);
+  const [accounts, categories, groups] = await Promise.all([
+    listBankAccounts(),
+    listCategories(),
+    prisma.categoryGroup.findMany({ select: { id: true, name: true }, orderBy: [{ sortOrder: "asc" }, { name: "asc" }] }) as Promise<Array<{ id: string; name: string }>>,
+  ]);
   const accountId = accounts.some((a) => a.id === sp.account) ? sp.account : undefined;
   const categoryFilter = sp.category === "none" || categories.some((c) => c.id === sp.category) ? sp.category : undefined;
   const quick = QUICK.some(([k]) => k === sp.f) ? (sp.f ?? "") : "";
@@ -51,12 +57,12 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     accounts.length ? listBankTransactions({ accountId, query: sp.q, category: quick === "none" ? "none" : categoryFilter, take: 1000, from: `${month}-01`, to: last }) : Promise.resolve([]),
     getMonthPlan(Number(month.slice(0, 4)), Number(month.slice(5, 7))).catch(() => null),
   ]);
-  const rows = all.filter((r) => (quick === "guessed" ? r.categorySource === "guess" && r.kind === "NORMAL" && !r.splits.length : quick === "in" ? r.amountCents > 0 && r.kind === "NORMAL" : quick === "transfer" ? r.kind === "TRANSFER" : true));
+  const rows = all.filter((r) => (quick === "guessed" ? r.categorySource === "guess" && r.kind === "NORMAL" && !r.splits.length && !isAmazon(r) : quick === "in" ? r.amountCents > 0 && r.kind === "NORMAL" : quick === "transfer" ? r.kind === "TRANSFER" : true));
   const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
   const page = Math.min(pages, Math.max(1, Number(sp.p) || 1));
   const shown = rows.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const options = categories.map((c) => ({ id: c.id, name: c.name, managedForOthers: c.managedForOthers }));
-  const counts = { none: all.filter((r) => r.kind === "NORMAL" && r.amountCents < 0 && (r.splits.length ? r.splits.some((p) => !p.categoryId) : !r.categoryId)).length, guessed: all.filter((r) => r.categorySource === "guess" && r.kind === "NORMAL" && !r.splits.length).length };
+  const counts = { none: all.filter((r) => r.kind === "NORMAL" && r.amountCents < 0 && (r.splits.length ? r.splits.some((p) => !p.categoryId) : !r.categoryId)).length, guessed: all.filter((r) => r.categorySource === "guess" && r.kind === "NORMAL" && !r.splits.length && !isAmazon(r)).length };
   const href = (over: Record<string, string | undefined>) => {
     const q = new URLSearchParams();
     const merged = { account: accountId, q: sp.q, category: categoryFilter, m: month === thisMonth ? undefined : month, f: quick || undefined, ...over };
@@ -152,7 +158,8 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                               {r.kind === "TRANSFER" ? <Pill tone="neutral">Transfer</Pill> : null}
                               {r.kind === "IGNORED" ? <Pill tone="neutral">Ignored</Pill> : null}
                               {r.pending ? <Pill tone="warn">Pending</Pill> : null}
-                              {!r.pending && !r.splits.length && r.kind === "NORMAL" && r.amountCents < 0 && AMAZON.test(`${r.merchant} ${r.description}`) && !AMAZON_DIGITAL.test(`${r.merchant} ${r.description}`) ? (
+                              {r.pending && isAmazon(r) && r.amountCents < 0 ? <span className="text-xs text-muted">Splits once it posts</span> : null}
+                              {!r.pending && !r.splits.length && r.kind === "NORMAL" && r.amountCents < 0 && isAmazon(r) ? (
                                 <span title="The Amazon extension hasn't matched this charge to an order, so it keeps the category shown">
                                   <Pill tone="neutral">No order match</Pill>
                                 </span>
@@ -163,13 +170,13 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                         </>
                       );
                       const amount = <td className={`tnum w-28 whitespace-nowrap pr-4 text-right font-semibold ${r.amountCents > 0 ? "text-ok" : ""} ${r.kind !== "NORMAL" ? "text-muted" : ""}`}>{formatCents(r.amountCents)}</td>;
-                      if (r.splits.length) return <SplitRow key={r.id} cells={cells} amount={amount} parts={r.splits} categories={options} />;
+                      if (r.splits.length) return <SplitRow key={r.id} cells={cells} amount={amount} parts={r.splits} categories={options} groups={groups} />;
                       return (
                         <tr key={r.id}>
                           {cells}
                           <td className="w-56 pr-3">
                             {r.kind === "NORMAL" || r.kind === "TRANSFER" || r.categorySource === "person" ? (
-                              <CategoryCell txn={{ id: r.id, merchant: r.merchant, categoryId: r.categoryId, categorySource: r.categorySource, peer: r.peer, transfer: r.kind === "TRANSFER" }} categories={options} />
+                              <CategoryCell txn={{ id: r.id, merchant: r.merchant, categoryId: r.categoryId, categorySource: r.categorySource, peer: r.peer, transfer: r.kind === "TRANSFER" }} categories={options} amazon={isAmazon(r)} />
                             ) : null}
                           </td>
                           {amount}

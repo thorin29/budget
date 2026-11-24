@@ -54,14 +54,15 @@ export async function applyCategories(ids?: string[]): Promise<number> {
   const { applyTransferRules } = await import("./transfer-mark");
   await applyTransferRules();
   const rows = (await prisma.bankTransaction.findMany({
-    where: { categorySource: { not: "person" }, ...(ids ? { id: { in: ids } } : {}) },
+    // "person" is set by hand; "item" is an Amazon refund given its returned item's category.
+    where: { categorySource: { notIn: ["person", "item"] }, ...(ids ? { id: { in: ids } } : {}) },
     select: {
       id: true, merchant: true, description: true, amount: true, kind: true, categoryId: true, categorySource: true,
       account: { select: { type: true } },
       actual: { select: { lineItem: { select: { categoryId: true } } } },
     },
   })) as Row[];
-  if (!rows.length) return 0;
+  if (!rows.length) return await amazonFollowUps();
 
   const rules = new Map(
     ((await prisma.categoryRule.findMany({ select: { merchantKey: true, categoryId: true } })) as Array<{ merchantKey: string; categoryId: string }>).map((r) => [r.merchantKey, r.categoryId]),
@@ -97,7 +98,17 @@ export async function applyCategories(ids?: string[]): Promise<number> {
       changed += chunk.length;
     }
   }
-  return changed;
+  return changed + (await amazonFollowUps());
+}
+
+/** Amazon items left without a category get another look, and refunds take their item's category. */
+async function amazonFollowUps(): Promise<number> {
+  try {
+    const { placeUncategorizedItems, categorizeAmazonRefunds } = await import("./amazon-items");
+    return (await placeUncategorizedItems()) + (await categorizeAmazonRefunds());
+  } catch {
+    return 0;
+  }
 }
 
 /**

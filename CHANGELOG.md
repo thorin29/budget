@@ -3,6 +3,23 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.113.0]
+
+### Added
+- **Confirm a guess:** "guessed · Confirm" next to a guessed category. Keep it for this one, or for
+  everything from the merchant so it stops being guessed.
+- **New category from the item picker:** "New category…" on an Amazon item, with the budget it
+  goes in.
+- **Amazon refunds take the returned item's category** (an item of the same amount, within 2%, on
+  an Amazon charge in the 120 days before), shown as "returned item".
+
+### Changed
+- Amazon charges no longer show a merchant guess or count under Guessed: their order decides. A
+  pending one says "Splits once it posts".
+- Amazon items left without a category get another look after each bank sync, and the item names
+  know more: period products (Personal care), aquarium brands, Xbox and PC parts, snacks, cake
+  toppers and cards.
+
 ## [0.112.0]
 
 ### Changed

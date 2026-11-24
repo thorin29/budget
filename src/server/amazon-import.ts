@@ -74,7 +74,7 @@ export async function previewAmazon(text: string): Promise<AmazonPreview> {
 }
 
 /** The category each kind goes to: an existing one by name, else one made for it. */
-async function categoriesForKinds(kinds: Set<ItemKind>): Promise<Map<ItemKind, string>> {
+export async function categoriesForKinds(kinds: Set<ItemKind>): Promise<Map<ItemKind, string>> {
   const existing = (await prisma.category.findMany({ where: { managedForOthers: false }, select: { id: true, name: true } })) as Array<{ id: string; name: string }>;
   const out = new Map<ItemKind, string>();
   for (const kind of kinds) {
