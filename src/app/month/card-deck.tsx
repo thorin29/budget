@@ -14,8 +14,10 @@
  * since it closed (headed for the next one).
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { formatCents } from "@/lib/money";
+import type { RowEntry } from "./row-model";
+import { EntryRow } from "./rows";
 import { cardColor, faceName } from "@/lib/card-colors";
 
 export interface DeckCard {
@@ -225,31 +227,129 @@ export function CardDeck({ cards, summary }: { cards: DeckCard[]; summary: DeckS
   );
 }
 
-export function CardTable({ cards }: { cards: DeckCard[] }) {
+export interface CardPayment {
+  row: RowEntry;
+  /** The card's bank account, matching DeckCard.id; null when it isn't linked. */
+  bankId: string | null;
+}
+
+/** This month's payment for one card: what was paid and when, against what was planned. */
+function PaidCell({ lines }: { lines: CardPayment[] }) {
+  if (!lines.length) return <span className="text-muted">—</span>;
+  return (
+    <>
+      {lines.map(({ row }) => {
+        const key = `${row.lineItemId}-${row.year}-${row.month}`;
+        const earlier = row.year * 12 + row.month < new Date().getFullYear() * 12 + new Date().getMonth() + 1;
+        if (row.actualCents === null) {
+          return (
+            <span key={key} className="block">
+              <span className="block">—</span>
+              <span className="block text-xs text-muted">
+                {earlier
+                  ? `${money(row.budgetedCents)} unpaid from ${new Date(Date.UTC(row.year, row.month - 1, 1)).toLocaleDateString("en-US", { month: "short", timeZone: "UTC" })}`
+                  : !row.budgetedCents
+                    ? "nothing planned"
+                    : row.status === "overdue" && row.dueDate
+                      ? <span className="text-danger">{money(row.budgetedCents)} was due {short(row.dueDate)}</span>
+                      : `${money(row.budgetedCents)} due ${row.dueDate ? short(row.dueDate) : ""}`}
+              </span>
+            </span>
+          );
+        }
+        const over = row.actualCents - row.budgetedCents;
+        const tags = [
+          row.budgetedCents ? `of ${money(row.budgetedCents)}` : null,
+          over > 0 && row.budgetedCents ? `${money(over)} over` : null,
+          row.paidNote ? row.paidNote.toLowerCase() : row.paidFromSurplus ? "after bills" : row.autoPaid ? "auto" : null,
+        ].filter(Boolean);
+        return (
+          <span key={key} className="block">
+            <span className="flex items-center justify-end gap-1.5">
+              <span className="font-semibold">{money(row.actualCents)}</span>
+              {row.paidOn ? <span className="whitespace-nowrap rounded-full bg-ok-soft px-2 py-0.5 text-[11px] font-semibold text-ok">{short(row.paidOn)}</span> : null}
+            </span>
+            {tags.length ? (
+              <span className="block text-xs text-muted">
+                {tags.map((t, i) => (
+                  <Fragment key={i}>
+                    {i ? " · " : ""}
+                    <span className={t!.endsWith(" over") ? "text-warn" : ""}>{t}</span>
+                  </Fragment>
+                ))}
+              </span>
+            ) : null}
+          </span>
+        );
+      })}
+    </>
+  );
+}
+
+export function CardTable({ cards, payments }: { cards: DeckCard[]; payments: CardPayment[] }) {
+  const [open, setOpen] = useState<string | null>(null);
+  // Cards without a bank link (or months with no card details) still show their payment.
+  const loose = payments.filter((p) => !p.bankId || !cards.some((c) => c.id === p.bankId));
+  const looseCards: DeckCard[] = [...new Map(loose.map((p) => [p.row.lineItemId, p])).values()].map((p) => ({
+    id: `line:${p.row.lineItemId}`,
+    name: p.row.name,
+    institution: null,
+    lastDigits: null,
+    color: null,
+    owedNowCents: 0,
+    status: null,
+  }));
+  const linesFor = (c: DeckCard) => payments.filter((p) => (c.id.startsWith("line:") ? !(p.bankId && cards.some((x) => x.id === p.bankId)) && `line:${p.row.lineItemId}` === c.id : p.bankId === c.id));
+  const all = [...cards, ...looseCards];
+  // A payment covered another way (a balance transfer) needs nothing from checking.
+  const counted = payments.filter((p) => !(p.row.actualCents === 0 && p.row.paidNote));
+  const paid = counted.reduce((t, p) => t + (p.row.actualCents ?? 0), 0);
+  const planned = counted.reduce((t, p) => t + p.row.budgetedCents, 0);
+  const details = cards.length > 0;
   return (
     <section id="cards" className="scroll-mt-6 rounded-2xl border border-line bg-surface shadow-card">
       <div className="flex flex-wrap items-baseline justify-between gap-2 px-5 pt-5">
         <h2 className="text-base font-bold">Cards</h2>
-        <a href="/settings/accounts" className="text-xs font-semibold text-accent-text hover:underline">
-          Days and colors
-        </a>
+        <span className="flex items-baseline gap-4 text-sm">
+          {payments.length ? (
+            <span className="tnum text-muted">
+              <strong className="text-foreground">{money(paid)}</strong> paid of {money(planned)} planned
+            </span>
+          ) : null}
+          <a href="/settings/accounts" className="text-xs font-semibold text-accent-text hover:underline">
+            Days and colors
+          </a>
+        </span>
       </div>
+      {payments.length && planned > 0 ? (
+        <div className="mx-5 mt-3 h-1.5 overflow-hidden rounded-full bg-neutral-soft">
+          <div className="h-full rounded-full bg-accent" style={{ width: `${Math.min(100, Math.round((paid / planned) * 100))}%` }} />
+        </div>
+      ) : null}
       <div className="overflow-x-auto">
         <table className="mt-3 w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-b border-line text-left text-xs font-semibold uppercase tracking-wide text-muted">
               <th className="px-5 py-2 font-semibold">Card</th>
-              <th className="px-3 py-2 text-right font-semibold">Balance</th>
-              <th className="px-3 py-2 text-right font-semibold">On statement</th>
-              <th className="px-3 py-2 text-right font-semibold">Since statement</th>
-              <th className="px-5 py-2 text-right font-semibold">Pay this cycle</th>
+              {details ? (
+                <>
+                  <th className="px-3 py-2 text-right font-semibold">Balance</th>
+                  <th className="px-3 py-2 text-right font-semibold">On statement</th>
+                  <th className="px-3 py-2 text-right font-semibold">Since statement</th>
+                </>
+              ) : null}
+              <th className="border-l border-line px-3 py-2 text-right font-semibold">Paid this month</th>
+              {details ? <th className="px-5 py-2 text-right font-semibold">Pay this cycle</th> : null}
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
-            {cards.map((c) => {
+            {all.map((c) => {
               const s = c.status;
+              const lines = linesFor(c);
+              const isOpen = open === c.id;
               return (
-                <tr key={c.id} className="align-top">
+                <Fragment key={c.id}>
+                <tr className="align-top">
                   <td className="px-5 py-3">
                     <span className="flex items-center gap-2 font-semibold">
                       <span aria-hidden className="h-3.5 w-5 shrink-0 rounded-[3px]" style={{ background: cardColor(c.color).background }} />
@@ -257,13 +357,17 @@ export function CardTable({ cards }: { cards: DeckCard[] }) {
                     </span>
                     <span className="block pl-7 text-xs text-muted">{c.institution ?? ""}</span>
                   </td>
-                  <td className="tnum px-3 py-3 text-right">{money(c.owedNowCents)}</td>
+                  {details ? (
+                    <>
+                  <td className="tnum px-3 py-3 text-right">{c.id.startsWith("line:") ? "—" : money(c.owedNowCents)}</td>
                   <td className="tnum px-3 py-3 text-right">
                     {s ? (
                       <>
                         <span className="block">{money(s.dueCents)}</span>
                         <span className="block text-xs text-muted">due {short(s.nextDue)}</span>
                       </>
+                    ) : c.id.startsWith("line:") ? (
+                      "—"
                     ) : (
                       <span className="text-xs text-muted">Add its days</span>
                     )}
@@ -278,6 +382,18 @@ export function CardTable({ cards }: { cards: DeckCard[] }) {
                       "—"
                     )}
                   </td>
+                    </>
+                  ) : null}
+                  <td className="tnum border-l border-line px-3 py-3 text-right">
+                    {lines.length ? (
+                      <button type="button" onClick={() => setOpen(isOpen ? null : c.id)} aria-expanded={isOpen} title="Details" className="w-full text-right">
+                        <PaidCell lines={lines} />
+                      </button>
+                    ) : (
+                      <PaidCell lines={lines} />
+                    )}
+                  </td>
+                  {details ? (
                   <td className="tnum px-5 py-3 text-right">
                     {s ? (
                       <>
@@ -294,7 +410,18 @@ export function CardTable({ cards }: { cards: DeckCard[] }) {
                       "—"
                     )}
                   </td>
+                  ) : null}
                 </tr>
+                {isOpen ? (
+                  <tr>
+                    <td colSpan={details ? 6 : 2} className="bg-neutral-soft/40 p-0">
+                      {lines.map(({ row }) => (
+                        <EntryRow key={`${row.lineItemId}-${row.year}-${row.month}`} row={row} />
+                      ))}
+                    </td>
+                  </tr>
+                ) : null}
+                </Fragment>
               );
             })}
           </tbody>

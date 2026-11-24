@@ -207,10 +207,11 @@ export async function recordPastMonths(monthsBack = 12): Promise<number> {
 export async function runBillAutomation(): Promise<AutomationResult> {
   await assignPaydayNumbers();
   const linked = await linkRecordedPayments();
-  const { learnCardLinks, recordCardPayments } = await import("./card-bills");
+  const { learnCardLinks, recordCardPayments, realignCardPayments } = await import("./card-bills");
   const cardsLinked = await learnCardLinks();
   const dueDaysMoved = await learnDueDays();
   const recorded = (await recordExactMatches()) + (await recordPastMonths());
+  await realignCardPayments();
   const cardPayments = await recordCardPayments();
   const { closePaidOffBills } = await import("./payoff");
   await closePaidOffBills();

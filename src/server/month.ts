@@ -61,6 +61,10 @@ export interface MonthEntry {
   half: 0 | 1;
   /** Paid from what is left over; kept out of the cash figures. */
   paidFromSurplus: boolean;
+  /** A card payment: the card it pays (an Account id). */
+  paysCardId?: string | null;
+  /** The note on the recorded payment, e.g. "Balance transfer". */
+  paidNote?: string | null;
   /** Set when the entry originates in an earlier, unpaid month. */
   carriedFrom: { year: number; month: number } | null;
   /** Recorded on its own from an exact bank match. */
@@ -209,6 +213,7 @@ interface ActualRow {
   paidOn: Date | null;
   source?: string;
   bankTransactionId?: string | null;
+  note?: string | null;
 }
 
 /** The month, worked out once per page load however many parts of the page ask for it. */
@@ -294,6 +299,7 @@ async function buildMonthView(year: number, month: number): Promise<MonthView> {
     ]),
   );
   const settled = new Set(actuals.map((a) => key(a.lineItemId, a.year, a.month)));
+  const noteMap = new Map(actuals.map((a) => [key(a.lineItemId, a.year, a.month), a.note ?? null]));
 
   const shown = sameNameTags(items.map((i) => ({ id: i.id, name: i.name, dueDay: i.dueDay, paydayNumber: (i as { paydayNumber?: number | null }).paydayNumber ?? null, active: i.active })));
   const forModel: LineItemForMonth[] = items.map((i) => ({
@@ -358,6 +364,7 @@ async function buildMonthView(year: number, month: number): Promise<MonthView> {
       adjusted: o.amountCents !== (planned.get(item.id) ?? 0) && !rateKeys.has(key(item.id, o.year, o.month)),
       half: o.half,
       paidFromSurplus: item.paidFromSurplus,
+      paysCardId: (item as { paysCardId?: string | null }).paysCardId ?? null,
       carriedFrom: o.carriedOver ? { year: o.year, month: o.month } : null,
     };
   });
@@ -393,6 +400,8 @@ async function buildMonthView(year: number, month: number): Promise<MonthView> {
       adjusted: budgeted !== (planned.get(item.id) ?? 0) && !rateKeys.has(k),
       half: halfFor(item.dueDay, item.periodAssignment as never, splitDay),
       paidFromSurplus: item.paidFromSurplus,
+      paysCardId: (item as { paysCardId?: string | null }).paysCardId ?? null,
+      paidNote: noteMap.get(k) ?? null,
       carriedFrom: null,
     });
   }

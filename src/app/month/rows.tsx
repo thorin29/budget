@@ -39,7 +39,7 @@ export function MonthList({
   footer,
 }: {
   sections: MonthSection[];
-  footer: { paidCents: number; budgetedCents: number; also?: Array<[string, number]> };
+  footer: { paidCents: number; budgetedCents: number; also?: Array<[string, number]>; cardsBelow?: boolean };
 }) {
   const [filter, setFilter] = useState<Filter>("all");
 
@@ -124,13 +124,13 @@ export function MonthList({
             <span className="text-muted"> paid of {formatCents(footer.budgetedCents)}</span>
           </span>
         </div>
-        {footer.also?.some(([, c]) => c > 0) ? (
+        {footer.also?.some(([, c]) => c > 0) || footer.cardsBelow ? (
           <p className="mt-1 text-xs text-muted">
-            Not in this total:{" "}
-            {footer.also
-              .filter(([, c]) => c > 0)
-              .map(([label, c]) => `${label} ${formatCents(c)}`)
-              .join(" · ")}
+            Plus{" "}
+            {[
+              ...(footer.also ?? []).filter(([, c]) => c > 0).map(([label, c]) => `${label} ${formatCents(c)}`),
+              ...(footer.cardsBelow ? ["cards (below)"] : []),
+            ].join(" and ")}
           </p>
         ) : null}
       </div>

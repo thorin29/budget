@@ -40,6 +40,11 @@ export interface RowEntry {
   status: RowStatus;
   /** A card payment set from the statement: not adjusted by hand. */
   fromStatement?: boolean;
+  /** A card payment: the card it pays (an Account id). */
+  paysCardId?: string | null;
+  paidFromSurplus?: boolean;
+  /** The note on the recorded payment, e.g. "Balance transfer". */
+  paidNote?: string | null;
   /** Unpaid, but its payment is already in the bank feed. */
   pendingCharge?: { cents: number; postedOn: string; pending: boolean } | null;
   /** Whole days until due; negative when past. Null without a due day. */
@@ -122,6 +127,9 @@ export function toRow(entry: MonthEntry, today: string): RowEntry {
     bankLinked: entry.bankLinked ?? false,
     status,
     fromStatement: entry.fromStatement ?? false,
+    paysCardId: entry.paysCardId ?? null,
+    paidFromSurplus: entry.paidFromSurplus,
+    paidNote: entry.paidNote ?? null,
     pendingCharge: entry.pendingCharge ? { cents: entry.pendingCharge.cents, postedOn: entry.pendingCharge.postedOn, pending: entry.pendingCharge.pending } : null,
     daysUntilDue,
   };

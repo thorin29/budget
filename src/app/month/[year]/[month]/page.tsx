@@ -112,6 +112,19 @@ export default async function MonthPage({
   const surplus = view.surplusItems.map((e) => withSuggestion(toRow(e, today)));
 
   const allRows = [...carried, ...halves[0], ...halves[1], ...surplus, ...income];
+  // Card payments are listed once, in Cards; each paycheck still counts the ones it pays.
+  const isCardLine = (r: RowEntry) => !!r.paysCardId;
+  const periodRows = (view.periods ?? []).flatMap((p) => p.entries.map((e) => withSuggestion(toRow(e, today))));
+  const cardLines = [...carried, ...halves[0], ...halves[1], ...surplus, ...periodRows]
+    .filter(isCardLine)
+    .filter((r, i, all) => all.findIndex((x) => x.lineItemId === r.lineItemId && x.year === r.year && x.month === r.month) === i);
+  const bankOfAccount = new Map(
+    ((await prisma.bankAccount.findMany({ where: { linkedAccountId: { not: null } }, select: { id: true, linkedAccountId: true } })) as Array<{ id: string; linkedAccountId: string }>).map((b) => [
+      b.linkedAccountId,
+      b.id,
+    ]),
+  );
+  const cardPayments = cardLines.map((row) => ({ row, bankId: row.paysCardId ? (bankOfAccount.get(row.paysCardId) ?? null) : null }));
   const billRows = [...carried, ...halves[0], ...halves[1]];
   const unpaidBills = billRows.filter((r) => r.actualCents === null);
 
@@ -127,12 +140,12 @@ export default async function MonthPage({
       progress: { value: view.incomeReceivedCents, max: view.incomeExpectedCents, tone: "info" },
     });
   }
-  if (carried.length) {
+  if (carried.some((r) => !isCardLine(r))) {
     sections.push({
       key: "carried",
       title: `Unpaid from earlier`,
       summary: `${formatCents(view.carriedCents)} owed now`,
-      rows: carried,
+      rows: carried.filter((r) => !isCardLine(r)),
       tone: "danger",
       note: `Counted in the first half. If one cost nothing, record zero or choose “Nothing due this month” under More options. Only the last ${
         view.carryMonths === 1 ? "month is" : `${view.carryMonths} months are`
@@ -144,7 +157,7 @@ export default async function MonthPage({
   if (view.periods) {
     // One section per paycheck: the bills due from its payday until the next one.
     view.periods.forEach((p, i) => {
-      const rows = p.entries.map((e) => withSuggestion(toRow(e, today)));
+      const rows = p.entries.map((e) => withSuggestion(toRow(e, today))).filter((r) => !isCardLine(r));
       sections.push({
         key: `period-${i}`,
         title: `${p.payday ? `${short(p.payday)} Paycheck` : p.fromPayday ? `${short(p.fromPayday)} Paycheck (Cont.)` : "Before the First Payday"}${p.current ? " · Now" : ""}`,
@@ -158,22 +171,22 @@ export default async function MonthPage({
     const paid = view.halves[0].paidCents + view.halves[1].paidCents;
     const left = view.halves[0].remainingCents + view.halves[1].remainingCents;
     const budgeted = view.halves[0].budgetedCents + view.halves[1].budgetedCents;
-    sections.push({ key: "half-0", title: "This Month", summary: `${formatCents(paid)} paid · ${formatCents(left)} pending`, rows: [...halves[0], ...halves[1]], progress: { value: budgeted - left, max: budgeted } });
+    sections.push({ key: "half-0", title: "This Month", summary: `${formatCents(paid)} paid · ${formatCents(left)} pending`, rows: [...halves[0], ...halves[1]].filter((r) => !isCardLine(r)), progress: { value: budgeted - left, max: budgeted } });
   } else view.halves.forEach((half, i) => {
     sections.push({
       key: `half-${i}`,
       title: half.half.label,
       summary: `${formatCents(half.paidCents)} paid · ${formatCents(half.remainingCents)} pending`,
-      rows: halves[i],
+      rows: halves[i].filter((r) => !isCardLine(r)),
       progress: { value: half.budgetedCents - half.remainingCents, max: half.budgetedCents },
     });
   });
-  if (surplus.length) {
+  if (surplus.some((r) => !isCardLine(r))) {
     sections.push({
       key: "surplus",
       title: "Paid from what's left over",
       summary: `${formatCents(view.surplusPaidCents)} paid of ${formatCents(view.surplusBudgetedCents)} planned`,
-      rows: surplus,
+      rows: surplus.filter((r) => !isCardLine(r)),
     });
   }
 
@@ -339,15 +352,13 @@ export default async function MonthPage({
                   ? {
                       paidCents: plan.bills.listPaidCents,
                       budgetedCents: plan.bills.listCents,
-                      also: [
-                        ["Debt payment", plan.debt.cents],
-                        ["Card payments", plan.bills.cardPaymentsCents],
-                      ],
+                      also: [["debt payment", plan.debt.cents]],
+                      cardsBelow: deckCards.length > 0 || cardPayments.length > 0,
                     }
                   : { paidCents: paidOf(billRows), budgetedCents: budgetOf(billRows) }
               }
             />
-            {cards && deckCards.length ? <CardTable cards={deckCards} /> : null}
+            {deckCards.length || cardPayments.length ? <CardTable cards={deckCards} payments={cardPayments} /> : null}
           </div>
 
           <aside className="space-y-4 xl:sticky xl:top-7">

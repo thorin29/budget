@@ -3,6 +3,22 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.114.0]
+
+### Changed
+- **Tracker: card payments in one place.** The Cards table at the bottom of the month has a "Paid
+  this month" column: what was paid and when, against what was planned, and how much over. Click
+  it for the payment's controls. Card payments leave the paycheck lists and "Paid from what's left
+  over"; each paycheck still counts the ones it pays. Months without card details show the Cards
+  table with just the payments.
+- The bills footer reads "Plus debt payment … and cards (below)".
+
+### Fixed
+- **Card payments count toward the statement they paid.** A payment made after a statement closes
+  pays that statement (due the next month), so it now moves there when it was recorded for the
+  month before. A balance transfer that pays a statement is recorded as $0 from checking
+  ("Balance transfer"), and doesn't count against the Cards total.
+
 ## [0.113.0]
 
 ### Added
