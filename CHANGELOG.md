@@ -3,6 +3,17 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.114.2]
+
+### Fixed
+- **Bills paid any day of the month** (no due day, like giving): each payment counts for the month
+  it was made in. One made in a month's first week counts for the month before when that month has
+  nothing paid (a late payment). Payments from the last 18 months already recorded a month off are
+  moved to fit after the next bank sync, and the month they free up takes its own payment. Leave
+  "Due around day" blank (it shows "Any day") to make a bill work this way.
+- **Transactions:** no more "guessed · Confirm" or Guessed filter. Ledger's categories stand as they
+  are; change one with the picker. Amazon items Ledger can't place still show under Needs a category.
+
 ## [0.114.1]
 
 ### Fixed

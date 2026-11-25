@@ -252,7 +252,6 @@ export function LineItemForm({
 
           <Field
             label={isIncome ? "Arrives around day" : "Due around day"}
-            
             error={state.issues?.dueDay}
           >
             <div className="flex">
@@ -271,6 +270,7 @@ export function LineItemForm({
                 max={31}
                 value={dueDay}
                 onChange={(e) => setDueDay(e.target.value)}
+                placeholder={isIncome ? undefined : "Any day"}
                 className="tnum rounded-none text-center"
               />
               <button

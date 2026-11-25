@@ -1,6 +1,6 @@
 /**
  * Transactions, a month at a time and a page at a time: a search box, account and category, and
- * quick filters (needs a category, guessed, money in, transfers) on top; 20 rows a page; and the
+ * quick filters (needs a category, money in, transfers) on top; 20 rows a page; and the
  * month's figures beside them, from the same month plan as Insights so they match it.
  */
 
@@ -23,7 +23,6 @@ const whole = (cents: number) => `${cents < 0 ? "−" : ""}$${Math.abs(Math.roun
 const QUICK: Array<[string, string]> = [
   ["", "All"],
   ["none", "Needs a category"],
-  ["guessed", "Guessed"],
   ["in", "Money in"],
   ["transfer", "Transfers & card payments"],
 ];
@@ -52,12 +51,12 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
     accounts.length ? listBankTransactions({ accountId, query: sp.q, category: quick === "none" ? "none" : categoryFilter, take: 1000, from: `${month}-01`, to: last }) : Promise.resolve([]),
     getMonthPlan(Number(month.slice(0, 4)), Number(month.slice(5, 7))).catch(() => null),
   ]);
-  const rows = all.filter((r) => (quick === "guessed" ? r.categorySource === "guess" && r.kind === "NORMAL" && !r.splits.length && !isAmazon(r) : quick === "in" ? r.amountCents > 0 && r.kind === "NORMAL" : quick === "transfer" ? r.kind === "TRANSFER" : true));
+  const rows = all.filter((r) => (quick === "in" ? r.amountCents > 0 && r.kind === "NORMAL" : quick === "transfer" ? r.kind === "TRANSFER" : true));
   const pages = Math.max(1, Math.ceil(rows.length / PER_PAGE));
   const page = Math.min(pages, Math.max(1, Number(sp.p) || 1));
   const shown = rows.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const options = categories.map((c) => ({ id: c.id, name: c.name, managedForOthers: c.managedForOthers }));
-  const counts = { none: all.filter((r) => r.kind === "NORMAL" && r.amountCents < 0 && (r.splits.length ? r.splits.some((p) => !p.categoryId) : !r.categoryId)).length, guessed: all.filter((r) => r.categorySource === "guess" && r.kind === "NORMAL" && !r.splits.length && !isAmazon(r)).length };
+  const counts = { none: all.filter((r) => r.kind === "NORMAL" && r.amountCents < 0 && (r.splits.length ? r.splits.some((p) => !p.categoryId) : !r.categoryId)).length };
   const href = (over: Record<string, string | undefined>) => {
     const q = new URLSearchParams();
     const merged = { account: accountId, q: sp.q, category: categoryFilter, m: month === thisMonth ? undefined : month, f: quick || undefined, ...over };
@@ -127,7 +126,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
               </button>
               <span className="flex flex-wrap gap-1.5">
                 {QUICK.map(([k, text]) => {
-                  const n = k === "none" ? counts.none : k === "guessed" ? counts.guessed : null;
+                  const n = k === "none" ? counts.none : null;
                   return (
                     <Link key={k} href={href({ f: k || undefined, p: undefined })} className={`rounded-full border px-3 py-1 text-xs font-semibold ${quick === k ? "border-accent bg-accent-soft text-accent-text" : "border-line hover:bg-neutral-soft"}`}>
                       {text}
@@ -171,7 +170,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                           {cells}
                           <td className="w-56 pr-3">
                             {r.kind === "NORMAL" || r.kind === "TRANSFER" || r.categorySource === "person" ? (
-                              <CategoryCell txn={{ id: r.id, merchant: r.merchant, categoryId: r.categoryId, categorySource: r.categorySource, peer: r.peer, transfer: r.kind === "TRANSFER" }} categories={options} amazon={isAmazon(r)} />
+                              <CategoryCell txn={{ id: r.id, merchant: r.merchant, categoryId: r.categoryId, categorySource: r.categorySource, peer: r.peer, transfer: r.kind === "TRANSFER" }} categories={options} />
                             ) : null}
                           </td>
                           {amount}

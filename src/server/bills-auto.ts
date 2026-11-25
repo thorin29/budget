@@ -14,13 +14,17 @@
  *  4. Card-payment bills: payments reaching the card are recorded for the
  *     month they pay, whatever the amount (src/server/card-bills.ts).
  *  5. Earlier months catch up: a year back, the sure matches only (recordPastMonths).
+ *
+ *  Before 3, bills paid any day of the month (no due day; giving, say) have each payment count
+ *  for the month it was made, or the month before when it came in that month's first week and the
+ *  month before had nothing paid (realignAnyDayBills).
  */
 
 import { prisma } from "@/lib/prisma";
 import { toCents } from "@/lib/money";
 import { merchantKey } from "@/lib/field-crypto";
 import { SPENDING_TYPES, type AccountType } from "@/lib/account-type";
-import { knownMatch, learnedDueDay, pairRecorded, shouldMoveDueDay } from "@/lib/bill-history";
+import { anyDayMonths, knownMatch, learnedDueDay, paidAnyDay, pairRecorded, shouldMoveDueDay } from "@/lib/bill-history";
 import { paydayNumbersFromNames } from "@/lib/pay-detect";
 import type { MatchTxn } from "@/lib/bill-match";
 import { recordActual, clearActual } from "./month";
@@ -204,12 +208,67 @@ export async function recordPastMonths(monthsBack = 12): Promise<number> {
   return recorded;
 }
 
+/**
+ * Bills paid any day of the month (no due day): each payment counts for the month it was made, and one made in a
+ * month's first week counts for the month before when that month has nothing paid (a late
+ * payment). Linked payments from the last 18 months are moved to fit; a month recorded by hand
+ * without a charge is taken over by the charge made that month. Returns how many moved.
+ */
+export async function realignAnyDayBills(now = new Date()): Promise<number> {
+  const items = (await prisma.lineItem.findMany({
+    where: { active: true, kind: { not: "INCOME" }, paysCardId: null, dueDay: null },
+    select: { id: true, dueDay: true },
+  })) as Array<{ id: string; dueDay: number | null }>;
+  const since = new Date(now.getTime() - 548 * DAY);
+  let moved = 0;
+  for (const item of items.filter((i) => paidAnyDay(i.dueDay))) {
+    const entries = (await prisma.actualEntry.findMany({
+      where: { lineItemId: item.id },
+      select: { id: true, year: true, month: true, amount: true, paidOn: true, note: true, source: true, recordedById: true, bankTransactionId: true, bankTransaction: { select: { postedOn: true } } },
+    })) as Array<{
+      id: string; year: number; month: number; amount: { toString(): string }; paidOn: Date | null; note: string | null; source: string; recordedById: string | null;
+      bankTransactionId: string | null; bankTransaction: { postedOn: Date } | null;
+    }>;
+    const linked = entries.filter((e) => e.bankTransaction && e.bankTransaction.postedOn >= since);
+    if (linked.length < 2) continue;
+    const ym = (y: number, m: number) => `${y}-${String(m).padStart(2, "0")}`;
+    const inWindow = new Set(linked.map((e) => e.id));
+    const others = entries.filter((e) => !inWindow.has(e.id));
+    const occupied = new Set(others.map((e) => ym(e.year, e.month)));
+    const claimable = new Set(others.filter((e) => !e.bankTransactionId).map((e) => ym(e.year, e.month)));
+    const target = anyDayMonths(
+      linked.map((e) => ({ id: e.id, postedOn: iso(e.bankTransaction!.postedOn), current: ym(e.year, e.month) })),
+      occupied,
+      claimable,
+    );
+    const counts = new Map<string, number>();
+    for (const t of target.values()) counts.set(t, (counts.get(t) ?? 0) + 1);
+    const moves = linked.filter((e) => {
+      const t = target.get(e.id)!;
+      return t !== ym(e.year, e.month) && counts.get(t) === 1;
+    });
+    if (!moves.length) continue;
+    // Out of the way first, so no two payments ever hold one month.
+    await prisma.actualEntry.deleteMany({ where: { id: { in: moves.map((e) => e.id) } } });
+    for (const e of moves) {
+      const [y, m] = target.get(e.id)!.split("-").map(Number);
+      const taken = others.find((o) => o.year === y && o.month === m && !o.bankTransactionId);
+      const data = { amount: e.amount.toString(), paidOn: e.bankTransaction!.postedOn, bankTransactionId: e.bankTransactionId };
+      if (taken) await prisma.actualEntry.update({ where: { id: taken.id }, data });
+      else await prisma.actualEntry.create({ data: { ...data, lineItemId: item.id, year: y, month: m, note: e.note, source: e.source, recordedById: e.recordedById } });
+      moved += 1;
+    }
+  }
+  return moved;
+}
+
 export async function runBillAutomation(): Promise<AutomationResult> {
   await assignPaydayNumbers();
   const linked = await linkRecordedPayments();
   const { learnCardLinks, recordCardPayments, realignCardPayments } = await import("./card-bills");
   const cardsLinked = await learnCardLinks();
   const dueDaysMoved = await learnDueDays();
+  await realignAnyDayBills();
   const recorded = (await recordExactMatches()) + (await recordPastMonths());
   await realignCardPayments();
   const cardPayments = await recordCardPayments();
