@@ -127,7 +127,7 @@ export async function statementEnv(plan: MonthPlanView) {
       },
       select: {
         id: true, accountId: true, postedOn: true, amount: true, merchant: true, description: true, categoryId: true, pending: true,
-        category: { select: { name: true, managedForOthers: true } }, account: { select: { type: true } }, actual: { select: { id: true } }, splits: { select: { categoryId: true, amount: true } },
+        category: { select: { name: true, managedForOthers: true } }, account: { select: { type: true } }, actual: { select: { id: true } }, splits: { select: { categoryId: true, amount: true, category: { select: { managedForOthers: true } } } },
       },
     })) as Txn[];
     const byGroup = new Map<string, number>();

@@ -12,6 +12,7 @@ import { listCategories } from "@/server/categories";
 import { prisma } from "@/lib/prisma";
 import { CategoryCell } from "./category-cell";
 import { SplitRow } from "./split-row";
+import { OwedCell } from "./owed-cell";
 import { isAmazonCharge as isAmazon } from "@/lib/amazon-orders";
 import { Card, EmptyState, Pill, Select, TextInput, buttonClass } from "@/components/ui";
 
@@ -56,6 +57,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
   const page = Math.min(pages, Math.max(1, Number(sp.p) || 1));
   const shown = rows.slice((page - 1) * PER_PAGE, page * PER_PAGE);
   const options = categories.map((c) => ({ id: c.id, name: c.name, managedForOthers: c.managedForOthers }));
+  const people = categories.filter((c) => c.managedForOthers).map((c) => ({ id: c.id, name: c.name }));
   const counts = { none: all.filter((r) => r.kind === "NORMAL" && r.amountCents < 0 && (r.splits.length ? r.splits.some((p) => !p.categoryId) : !r.categoryId)).length };
   const href = (over: Record<string, string | undefined>) => {
     const q = new URLSearchParams();
@@ -166,11 +168,14 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
                       const amount = <td className={`tnum w-28 whitespace-nowrap pr-4 text-right font-semibold ${r.amountCents > 0 ? "text-ok" : ""} ${r.kind !== "NORMAL" ? "text-muted" : ""}`}>{formatCents(r.amountCents)}</td>;
                       if (r.splits.length) return <SplitRow key={r.id} cells={cells} amount={amount} parts={r.splits} categories={options} groups={groups} />;
                       return (
-                        <tr key={r.id}>
+                        <tr key={r.id} className="group">
                           {cells}
                           <td className="w-56 pr-3">
                             {r.kind === "NORMAL" || r.kind === "TRANSFER" || r.categorySource === "person" ? (
                               <CategoryCell txn={{ id: r.id, merchant: r.merchant, categoryId: r.categoryId, categorySource: r.categorySource, peer: r.peer, transfer: r.kind === "TRANSFER" }} categories={options} />
+                            ) : null}
+                            {r.kind === "NORMAL" && r.amountCents < 0 && !r.pending && !isAmazon(r) && !people.some((p) => p.id === r.categoryId) ? (
+                              <OwedCell key={`${r.id}-${r.owed?.personId ?? ""}-${r.owed?.cents ?? 0}`} txnId={r.id} totalCents={-r.amountCents} owed={r.owed} people={people} />
                             ) : null}
                           </td>
                           {amount}

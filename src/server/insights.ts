@@ -94,7 +94,7 @@ type Row = {
   category: { name: string; managedForOthers: boolean } | null;
   account: { type: AccountType };
   actual: { id: string } | null;
-  splits?: Array<{ categoryId: string | null; amount: { toString(): string }; category: { name: string } | null }>;
+  splits?: Array<{ categoryId: string | null; amount: { toString(): string }; category: { name: string; managedForOthers: boolean } | null }>;
 };
 
 const ym = (year: number, month: number) => year * 12 + (month - 1);
@@ -116,7 +116,7 @@ async function buildInsights(year: number, month: number, monthsBack = 12, withL
       category: { select: { name: true, managedForOthers: true } },
       account: { select: { type: true } },
       actual: { select: { id: true } },
-      splits: { select: { categoryId: true, amount: true, category: { select: { name: true } } } },
+      splits: { select: { categoryId: true, amount: true, category: { select: { name: true, managedForOthers: true } } } },
     },
   })) as Row[];
 
@@ -162,6 +162,10 @@ async function buildInsights(year: number, month: number, monthsBack = 12, withL
       if (refund && !isBill(r)) everyday = -cents;
       else if (!refund) total.inCents += cents;
     }
+    // Someone else's share of a charge (marked as owed to you) isn't your spending.
+    const full = everyday;
+    const share = (p: { amount: { toString(): string } }) => (cents !== 0 ? Math.round((full * toCents(p.amount)) / cents) : 0);
+    if (everyday && r.splits?.length) everyday -= r.splits.filter((p) => p.category?.managedForOthers).reduce((t, p) => t + share(p), 0);
     if (!everyday) continue;
     total.everydayCents += everyday;
     // Same-day comparison, capped at each month's own length.
@@ -173,7 +177,7 @@ async function buildInsights(year: number, month: number, monthsBack = 12, withL
     if (isCurrent && r.postedOn.getTime() >= weekFrom) weekCents += everyday;
     // A split charge (an Amazon order by item) counts in its parts' categories.
     const parts = r.splits?.length
-      ? r.splits.map((p) => ({ key: p.categoryId ?? "", name: p.category?.name ?? "Uncategorized", cents: cents !== 0 ? Math.round((everyday * toCents(p.amount)) / cents) : 0 }))
+      ? r.splits.filter((p) => !p.category?.managedForOthers).map((p) => ({ key: p.categoryId ?? "", name: p.category?.name ?? "Uncategorized", cents: share(p) }))
       : [{ key: r.categoryId ?? "", name: r.category?.name ?? "Uncategorized", cents: everyday }];
     const cats = byCategory.get(n) ?? new Map();
     for (const part of parts) {
@@ -225,11 +229,17 @@ async function buildInsights(year: number, month: number, monthsBack = 12, withL
   const managed: ManagedLedger[] = [];
   for (const c of managedCats) {
     const sum = (await prisma.bankTransaction.aggregate({
-      where: { categoryId: c.id, pending: false, account: { hidden: false } },
+      where: { categoryId: c.id, pending: false, splits: { none: {} }, account: { hidden: false } },
+      _sum: { amount: true },
+    })) as { _sum: { amount: { toString(): string } | null } };
+    // Their share of charges split with you (marked as owed to you).
+    const parts = (await prisma.transactionSplit.aggregate({
+      where: { categoryId: c.id, transaction: { pending: false, account: { hidden: false } } },
       _sum: { amount: true },
     })) as { _sum: { amount: { toString(): string } | null } };
     const m = monthManaged.get(c.id) ?? { in: 0, out: 0 };
-    managed.push({ id: c.id, name: c.name, heldCents: sum._sum.amount ? toCents(sum._sum.amount) : 0, monthInCents: m.in, monthOutCents: m.out });
+    const held = (sum._sum.amount ? toCents(sum._sum.amount) : 0) + (parts._sum.amount ? toCents(parts._sum.amount) : 0);
+    managed.push({ id: c.id, name: c.name, heldCents: held, monthInCents: m.in, monthOutCents: m.out });
   }
 
   // The same month a year before, for comparison: only when history reaches that far.

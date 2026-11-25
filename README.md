@@ -211,6 +211,11 @@ look like bill payments and what was recorded on its own), `POST
 `POST /api/v1/review/undo-auto` with `{lineItemId, year, month}`, and
 `GET /api/v1/insights?m=YYYY-MM` (a month's spending summary), `GET /api/v1/envelopes` (this pay period's spending plan and payday plan).
 
+Owed to you: `PUT /api/v1/transactions/{id}/owed` with `{personId, cents?}` (part or all of a
+charge someone owes you; `personId: null` clears it), `GET /api/v1/people` (who can owe you, with
+what each owes now) and `POST /api/v1/people` with `{name}`. Each transaction in
+`GET /api/v1/transactions` carries `owed` (`{personId, personName, cents}` or null).
+
 Amazon extension (an `amazon`-scoped token): `GET /api/v1/amazon/status`, `GET /api/v1/amazon/unsplit` (Amazon charges not split yet), `POST /api/v1/amazon/orders` with `{orders: [{orderId, orderDate, items: [{name, cents, quantity, shipmentKey, shipDate, productId?, category?}], charges: [{date, cents, last4}]}]}` (splits matching Amazon charges; counts only back), and `POST /api/v1/amazon/runs` with `{status, failedSection?, extensionVersion, ordersWaiting}`.
 
 ## Bank sync

@@ -103,6 +103,8 @@ export async function applyCategories(ids?: string[]): Promise<number> {
 
 /** Amazon items left without a category get another look, and refunds take their item's category. */
 async function amazonFollowUps(): Promise<number> {
+  // The rest of a charge someone owes part of follows the charge's category.
+  await (await import("./owed")).syncOwedRest();
   try {
     const { placeUncategorizedItems, categorizeAmazonRefunds } = await import("./amazon-items");
     return (await placeUncategorizedItems()) + (await categorizeAmazonRefunds());
@@ -127,7 +129,10 @@ export async function setTransactionCategory(txnId: string, categoryId: string |
     throw new ValidationError({ categoryId: ["Payment apps carry unrelated payments, so set those one at a time"] });
   }
   await prisma.bankTransaction.update({ where: { id: txnId }, data: { categoryId, categorySource: "person" } });
-  if (!forMerchant) return 0;
+  if (!forMerchant) {
+    await (await import("./owed")).syncOwedRest();
+    return 0;
+  }
   const key = merchantKey(txn.merchant);
   if (categoryId) {
     await prisma.categoryRule.upsert({ where: { merchantKey: key }, create: { merchantKey: key, categoryId }, update: { categoryId } });

@@ -97,12 +97,25 @@ export function CategoryCell({
           className={`max-w-40 rounded-lg border border-line bg-surface px-2 py-1 text-xs ${value ? "" : "text-muted"}`}
         >
           <option value="">Uncategorized</option>
-          {categories.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-              {c.managedForOthers ? " (for others)" : ""}
-            </option>
-          ))}
+          {categories
+            .filter((c) => !c.managedForOthers)
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          {categories.some((c) => c.managedForOthers) ? (
+            // A payment back from someone goes in their name.
+            <optgroup label="People">
+              {categories
+                .filter((c) => c.managedForOthers)
+                .map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+            </optgroup>
+          ) : null}
           <option value={TRANSFER}>Transfer (not spending)</option>
           {personSet ? <option value={AUTO}>Automatic</option> : null}
         </select>

@@ -6,7 +6,8 @@ export const dynamic = "force-dynamic";
 
 /**
  * Recent transactions, newest first. `?filter=all|none|pending|in`, `?q=` to search merchants,
- * `?month=YYYY-MM` (this month and last by default). A charge split by item lists its parts.
+ * `?month=YYYY-MM` (this month and last by default). A charge split by item lists its parts; `owed`
+ * is who owes you part or all of it.
  */
 export async function GET(request: Request) {
   try {
@@ -33,6 +34,7 @@ export async function GET(request: Request) {
         guessed: false,
         peer: r.peer,
         splits: r.splits.map((p) => ({ categoryId: p.categoryId, categoryName: p.categoryName, amountCents: p.amountCents, note: p.note })),
+        owed: r.owed,
       })),
     });
   } catch (error) {

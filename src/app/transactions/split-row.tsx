@@ -112,6 +112,18 @@ function Part({ part, categories, groups }: { part: SplitPart; categories: Categ
             </option>
           ))}
         <option value={NEW}>New category…</option>
+        {categories.some((c) => c.managedForOthers) ? (
+          // Someone owes you for this item: it leaves your spending.
+          <optgroup label="Someone owes me">
+            {categories
+              .filter((c) => c.managedForOthers)
+              .map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+          </optgroup>
+        ) : null}
       </select>
       {adding ? (
         <span className="flex shrink-0 items-center gap-1.5">

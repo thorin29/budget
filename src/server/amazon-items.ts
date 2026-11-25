@@ -60,6 +60,8 @@ export async function setSplitCategory(splitId: string, categoryId: string | nul
     if (!cat) throw new ValidationError({ category: ["Pick a category"] });
   }
   await prisma.transactionSplit.update({ where: { id: split.id }, data: { categoryId } });
+  // Someone owing you for this item is about this purchase, not the item everywhere.
+  if (categoryId && ((await prisma.category.findUnique({ where: { id: categoryId }, select: { managedForOthers: true } })) as { managedForOthers: boolean } | null)?.managedForOthers) return 0;
   // A part holding several items (from before per-item splits) is fixed alone.
   const single = !!split.note && !split.note.includes("; ");
   const keys = [...new Set([...(split.itemKey ? [split.itemKey] : []), ...(single ? itemKeys(split.note) : [])])];

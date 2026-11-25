@@ -3,6 +3,26 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.115.0]
+
+### Added
+- **Owed to You:** mark part or all of a charge as owed by someone ("Someone owes me" on a
+  transaction, shown on hover; pick the person, or add one, and the amount, with Half and All).
+  Their share leaves your spending and budget right away, in the month and category of the charge;
+  the rest stays in the charge's category and follows it if the category changes. A person is a
+  "for others" category, so a payment back from them is a money-in transaction put in their name
+  (under People in the category picker), and "All from this merchant" files their later payments
+  the same way. A new Owed to You page in the side menu shows what each person owes: their charges
+  crossed off oldest first as their payments cover them, a payment that covers several charges, and
+  money paid ahead. Amazon items can be marked in the item list (under "Someone owes me"); that
+  isn't remembered for the item elsewhere.
+- Phone API: `PUT /api/v1/transactions/{id}/owed`, `GET`/`POST /api/v1/people`, and `owed` on each
+  transaction.
+
+### Fixed
+- A part of a split charge in a "for others" category no longer counts as your spending (budgets,
+  Insights, card statements), and counts in that person's balance in Insights › Money.
+
 ## [0.114.3]
 
 ### Added

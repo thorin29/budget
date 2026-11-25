@@ -152,7 +152,8 @@ export type Txn = {
   category: { name: string; managedForOthers: boolean } | null;
   account: { type: AccountType };
   actual: { id: string } | null;
-  splits: Array<{ categoryId: string | null; amount: { toString(): string } }>;
+  /** A part in a "for others" category (someone owes you for it) isn't your spending. */
+  splits: Array<{ categoryId: string | null; amount: { toString(): string }; category?: { managedForOthers: boolean } | null }>;
 };
 
 const amount = (e: { skipped: boolean; actualCents: number | null; budgetedCents: number }) => (e.skipped ? 0 : (e.actualCents ?? e.budgetedCents));
@@ -185,7 +186,7 @@ export function everydayParts(
   }
   if (!everyday) return null;
   return t.splits.length
-    ? t.splits.map((sp) => ({ categoryId: sp.categoryId, cents: cents !== 0 ? Math.round((everyday * toCents(sp.amount)) / cents) : 0 }))
+    ? t.splits.filter((sp) => !sp.category?.managedForOthers).map((sp) => ({ categoryId: sp.categoryId, cents: cents !== 0 ? Math.round((everyday * toCents(sp.amount)) / cents) : 0 }))
     : [{ categoryId: t.categoryId, cents: everyday }];
 }
 
@@ -268,7 +269,7 @@ async function buildMonthPlan(y: number, m: number): Promise<MonthPlanView> {
         category: { select: { name: true, managedForOthers: true } },
         account: { select: { type: true } },
         actual: { select: { id: true } },
-        splits: { select: { categoryId: true, amount: true } },
+        splits: { select: { categoryId: true, amount: true, category: { select: { managedForOthers: true } } } },
       },
       orderBy: { postedOn: "desc" },
     }) as Promise<Txn[]>,

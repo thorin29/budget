@@ -188,6 +188,8 @@ export interface BankTransactionView {
   peer: boolean;
   /** Parts of the charge in other categories (an Amazon order split by item), largest first. */
   splits: Array<{ id: string; categoryId: string | null; categoryName: string | null; amountCents: number; note: string | null }>;
+  /** Who owes you part or all of this charge (src/server/owed.ts). */
+  owed: { personId: string; personName: string; cents: number } | null;
 }
 
 export async function listBankTransactions({
@@ -226,7 +228,7 @@ export async function listBankTransactions({
     take: text ? 20_000 : limit,
     include: {
       account: { select: { name: true, nickname: true, institution: true } },
-      splits: { select: { id: true, categoryId: true, amount: true, note: true, category: { select: { name: true } } } },
+      splits: { select: { id: true, categoryId: true, amount: true, note: true, source: true, category: { select: { name: true } } } },
     },
   });
   return (rows as Array<{
@@ -241,7 +243,7 @@ export async function listBankTransactions({
     categoryId: string | null;
     categorySource: string;
     account: { name: string; nickname: string | null; institution: string | null };
-    splits: Array<{ id: string; categoryId: string | null; amount: { toString(): string }; note: string | null; category: { name: string } | null }>;
+    splits: Array<{ id: string; categoryId: string | null; amount: { toString(): string }; note: string | null; source: string; category: { name: string } | null }>;
   }>)
     .filter((r) => !text || r.merchant.toLowerCase().includes(text) || r.description.toLowerCase().includes(text))
     .slice(0, limit)
@@ -260,7 +262,12 @@ export async function listBankTransactions({
     categorySource: r.categorySource,
     peer: isPeerPayment(r.merchant),
     splits: r.splits
+      .filter((x) => x.source !== "owed" && x.source !== "owed-rest")
       .map((x) => ({ id: x.id, categoryId: x.categoryId, categoryName: x.category?.name ?? null, amountCents: toCents(x.amount), note: x.note }))
       .sort((a, b) => a.amountCents - b.amountCents),
+    owed: (() => {
+      const o = r.splits.find((x) => x.source === "owed");
+      return o && o.categoryId ? { personId: o.categoryId, personName: o.category?.name ?? "", cents: -toCents(o.amount) } : null;
+    })(),
   }));
 }

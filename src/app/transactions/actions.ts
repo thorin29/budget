@@ -91,3 +91,32 @@ export async function newCategoryForSplitAction(splitId: string, name: string, g
     return failure(error);
   }
 }
+
+/** Marks part or all of a charge as owed to you by a person (null clears it). */
+export async function setOwedAction(txnId: string, personId: string | null, cents: number | null): Promise<CategoryResult> {
+  try {
+    await requireUser();
+    const { setOwed } = await import("@/server/owed");
+    await setOwed(String(txnId), personId ? String(personId) : null, cents === null ? null : Number(cents));
+    revalidatePath("/transactions");
+    revalidatePath("/owed");
+    revalidatePath("/insights");
+    return { ok: true, others: 0 };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** Adds someone who can owe you money. */
+export async function addPersonAction(name: string): Promise<CategoryResult & { id?: string; name?: string }> {
+  try {
+    await requireUser();
+    const { addPerson } = await import("@/server/owed");
+    const p = await addPerson(name);
+    revalidatePath("/transactions");
+    revalidatePath("/owed");
+    return { ok: true, others: 0, id: p.id, name: p.name };
+  } catch (error) {
+    return failure(error);
+  }
+}

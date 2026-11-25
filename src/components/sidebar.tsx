@@ -40,6 +40,12 @@ const MAIN: NavItem[] = [
     icon: "list-bullets",
   },
   {
+    href: "/owed",
+    label: "Owed to You",
+    match: ["/owed"],
+    icon: "hand-coins",
+  },
+  {
     href: "/insights",
     label: "Insights",
     // The year plan is a tab of Insights.
