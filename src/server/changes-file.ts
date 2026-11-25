@@ -120,6 +120,14 @@ const Op = z.discriminatedUnion("op", [
   }),
   z.object({ op: z.literal("markTransfer"), transactionIds: ids }),
   z.object({ op: z.literal("unlinkPayment"), actualIds: ids }),
+  /** Puts a bank charge on one month of a bill (taken off any other month it was on). */
+  z.object({
+    op: z.literal("setPayment"),
+    lineItemId: id,
+    year: z.number().int().min(2000).max(2100),
+    month: z.number().int().min(1).max(12),
+    transactionId: id,
+  }),
   z.object({
     op: z.literal("addBillRule"),
     lineItemId: id,
@@ -449,6 +457,14 @@ export async function previewChanges(
       case "unlinkPayment":
         text = `Unpair ${count(op.actualIds.length, "recorded payment")} from the wrong bank charge`;
         break;
+      case "setPayment": {
+        const t = (await prisma.bankTransaction.findUnique({ where: { id: op.transactionId }, select: { postedOn: true, amount: true } })) as { postedOn: Date; amount: { toString(): string } } | null;
+        need(t, "Bank charge");
+        const when = new Date(Date.UTC(op.year, op.month - 1, 1)).toLocaleDateString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+        const paid = t ? `the ${t.postedOn.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })} charge of $${Math.abs(Number(t.amount.toString())).toFixed(2)}` : "a charge";
+        text = `${bill(op.lineItemId)}: ${when} was paid by ${paid}`;
+        break;
+      }
       case "addBillRule":
         text = op.coversAll
           ? `Every charge from "${op.merchant}" pays ${bill(op.lineItemId)}`
@@ -770,6 +786,21 @@ export async function applyChanges(
               data: { bankTransactionId: null },
             });
           break;
+        case "setPayment": {
+          const t = (await prisma.bankTransaction.findUnique({ where: { id: op.transactionId }, select: { postedOn: true, amount: true } })) as { postedOn: Date; amount: { toString(): string } };
+          const amount = Math.abs(Number(t.amount.toString())).toFixed(2);
+          // Off whatever month it was on first: a charge pays one month.
+          await prisma.actualEntry.updateMany({
+            where: { bankTransactionId: op.transactionId, NOT: { lineItemId: op.lineItemId, year: op.year, month: op.month } },
+            data: { bankTransactionId: null },
+          });
+          await prisma.actualEntry.upsert({
+            where: { lineItemId_year_month: { lineItemId: op.lineItemId, year: op.year, month: op.month } },
+            create: { lineItemId: op.lineItemId, year: op.year, month: op.month, amount, paidOn: t.postedOn, bankTransactionId: op.transactionId, source: "manual" },
+            update: { amount, paidOn: t.postedOn, bankTransactionId: op.transactionId },
+          });
+          break;
+        }
         case "addBillRule": {
           const key = merchantKey(op.merchant);
           await prisma.billRule.upsert({

@@ -3,6 +3,20 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.114.3]
+
+### Added
+- **Changes file:** `setPayment` puts a bank charge on one month of a bill
+  (`{"op": "setPayment", "lineItemId": "…", "year": 2026, "month": 10, "transactionId": "…"}`). The
+  charge comes off any other month it was on. For fixing payments counted for the wrong month.
+
+### Changed
+- **Late payments:** a payment goes to the oldest unpaid month of a bill (not skipped) for up to 75
+  days after that month's due day (was 45), so a payment weeks late still pays the month it was for.
+
+### Removed
+- The 0.114.2 rule for bills with no due day. It never ran unless a due day was cleared.
+
 ## [0.114.2]
 
 ### Fixed

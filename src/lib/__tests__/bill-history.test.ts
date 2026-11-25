@@ -1,6 +1,6 @@
 // Every bill and amount here is invented.
 import { describe, expect, it } from "vitest";
-import { anyDayMonths, knownMatch, learnedDueDay, paidAnyDay, pairRecorded, shouldMoveDueDay, type RecordedEntry } from "../bill-history";
+import { knownMatch, learnedDueDay, pairRecorded, shouldMoveDueDay, type RecordedEntry } from "../bill-history";
 import type { MatchTxn } from "../bill-match";
 
 const entry = (over: Partial<RecordedEntry> = {}): RecordedEntry => ({
@@ -82,29 +82,5 @@ describe("knownMatch", () => {
     expect(knownMatch({ knownMerchant: false, amountCents: 101_000, budgetedCents: 105_000 })).toBe(false);
     expect(knownMatch({ knownMerchant: false, amountCents: 5_000, budgetedCents: 5_000 })).toBe(false);
     expect(knownMatch({ knownMerchant: false, amountCents: 105_000, budgetedCents: 105_000, peerPayment: true })).toBe(false);
-  });
-});
-
-describe("anyDayMonths", () => {
-  const p = (id: string, postedOn: string, current: string) => ({ id, postedOn, current });
-
-  it("counts each payment for the month it was made, and a first-week payment for an unpaid month before", () => {
-    // Recorded one month ahead; a late payment on the 2nd and the month's own on the 20th.
-    const got = anyDayMonths(
-      [p("a", "2026-08-26", "2026-09"), p("b", "2026-09-29", "2026-10"), p("c", "2026-11-02", "2026-11"), p("d", "2026-11-20", "2026-12")],
-      new Set(["2026-07"]),
-      new Set(),
-    );
-    expect(Object.fromEntries(got)).toEqual({ a: "2026-08", b: "2026-09", c: "2026-10", d: "2026-11" });
-  });
-
-  it("takes over a month recorded by hand with no charge, and leaves a paid month before alone", () => {
-    const got = anyDayMonths([p("a", "2025-10-28", "2025-11"), p("b", "2025-12-03", "2025-12")], new Set(["2025-10", "2025-11"]), new Set(["2025-10"]));
-    expect(Object.fromEntries(got)).toEqual({ a: "2025-10", b: "2025-12" });
-  });
-
-  it("is for bills with no due day", () => {
-    expect(paidAnyDay(null)).toBe(true);
-    expect(paidAnyDay(1)).toBe(false);
   });
 });

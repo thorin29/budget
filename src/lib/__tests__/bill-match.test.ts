@@ -125,3 +125,12 @@ describe("findRepeats", () => {
     expect(findRepeats([r("2026-09-09", -1_000), r("2026-10-09", -1_000)])).toEqual([]);
   });
 });
+
+describe("a late payment", () => {
+  it("pays the oldest unpaid month first, even weeks late", () => {
+    const due = { lineItemId: "g", name: "Giving", dueDay: 1, budgetedCents: 50_000 };
+    const open = [bill({ ...due, year: 2026, month: 10, overdue: true }), bill({ ...due, year: 2026, month: 11 })];
+    const got = suggestMatches(open, [txn({ id: "late", postedOn: "2026-11-24", amountCents: -50_000, merchant: "Giving Fund", merchantKey: "k-giving" })], new Map([["k-giving", new Set(["g"])]]), new Set());
+    expect(got.map((s) => [s.month, s.txnId])).toEqual([[10, "late"]]);
+  });
+});

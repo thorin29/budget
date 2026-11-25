@@ -72,7 +72,7 @@ function dueIso(bill: MatchBill): string {
 export const WINDOW_BEFORE = 12;
 export const WINDOW_AFTER = 12;
 /** How long after its due day an overdue bill can still be matched. */
-export const WINDOW_OVERDUE = 45;
+export const WINDOW_OVERDUE = 75;
 
 /** Both in the same category, by name (case aside). */
 function sameCategory(a: string | null | undefined, b: string | null | undefined): boolean {
