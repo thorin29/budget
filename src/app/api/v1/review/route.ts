@@ -38,6 +38,8 @@ export async function GET(request: Request) {
       recorded: auto.recorded,
       moved: auto.moved,
       count: review.count,
+      // Payment-app money in that adds up to someone's charges, to approve (server 0.116+).
+      paybacks: await (await import("@/server/owed")).paybacksToApprove().catch(() => []),
     });
   } catch (error) {
     return fail(error);

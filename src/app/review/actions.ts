@@ -101,3 +101,42 @@ export async function dueDayAction(lineItemId: string, keep: boolean): Promise<R
     return failure(error);
   }
 }
+
+/** Approves a payment back: puts it in the person's name, tied to the charges it adds up to. */
+export async function approvePaybackAction(personId: string, txnId: string, chargeKeys: string[]): Promise<ReviewState> {
+  try {
+    await requireUser();
+    const { linkPayback } = await import("@/server/owed");
+    await linkPayback(String(personId), String(txnId), chargeKeys.map(String));
+    done();
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** "Not this": stops suggesting that payment for that person. */
+export async function dismissPaybackAction(personId: string, txnId: string): Promise<ReviewState> {
+  try {
+    await requireUser();
+    const { dismissMatch } = await import("@/server/owed");
+    await dismissMatch(String(personId), String(txnId));
+    done();
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}
+
+/** Unties a payment from charges and takes it out of the person's name. */
+export async function unlinkPaybackAction(txnId: string): Promise<ReviewState> {
+  try {
+    await requireUser();
+    const { unlinkPayback } = await import("@/server/owed");
+    await unlinkPayback(String(txnId));
+    done();
+    return { ok: true };
+  } catch (error) {
+    return failure(error);
+  }
+}

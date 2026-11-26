@@ -202,7 +202,8 @@ export async function phoneToday(): Promise<PhoneToday> {
   const needsYou: PhoneToday["needsYou"] = [];
   for (const b of plan.bills.items.filter((x) => x.status === "pending")) needsYou.push({ kind: "pending", text: `${b.name} payment at the bank`, cents: b.cents, target: "tracker" });
   for (const b of plan.bills.items.filter((x) => x.status === "overdue")) needsYou.push({ kind: "overdue", text: `${b.name} is overdue`, cents: b.cents, target: "tracker" });
-  const toReview = (review?.count ?? 0) + uncategorized.length;
+  const paybacks = await (await import("./owed")).paybacksToApprove().catch(() => []);
+  const toReview = (review?.count ?? 0) + uncategorized.length + paybacks.length;
   if (toReview) needsYou.push({ kind: "review", text: `${toReview} ${toReview === 1 ? "item" : "items"} to review`, cents: null, target: "review" });
   for (const g of plan.groups.filter((x) => x.overCents > 0 && x.tier !== "SORT")) needsYou.push({ kind: "over", text: `${g.name}, past its budget`, cents: g.overCents, target: "budget" });
   const { cardFileDue } = await import("./card-holders");
@@ -379,7 +380,8 @@ export async function phoneAlerts(): Promise<PhoneAlert[]> {
   for (const g of plan.groups.filter((x) => x.overCents > 0 && x.tier !== "SORT")) out.push({ key: `over:${g.id}:${plan.month}`, kind: "budgetOver", title: `${g.name} is ${whole(g.overCents)} over`, body: `For ${new Date(`${plan.month}-01T00:00:00Z`).toLocaleDateString("en-US", { month: "long", timeZone: "UTC" })}`, open: "budget" });
   const unplanned = plan.groups.filter((g) => g.tier === "UNPLANNED").reduce((s, g) => s + g.spentCents, 0);
   if (reserve > 0 && unplanned > reserve) out.push({ key: `reserve:${plan.month}`, kind: "reserveUsed", title: "Unplanned spending passed the reserve", body: `${whole(unplanned)} of ${whole(reserve)}`, open: "budget" });
-  const toReview = (review?.count ?? 0) + uncategorized.length;
+  const paybacks = await (await import("./owed")).paybacksToApprove().catch(() => []);
+  const toReview = (review?.count ?? 0) + uncategorized.length + paybacks.length;
   if (toReview) out.push({ key: `review:${today}`, kind: "review", title: `${toReview} ${toReview === 1 ? "item" : "items"} to review`, body: "Open Review to check them", open: "review" });
   const lastSync = conn?.lastSuccessAt ?? null;
   if (lastSync && Date.now() - lastSync.getTime() > 24 * 3_600_000) out.push({ key: `sync:${lastSync.toISOString()}`, kind: "syncStopped", title: "No new bank data for a day", body: "Check the bank connection on the web", open: "today" });

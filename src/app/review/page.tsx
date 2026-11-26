@@ -15,6 +15,8 @@ import { AutoRecordedRow, DueDayRow, LooksPaidCard, RepeatCard } from "./cards";
 import { listCategories } from "@/server/categories";
 import { needsCategory } from "@/server/needs-category";
 import { CategoryCell } from "../transactions/category-cell";
+import { paybacksToApprove } from "@/server/owed";
+import { PaybackCard } from "../owed/payback-card";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +25,10 @@ const short = (iso: string) => new Date(`${iso}T00:00:00Z`).toLocaleDateString("
 export default async function ReviewPage() {
   const [review, auto, categoryRows, uncategorized, amazon] = await Promise.all([getReview(), recentAutomation(), listCategories(), needsCategory().catch(() => []), amazonAlert().catch(() => null)]);
   const cardFile = await cardFileDue().catch(() => ({ due: false, since: null }));
+  const paybacks = await paybacksToApprove().catch(() => []);
   const categories = categoryRows.map((c) => ({ id: c.id, name: c.name }));
   const options = categoryRows.map((c) => ({ id: c.id, name: c.name, managedForOthers: c.managedForOthers }));
-  const waiting = review.count + auto.moved.length + uncategorized.length + (amazon ? 1 : 0) + (cardFile.due ? 1 : 0);
+  const waiting = review.count + auto.moved.length + uncategorized.length + (amazon ? 1 : 0) + (cardFile.due ? 1 : 0) + paybacks.length;
 
   // Recorded payments grouped by bill, newest month first, bills with the newest payment first.
   const byBill = new Map<string, typeof auto.recorded>();
@@ -58,6 +61,16 @@ export default async function ReviewPage() {
               <span className="font-semibold text-warn">Card file due</span>
               <span className="text-muted">Load this month&rsquo;s file for cards used by others</span>
             </Link>
+          ) : null}
+          {paybacks.length ? (
+            <section>
+              <h3 className="mb-1.5 text-xs font-bold uppercase tracking-wider text-muted">Paid Back?</h3>
+              <ul className="space-y-2">
+                {paybacks.map((p) => (
+                  <PaybackCard key={`${p.personId}:${p.txnId}`} item={p} />
+                ))}
+              </ul>
+            </section>
           ) : null}
           {review.looksPaid.length ? (
             <section>

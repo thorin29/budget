@@ -215,6 +215,11 @@ Owed to you: `PUT /api/v1/transactions/{id}/owed` with `{personId, cents?}` (par
 charge someone owes you; `personId: null` clears it), `GET /api/v1/people` (who can owe you, with
 what each owes now) and `POST /api/v1/people` with `{name}`. Each transaction in
 `GET /api/v1/transactions` carries `owed` (`{personId, personName, cents}` or null).
+`GET /api/v1/owed` lists each person's charges, payments back, what's open, and payments that add
+up to some of their charges; `POST /api/v1/owed/link` with `{personId, txnId, chargeKeys}` ties a
+payment to charges, `POST /api/v1/owed/unlink` with `{txnId}` unties it, and
+`POST /api/v1/owed/dismiss` with `{personId, txnId}` stops suggesting it. `GET /api/v1/review`
+carries `paybacks` (payment-app money in that adds up to someone's charges, to approve).
 
 Amazon extension (an `amazon`-scoped token): `GET /api/v1/amazon/status`, `GET /api/v1/amazon/unsplit` (Amazon charges not split yet), `POST /api/v1/amazon/orders` with `{orders: [{orderId, orderDate, items: [{name, cents, quantity, shipmentKey, shipDate, productId?, category?}], charges: [{date, cents, last4}]}]}` (splits matching Amazon charges; counts only back), and `POST /api/v1/amazon/runs` with `{status, failedSection?, extensionVersion, ordersWaiting}`.
 

@@ -621,6 +621,8 @@ model BankTransaction {
   /// Shares of this charge in other categories (an Amazon order's items). When
   /// present they replace the transaction's own category in spending totals.
   splits TransactionSplit[]
+  /// Payments back from someone who owed you, tied to their charges.
+  owedLinks OwedLink[] @relation("OwedPayback")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -682,6 +684,20 @@ model CategoryRule {
   category    Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+}
+
+/// A payment back tied to a charge someone owes you for (src/server/owed.ts). `chargeKey` is the
+/// charge's owed part (a split id) or, for a charge wholly theirs, its transaction id.
+model OwedLink {
+  id            String          @id @default(cuid())
+  paybackId     String
+  payback       BankTransaction @relation("OwedPayback", fields: [paybackId], references: [id], onDelete: Cascade)
+  chargeKey     String
+  amount        Decimal         @db.Decimal(12, 2)
+  createdAt     DateTime        @default(now())
+
+  @@index([paybackId])
+  @@index([chargeKey])
 }
 
 /// Part of one charge in a category, from the items in an order. The parts of

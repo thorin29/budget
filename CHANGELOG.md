@@ -3,6 +3,22 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.116.0]
+
+### Added
+- **Owed to You, linking payments:** each person shows their open charges (tick any), payments
+  that add up exactly to some of them (Link, or Not this), and what's been paid back (Unlink). Tick
+  charges and pick any payment to tie them by hand. A tied payment covers those charges; a payment
+  in their name that isn't tied still covers their oldest charges. Ledger suggests money in from the
+  last six months that adds up exactly, from a payment app or transfer or from a sender already in
+  their name.
+- **Review › Paid back?:** Zelle, Venmo, PayPal, Cash App and transfer money in that adds up
+  exactly to someone's charges waits for approval ("Yes, link it" or "Not this"), on the web and
+  the phone, and counts toward the items to review.
+- Database: `OwedLink` (migration 0029).
+- Phone API: `GET /api/v1/owed`, `POST /api/v1/owed/link`, `/unlink`, `/dismiss`, and `paybacks`
+  on `GET /api/v1/review`.
+
 ## [0.115.0]
 
 ### Added

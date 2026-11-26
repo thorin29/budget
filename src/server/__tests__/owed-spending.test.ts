@@ -36,3 +36,18 @@ describe("someone else's share of a charge", () => {
     expect(everydayParts(txn({ splits: [{ categoryId: "jordan", amount: "-88.15", category: { managedForOthers: true } }] }), () => false, [])).toEqual([]);
   });
 });
+
+describe("a payment that adds up to charges", () => {
+  it("finds the fewest charges that add up exactly", async () => {
+    const { chargesAddingUpTo } = await import("../owed");
+    const open = [
+      { key: "a", cents: 5000 },
+      { key: "b", cents: 1230 },
+      { key: "c", cents: 7065 },
+      { key: "d", cents: 6230 },
+    ];
+    expect(chargesAddingUpTo(open, 6230)).toEqual(["d"]);
+    expect(chargesAddingUpTo(open, 8295)).toEqual(["b", "c"]);
+    expect(chargesAddingUpTo(open, 999)).toBeNull();
+  });
+});
