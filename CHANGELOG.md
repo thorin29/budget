@@ -3,6 +3,18 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.117.0]
+
+### Added
+- **Loyalty Cards:** the household's store cards, shared between everyone signed in. A new page in
+  the side menu shows them as tiles; open one for its barcode and number, and change the store,
+  number, barcode type (or let it follow the number), member name, color, and image. Images
+  (a photo of the card, or one made for it) are uploaded through the page or the phone and kept in
+  the database, never in the repo. Card numbers and member names are encrypted.
+- Phone API: `/api/v1/loyalty`, `/api/v1/loyalty/{id}`, `/api/v1/loyalty/{id}/image` and
+  `/api/v1/loyalty/{id}/used`.
+- Database: `LoyaltyCard` (migration 0030). Dependency: `bwip-js` draws barcodes on the web.
+
 ## [0.116.0]
 
 ### Added

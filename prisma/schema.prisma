@@ -761,3 +761,24 @@ model AmazonSync {
   ordersWaiting    Int       @default(0)
   updatedAt        DateTime  @updatedAt
 }
+
+/// A store loyalty card the household shares (src/server/loyalty.ts). The number and member name
+/// are encrypted; the image (a photo of the card, or one made for it) lives here, never in the repo.
+model LoyaltyCard {
+  id           String    @id @default(cuid())
+  name         String
+  number       String
+  /// Barcode type, as ZXing names it (CODE_128, UPC_A, EAN_13, QR_CODE, PDF_417, ...).
+  format       String    @default("CODE_128")
+  /// Tile color when there's no image, "#rrggbb".
+  color        String    @default("#334155")
+  memberName   String?
+  image        Bytes?
+  imageType    String?
+  /// Goes up with each new image, so phones know to fetch it again.
+  imageVersion Int       @default(0)
+  useCount     Int       @default(0)
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+}

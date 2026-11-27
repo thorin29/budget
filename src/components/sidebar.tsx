@@ -40,6 +40,12 @@ const MAIN: NavItem[] = [
     icon: "list-bullets",
   },
   {
+    href: "/loyalty",
+    label: "Loyalty Cards",
+    match: ["/loyalty"],
+    icon: "barcode",
+  },
+  {
     href: "/owed",
     label: "Owed to You",
     match: ["/owed"],

@@ -221,6 +221,13 @@ payment to charges, `POST /api/v1/owed/unlink` with `{txnId}` unties it, and
 `POST /api/v1/owed/dismiss` with `{personId, txnId}` stops suggesting it. `GET /api/v1/review`
 carries `paybacks` (payment-app money in that adds up to someone's charges, to approve).
 
+Loyalty cards: `GET /api/v1/loyalty` (the household's cards, most used first), `POST` the same
+with `{name, number, format?, color?, memberName?}`, `PUT`/`DELETE /api/v1/loyalty/{id}`,
+`GET`/`PUT`/`DELETE /api/v1/loyalty/{id}/image` (the image itself as the body: JPEG, PNG or WebP up
+to 2 MB) and `POST /api/v1/loyalty/{id}/used`. `format` is ZXing's name for the barcode type
+(`CODE_128`, `UPC_A`, `EAN_13`, `QR_CODE`, `PDF_417`, …). Card numbers are encrypted; images are
+kept in the database.
+
 Amazon extension (an `amazon`-scoped token): `GET /api/v1/amazon/status`, `GET /api/v1/amazon/unsplit` (Amazon charges not split yet), `POST /api/v1/amazon/orders` with `{orders: [{orderId, orderDate, items: [{name, cents, quantity, shipmentKey, shipDate, productId?, category?}], charges: [{date, cents, last4}]}]}` (splits matching Amazon charges; counts only back), and `POST /api/v1/amazon/runs` with `{status, failedSection?, extensionVersion, ordersWaiting}`.
 
 ## Bank sync

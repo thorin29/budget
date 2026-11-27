@@ -1,6 +1,6 @@
 {
   "name": "budget",
-  "version": "0.116.0",
+  "version": "0.117.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -19,6 +19,7 @@
     "@fontsource-variable/figtree": "5.2.10",
     "@prisma/adapter-pg": "7.10.1",
     "@prisma/client": "7.10.1",
+    "bwip-js": "4.11.4",
     "next": "16.4.6",
     "pg": "8.23.1",
     "qrcode": "1.5.4",
