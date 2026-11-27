@@ -38,6 +38,8 @@ export interface LoyaltyCardView {
   memberName: string | null;
   /** 0 when there's no image; goes up with each new one. */
   imageVersion: number;
+  /** "image/png" or "image/webp" when the image may be see-through (a logo), "image/jpeg" for a picture. */
+  imageType: string | null;
   useCount: number;
   lastUsedAt: string | null;
 }
@@ -59,9 +61,9 @@ function checkDigitOk(n: string): boolean {
   return (10 - (sum % 10)) % 10 === check;
 }
 
-const select = { id: true, name: true, number: true, format: true, color: true, memberName: true, imageVersion: true, image: false, useCount: true, lastUsedAt: true } as const;
+const select = { id: true, name: true, number: true, format: true, color: true, memberName: true, imageVersion: true, imageType: true, image: false, useCount: true, lastUsedAt: true } as const;
 
-function view(r: { id: string; name: string; number: string; format: string; color: string; memberName: string | null; imageVersion: number; useCount: number; lastUsedAt: Date | null }): LoyaltyCardView {
+function view(r: { id: string; name: string; number: string; format: string; color: string; memberName: string | null; imageVersion: number; imageType: string | null; useCount: number; lastUsedAt: Date | null }): LoyaltyCardView {
   return { ...r, format: (FORMATS as readonly string[]).includes(r.format) ? (r.format as Format) : "CODE_128", lastUsedAt: r.lastUsedAt?.toISOString() ?? null };
 }
 

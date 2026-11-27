@@ -4,7 +4,7 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { deleteCardAction, saveCardAction, setImageAction } from "./actions";
 
-export const COLORS = ["#7c2d12", "#b91c1c", "#b45309", "#166534", "#0f766e", "#1e3a8a", "#2851d6", "#6b21a8", "#be185d", "#334155", "#111827"];
+export const COLORS = ["#ffffff", "#7c2d12", "#b91c1c", "#b45309", "#166534", "#0f766e", "#1e3a8a", "#2851d6", "#6b21a8", "#be185d", "#334155", "#111827"];
 
 export interface EditorCard {
   id: string;
@@ -16,15 +16,19 @@ export interface EditorCard {
   imageVersion: number;
 }
 
-/** Shrinks a photo to at most 1000 px wide, as JPEG, before it's sent. */
+/** Shrinks an image to at most 1000 px wide before it's sent: PNG when it has see-through parts (a logo), else JPEG. */
 async function shrink(file: File): Promise<Blob> {
   const bmp = await createImageBitmap(file);
   const scale = Math.min(1, 1000 / bmp.width);
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bmp.width * scale);
   canvas.height = Math.round(bmp.height * scale);
-  canvas.getContext("2d")!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
-  return await new Promise((ok) => canvas.toBlob((b) => ok(b!), "image/jpeg", 0.85));
+  const ctx = canvas.getContext("2d")!;
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const px = ctx.getImageData(0, 0, canvas.width, canvas.height).data;
+  let clear = false;
+  for (let i = 3; i < px.length; i += 4) if (px[i] < 250) { clear = true; break; }
+  return await new Promise((ok) => canvas.toBlob((b) => ok(b!), clear ? "image/png" : "image/jpeg", 0.85));
 }
 
 /** Add or change a loyalty card: store, number, barcode type, member, and its look. */
@@ -48,7 +52,8 @@ export function CardEditor({ card, formats, onDone }: { card: EditorCard | null;
       const picked = file.current?.files?.[0];
       if (picked && r.id) {
         const form = new FormData();
-        form.set("image", await shrink(picked), "card.jpg");
+        const img = await shrink(picked);
+        form.set("image", img, img.type === "image/png" ? "card.png" : "card.jpg");
         const up = await setImageAction(r.id, form);
         if (!up.ok) return setNote(up.message);
       }
@@ -93,7 +98,7 @@ export function CardEditor({ card, formats, onDone }: { card: EditorCard | null;
         <span className="text-xs font-semibold text-muted">Look</span>
         <div className="flex flex-wrap items-center gap-2">
           {COLORS.map((c) => (
-            <button key={c} type="button" aria-label={`Color ${c}`} onClick={() => setColor(c)} className={`size-7 rounded-full ${color === c ? "ring-2 ring-foreground ring-offset-2" : ""}`} style={{ background: c }} />
+            <button key={c} type="button" aria-label={`Color ${c}`} onClick={() => setColor(c)} className={`size-7 rounded-full border border-line ${color === c ? "ring-2 ring-foreground ring-offset-2" : ""}`} style={{ background: c }} />
           ))}
           <label className="ml-2 cursor-pointer rounded-full border border-line px-3 py-1 text-xs font-semibold">
             {card?.imageVersion ? "Replace image…" : "Add an image…"}

@@ -3,6 +3,14 @@
 Notable changes to this project. Versions follow [semantic versioning](https://semver.org):
 the minor number moves when features land, the patch number for fixes.
 
+## [0.117.1]
+
+### Fixed
+- **Loyalty card images keep see-through backgrounds.** A PNG logo was turned into a JPEG on
+  upload, so its clear background came out black. Images with see-through parts now stay PNG and
+  sit whole on the card's color; pictures still fill the card. White is a new card color, with dark
+  text on light colors. Re-upload an image that came out black.
+
 ## [0.117.0]
 
 ### Added

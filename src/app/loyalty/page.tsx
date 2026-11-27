@@ -66,15 +66,24 @@ export default async function LoyaltyPage({ searchParams }: { searchParams: Prom
   );
 }
 
-function Tile({ card, big = false }: { card: { id: string; name: string; color: string; memberName: string | null; imageVersion: number }; big?: boolean }) {
+/** Light colors (like white) get dark text. */
+const isLight = (hex: string) => {
+  const n = parseInt(hex.slice(1), 16);
+  return 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255) > 170;
+};
+
+function Tile({ card, big = false }: { card: { id: string; name: string; color: string; memberName: string | null; imageVersion: number; imageType: string | null }; big?: boolean }) {
+  const light = isLight(card.color);
+  // A see-through image (a logo) sits whole on the card's color; a picture fills the card.
+  const logo = card.imageType !== "image/jpeg";
   return (
-    <div className={`relative overflow-hidden rounded-2xl text-white ${big ? "aspect-[1.586]" : "aspect-[1.586]"}`} style={{ background: card.color }}>
+    <div className={`relative aspect-[1.586] overflow-hidden rounded-2xl ${light ? "text-foreground ring-1 ring-line" : "text-white"}`} style={{ background: card.color }}>
       {card.imageVersion ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={`/loyalty/${card.id}/image?v=${card.imageVersion}`} alt={card.name} className="absolute inset-0 size-full object-cover" />
+        <img src={`/loyalty/${card.id}/image?v=${card.imageVersion}`} alt={card.name} className={`absolute inset-0 size-full ${logo ? "object-contain p-[8%]" : "object-cover"}`} />
       ) : (
         <div className="flex h-full flex-col justify-between p-3">
-          <span className="ml-auto flex size-8 items-center justify-center rounded-full bg-white/25 text-xs font-extrabold">{initials(card.name)}</span>
+          <span className={`ml-auto flex size-8 items-center justify-center rounded-full text-xs font-extrabold ${light ? "bg-black/10" : "bg-white/25"}`}>{initials(card.name)}</span>
           <span>
             {card.memberName ? <span className="block text-[11px] opacity-85">{card.memberName}</span> : null}
             <b className={big ? "text-xl" : "text-[15px]"}>{card.name}</b>
